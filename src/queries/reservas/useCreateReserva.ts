@@ -7,16 +7,18 @@ import type { CreateReservaInput, Reserva } from "@/types/volbogota";
 /**
  * Enrolls a volunteer in a shift.
  *
- * On success, occupancy changed, so shift and availability caches are
- * invalidated. Callers should handle `ApiClientError` (409 quota/duplicate,
- * 422 validation) from `mutateAsync` / `onError`.
+ * Occupancy changes whether the booking succeeds or loses a race, so the shift
+ * and availability caches are invalidated on `onSettled` (both paths). That way
+ * a 409 ("shift full") immediately refreshes the selector instead of leaving it
+ * showing stale cupos until the next poll. Callers should handle `ApiClientError`
+ * (409 quota/duplicate, 422 validation) from `mutateAsync` / `onError`.
  */
 export default function useCreateReserva() {
   const queryClient = useQueryClient();
 
   return useMutation<Reserva, unknown, CreateReservaInput>({
     mutationFn: createReserva,
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.turnos.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.disponibilidad });
     },
