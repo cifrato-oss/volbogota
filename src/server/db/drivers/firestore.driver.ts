@@ -1,8 +1,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-import { applicationDefault, cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { getVercelOidcToken } from "@vercel/oidc";
+import {
+  applicationDefault,
+  cert,
+  getApps,
+  initializeApp,
+  type App,
+  type Credential,
+} from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { ExternalAccountClient, type BaseExternalAccountClient } from "google-auth-library";
 
 import { env, isProduction } from "@/server/config/env";
 import { serviceUnavailable } from "@/server/http/errors";
@@ -46,6 +55,36 @@ function createApp(): App {
   }
 
   /**
+   * Workload Identity Federation: how the Vercel deployment authenticates with
+   * no key at all. Vercel mints a short-lived OIDC token per request; Google
+   * exchanges it for credentials scoped to this one service account, through
+   * the pool and provider configured in GCP. `getVercelOidcToken` only resolves
+   * inside a Vercel runtime, which is the only place this branch is expected to
+   * run — everywhere else the four identifiers are absent and this is skipped.
+   */
+  if (env.gcpWorkloadIdentity.configured) {
+    const { projectNumber, serviceAccountEmail, poolId, providerId } = env.gcpWorkloadIdentity;
+
+    const authClient = ExternalAccountClient.fromJSON({
+      type: "external_account",
+      audience: `//iam.googleapis.com/projects/${projectNumber}/locations/global/workloadIdentityPools/${poolId}/providers/${providerId}`,
+      subject_token_type: "urn:ietf:params:oauth:token-type:jwt",
+      token_url: "https://sts.googleapis.com/v1/token",
+      service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${serviceAccountEmail}:generateAccessToken`,
+      subject_token_supplier: { getSubjectToken: getVercelOidcToken },
+    });
+
+    if (!authClient) {
+      throw new Error("ExternalAccountClient.fromJSON rechazó la configuración de WIF.");
+    }
+
+    return initializeApp({
+      credential: externalAccountCredential(authClient),
+      projectId: env.firebase.projectId || undefined,
+    });
+  }
+
+  /**
    * Otherwise fall back to Application Default Credentials.
    *
    * Downloadable service-account keys are not always an option: an
@@ -75,6 +114,32 @@ function createApp(): App {
           "(FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY en .env), o credenciales por " +
           "defecto (`gcloud auth application-default login`).",
   );
+}
+
+/**
+ * Adapts google-auth-library's client to the shape firebase-admin expects.
+ * The two disagree on both the field name (`token` vs `access_token`) and what
+ * they report about expiry: google-auth-library caches an absolute `expiry_date`
+ * on the client after a call, firebase-admin wants a relative `expires_in`. The
+ * 55-minute fallback covers the rare case a fresh client has not populated one
+ * yet — comfortably under Google's usual 60-minute token lifetime, so
+ * firebase-admin still refreshes before the token actually expires.
+ */
+function externalAccountCredential(authClient: BaseExternalAccountClient): Credential {
+  return {
+    async getAccessToken() {
+      const { token } = await authClient.getAccessToken();
+      if (!token) {
+        throw new Error("Google no devolvió un access token para el ExternalAccountClient.");
+      }
+
+      const expiryMs = authClient.credentials?.expiry_date ?? Date.now() + 55 * 60 * 1000;
+      return {
+        access_token: token,
+        expires_in: Math.max(0, Math.round((expiryMs - Date.now()) / 1000)),
+      };
+    },
+  };
 }
 
 /**
