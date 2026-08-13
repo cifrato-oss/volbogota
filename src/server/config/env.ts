@@ -74,6 +74,11 @@ const serverSchema = z.object({
   // behaviour before the script is deployed. It reuses SHEETS_HOOK_TOKEN, since
   // both ends of the same sync answer to the same shared secret.
   SHEETS_WEBHOOK_URL: z.url("Debe ser la URL del despliegue del Apps Script.").optional(),
+
+  // Id de la hoja maestra, el trozo de su URL entre /d/ y /edit. Con él, un
+  // backend vacío se llena leyendo el CSV publicado de la hoja, sin esperar a
+  // que alguien la edite y sin credenciales de Google.
+  SHEET_ID: z.string().min(10).optional(),
 });
 
 const clientSchema = z.object({
@@ -159,6 +164,7 @@ const parsed = serverSchema
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
     SHEETS_HOOK_TOKEN: process.env.SHEETS_HOOK_TOKEN,
     SHEETS_WEBHOOK_URL: process.env.SHEETS_WEBHOOK_URL,
+    SHEET_ID: process.env.SHEET_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -199,6 +205,7 @@ export const env = {
   adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
   sheetsHookToken: parsed.data.SHEETS_HOOK_TOKEN ?? null,
   sheetsWebhookUrl: parsed.data.SHEETS_WEBHOOK_URL ?? null,
+  sheetId: parsed.data.SHEET_ID ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

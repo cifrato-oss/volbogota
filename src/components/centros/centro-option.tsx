@@ -1,74 +1,90 @@
-import { Check, MapPin } from "lucide-react";
+import { ArrowRight, Clock, MapPin } from "lucide-react";
+import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { JORNADA_ORDER } from "@/constants/jornadas";
+import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
 import { formatNumero } from "@/lib/format-numero";
 import { cn } from "@/lib/utils";
 import type { Centro } from "@/types/volbogota";
 
 type CentroOptionProps = {
   centro: Centro;
-  selected: boolean;
-  onSelect: (id: string) => void;
+  /** Where tapping this center goes, e.g. `/centros/vive-claro`. */
+  href: string;
+  /** Show cupos per shift — relevant when volunteering, not when donating. */
+  mostrarCupos?: boolean;
 };
 
-/**
- * Selectable center in the "choose a center" flow. Rendered as a full-width,
- * tappable card — the primary target on mobile.
- */
-export function CentroOption({ centro, selected, onSelect }: CentroOptionProps) {
-  const totalCupos = JORNADA_ORDER.reduce(
-    (sum, jornada) => sum + (centro.cuposPorJornada[jornada] ?? 0),
-    0,
+function EstadoActivo({ activo }: { activo: boolean }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-xs font-medium">
+      <span className="relative flex size-2.5" aria-hidden>
+        {activo ? (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        ) : null}
+        <span
+          className={cn(
+            "relative inline-flex size-2.5 rounded-full",
+            activo ? "bg-emerald-500" : "bg-muted-foreground/40",
+          )}
+        />
+      </span>
+      <span className={activo ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}>
+        {activo ? "Activo" : "Inactivo"}
+      </span>
+    </span>
   );
+}
+
+/** A center in the picker. Tapping it navigates straight to the center page. */
+export function CentroOption({ centro, href, mostrarCupos = true }: CentroOptionProps) {
+  const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(centro.id)}
-      aria-pressed={selected}
-      className={cn(
-        "bg-card flex h-full w-full flex-col rounded-xl border p-4 text-left transition-colors",
-        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-        selected
-          ? "border-primary ring-primary/40 ring-2"
-          : "border-border hover:border-foreground/25",
-      )}
+    <Link
+      href={href}
+      className="group bg-card border-border hover:border-primary focus-visible:border-primary focus-visible:ring-primary/30 flex h-full flex-col overflow-hidden rounded-xl border transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:outline-none"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h3 className="leading-snug font-medium">{centro.nombre}</h3>
-          <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-            <MapPin className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">
-              {centro.localidad}
-              {centro.direccion ? ` · ${centro.direccion}` : ""}
-            </span>
-          </p>
+      <div className="border-border bg-muted/40 group-hover:bg-primary/5 relative border-b px-8 py-3 transition-colors">
+        <h3 className="text-center leading-snug font-semibold tracking-tight">{centro.nombre}</h3>
+        <ArrowRight
+          className="text-muted-foreground group-hover:text-primary absolute top-1/2 right-3 size-4 -translate-y-1/2 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="space-y-1">
+          {ubicacion ? (
+            <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+              <MapPin className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{ubicacion}</span>
+            </p>
+          ) : null}
+          {centro.horarioOficial ? (
+            <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+              <Clock className="size-3.5 shrink-0" aria-hidden />
+              <span className="truncate">{centro.horarioOficial}</span>
+            </p>
+          ) : null}
         </div>
 
-        <span
-          aria-hidden
-          className={cn(
-            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border",
-            selected ? "border-primary bg-primary text-primary-foreground" : "border-border",
-          )}
-        >
-          {selected ? <Check className="size-3.5" /> : null}
-        </span>
-      </div>
+        <EstadoActivo activo={centro.activo} />
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {centro.actividades.map((actividad) => (
-          <Badge key={actividad} variant="secondary">
-            {actividad}
-          </Badge>
-        ))}
+        {mostrarCupos ? (
+          <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
+            {JORNADAS_VOLUNTARIADO.map((jornada) => (
+              <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
+                <dt className="text-muted-foreground text-[11px]">
+                  <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
       </div>
-
-      <p className="text-muted-foreground mt-3 pt-1 text-xs md:mt-auto">
-        {formatNumero(totalCupos)} cupos por día
-      </p>
-    </button>
+    </Link>
   );
 }

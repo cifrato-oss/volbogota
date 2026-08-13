@@ -101,6 +101,12 @@ export type ResultadoEmpuje = {
 /** Apps Script can be slow to wake; past this the booking should not keep waiting. */
 const TIMEOUT_MS = 8000;
 
+/** Todo fallo se registra: un push que no llega no puede ser invisible. */
+function fallo(reservas: number, error: string): ResultadoEmpuje {
+  logger.warn("No se pudo empujar a la hoja", { reservas, motivo: error });
+  return { enviadas: 0, ok: false, error };
+}
+
 /**
  * Sends reservations to the sheet. Never throws.
  *
@@ -134,7 +140,7 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
     });
 
     if (!respuesta.ok) {
-      return { enviadas: 0, ok: false, error: `La hoja respondió ${respuesta.status}.` };
+      return fallo(reservas.length, `La hoja respondió ${respuesta.status}.`);
     }
 
     /**
@@ -150,17 +156,15 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
     try {
       confirmacion = JSON.parse(texto) as { success?: boolean; error?: string };
     } catch {
-      return {
-        enviadas: 0,
-        ok: false,
-        error:
-          "La hoja respondió algo que no es JSON. Suele significar que el despliegue " +
-          "no tiene doPost, o que 'Quién tiene acceso' no está en 'Cualquiera'.",
-      };
+      return fallo(
+        reservas.length,
+        "La hoja respondió algo que no es JSON. Suele ser un doPost que revienta, " +
+          "un despliegue en una versión vieja, o 'Quién tiene acceso' distinto de 'Cualquiera'.",
+      );
     }
 
     if (!confirmacion.success) {
-      return { enviadas: 0, ok: false, error: confirmacion.error ?? "La hoja rechazó el envío." };
+      return fallo(reservas.length, confirmacion.error ?? "La hoja rechazó el envío.");
     }
 
     logger.info("Reservas empujadas a la hoja", { reservas: reservas.length });
@@ -174,9 +178,7 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
           ? error.message
           : "Error inesperado.";
 
-    logger.warn("No se pudo empujar a la hoja", { reservas: reservas.length, motivo });
-
-    return { enviadas: 0, ok: false, error: motivo };
+    return fallo(reservas.length, motivo);
   } finally {
     // Left pending, the timer keeps the event loop alive well past the response.
     clearTimeout(timeout);

@@ -66,7 +66,7 @@ export function ReservaConfirmacion({ reserva }: { reserva: Reserva }) {
         {turno.direccion ? <Row label="Dirección" value={turno.direccion} /> : null}
       </dl>
 
-      <Button variant="outline" render={<Link href="/" />}>
+      <Button variant="outline" nativeButton={false} render={<Link href="/" />}>
         Volver al inicio
       </Button>
     </div>

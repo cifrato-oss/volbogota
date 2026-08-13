@@ -136,21 +136,39 @@ function readOptional(row: ExcelJS.Row, column: number | null): string | null {
   return column === null ? null : cellText(row, column);
 }
 
+/** A jornada the file does not model is zero cupos, not a broken import. */
+function cuposDe(row: ExcelJS.Row, column: number | null): number {
+  return column ? cellNumber(row, column) : 0;
+}
+
 // --- Centros ----------------------------------------------------------------
 
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   const sheet = workbook.getWorksheet("Centros");
   if (!sheet) throw new Error("El archivo no tiene la hoja 'Centros'.");
 
-  const { headerRow, columna } = mapearColumnas(sheet, ["direccion", "cupos manana"]);
+  const { headerRow, columna } = mapearColumnas(sheet, ["direccion"]);
 
   // The point's name column has been called both "Centro" and "Punto de acopio".
   const colNombre = columna("Punto de acopio") ?? columna("Centro");
-  const colCuposManana = columna("Cupos Mañana");
+
+  if (!colNombre) {
+    throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
+  }
+
+  /**
+   * The jornada columns have been renamed and dropped across versions: "Cupos AM"
+   * became "Cupos Mañana", and the current file has no afternoon column at all —
+   * the points run two shifts, morning and night.
+   *
+   * So each jornada is read if its column exists and counted as zero otherwise,
+   * and what fails loudly is a sheet with no capacity column at all.
+   */
+  const colCuposManana = columna("Cupos Mañana") ?? columna("Cupos AM");
   const colCuposNoche = columna("Cupos Noche");
 
-  if (!colNombre || !colCuposManana || !colCuposNoche) {
-    throw new Error("A la hoja 'Centros' le faltan columnas obligatorias.");
+  if (!colCuposManana && !colCuposNoche) {
+    throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
   }
 
   const colDireccion = columna("Dirección");
@@ -191,8 +209,8 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       observaciones: readOptional(row, colObservaciones),
       actividades,
       cuposPorJornada: {
-        MANANA: cellNumber(row, colCuposManana),
-        NOCHE: cellNumber(row, colCuposNoche),
+        MANANA: cuposDe(row, colCuposManana),
+        NOCHE: cuposDe(row, colCuposNoche),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
       // The second version of the file dropped the coordinator columns. The
