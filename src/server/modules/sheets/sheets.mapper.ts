@@ -59,7 +59,7 @@ export function jornadaDesdeSheet(valor: string): Jornada {
   const jornada = JORNADAS.find((candidata) => candidata === normalizada);
 
   if (!jornada) {
-    throw badRequest(`La jornada "${valor}" no es válida. Usa AM o PM.`);
+    throw badRequest(`La jornada "${valor}" no es válida. Usa ${JORNADAS.join(", ")}.`);
   }
 
   return jornada;
@@ -68,6 +68,7 @@ export function jornadaDesdeSheet(valor: string): Jornada {
 const ETIQUETA_JORNADA_SHEET: Record<Jornada, string> = {
   AM: "AM",
   PM: "PM",
+  NOCHE: "Noche",
 };
 
 export function jornadaHaciaSheet(jornada: Jornada): string {

@@ -79,12 +79,13 @@ describe("sincronizarCentrosDesdeSheet", () => {
     });
 
     expect(resultado.centros).toBe(1);
-    expect(resultado.turnos).toBe(4); // 1 punto × 2 fechas × 2 jornadas
+    expect(resultado.turnos).toBe(6); // 1 punto × 2 fechas × 3 jornadas
 
     expect(db.peek("centros/punto-usaquen")).toMatchObject({
       nombre: "Punto Usaquén",
       localidad: "Usaquén",
-      cuposPorJornada: { AM: 150, PM: 150 },
+      // No evening column in the row: the point simply does not open at night.
+      cuposPorJornada: { AM: 150, PM: 150, NOCHE: 0 },
       activo: true,
     });
 
@@ -93,6 +94,19 @@ describe("sincronizarCentrosDesdeSheet", () => {
       reservados: 0,
       estado: "ABIERTO",
       diaSemana: "Jueves",
+    });
+  });
+
+  it("opens the evening shift when the sheet fills 'Cupos Noche'", async () => {
+    await sincronizarCentros({
+      filas: [filaCentro({ cuposNoche: "150" })],
+      fechas: FECHAS,
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_noche")).toMatchObject({
+      cuposTotales: 150,
+      estado: "ABIERTO",
+      horario: { etiqueta: "7:00 p.m. - 10:00 p.m." },
     });
   });
 

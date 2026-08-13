@@ -122,13 +122,14 @@ function cuposDe(row: ExcelJS.Row, column: number | null): number {
 /**
  * Every name a capacity column has had across versions of the file.
  *
- * "Cupos AM" was "Cupos Mañana" for a version. The second shift has been called
- * PM, Tarde and Noche, but it is one shift — the one that runs from 1 p.m. to
- * the point's closing time — so all three names land on `PM`.
+ * "Cupos AM" was "Cupos Mañana" for a version. "Cupos Noche" fed `PM` while the
+ * evening shift was retired; it is its own shift again, so it maps to `NOCHE`
+ * and a point that does not open at night simply leaves the cell empty.
  */
 const ALIAS_CUPOS: Record<Jornada, string[]> = {
   AM: ["Cupos AM", "Cupos Mañana"],
-  PM: ["Cupos PM", "Cupos Tarde", "Cupos Noche"],
+  PM: ["Cupos PM", "Cupos Tarde"],
+  NOCHE: ["Cupos Noche"],
 };
 
 /**
@@ -173,6 +174,7 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   // a sheet with no capacity column at all.
   const colCuposAm = columnaDeCupos(columna, "AM");
   const colCuposPm = columnaDeCupos(columna, "PM");
+  const colCuposNoche = columnaDeCupos(columna, "NOCHE");
 
   if (!colCuposAm && !colCuposPm) {
     throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
@@ -214,6 +216,7 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       cuposPorJornada: {
         AM: cuposDe(row, colCuposAm),
         PM: cuposDe(row, colCuposPm),
+        NOCHE: cuposDe(row, colCuposNoche),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
       // The second version of the file dropped the coordinator columns. The

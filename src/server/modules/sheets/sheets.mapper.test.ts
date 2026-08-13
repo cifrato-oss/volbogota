@@ -47,13 +47,13 @@ describe("jornadas", () => {
     expect(jornadaDesdeSheet("pm")).toBe("PM");
   });
 
-  it("rejects anything outside the two slots", () => {
+  it("rejects anything outside the three slots", () => {
     expect(() => jornadaDesdeSheet("Madrugada")).toThrowError(/no es válida/i);
   });
 
-  it("rejects the retired evening shift the sheet's dropdown still offers", () => {
-    // Such a row must come back with a verdict, not book a shift that is gone.
-    expect(() => jornadaDesdeSheet("Noche")).toThrowError(/no es válida/i);
+  it("reads the evening shift the sheet labels 'Noche'", () => {
+    expect(jornadaDesdeSheet("Noche")).toBe("NOCHE");
+    expect(jornadaDesdeSheet(" noche ")).toBe("NOCHE");
   });
 });
 

@@ -8,8 +8,8 @@ import { z } from "zod";
  * what lives in Firestore once imported, not the raw spreadsheet columns.
  */
 
-/** Shifts run twice a day at every centre: morning and afternoon. */
-export const JORNADAS = ["AM", "PM"] as const;
+/** Morning and afternoon everywhere; evening only where the point opens at night. */
+export const JORNADAS = ["AM", "PM", "NOCHE"] as const;
 export const jornadaSchema = z.enum(JORNADAS, {
   error: () => `La jornada debe ser una de: ${JORNADAS.join(", ")}.`,
 });
@@ -19,12 +19,14 @@ export type Jornada = z.infer<typeof jornadaSchema>;
 export const HORARIOS: Record<Jornada, { inicio: string; fin: string; etiqueta: string }> = {
   AM: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
   PM: { inicio: "13:00", fin: "17:00", etiqueta: "1:00 p.m. - 5:00 p.m." },
+  NOCHE: { inicio: "19:00", fin: "22:00", etiqueta: "7:00 p.m. - 10:00 p.m." },
 };
 
 /** Label used in the spreadsheet and in the UI. */
 export const ETIQUETA_JORNADA: Record<Jornada, string> = {
   AM: "AM",
   PM: "PM",
+  NOCHE: "Noche",
 };
 
 export const ACTIVIDADES = ["Empaque", "Clasificación", "Carga y descarga"] as const;
@@ -64,7 +66,12 @@ export const centroSchema = z.object({
    */
   observaciones: z.string().nullable(),
   actividades: z.array(actividadSchema),
-  cuposPorJornada: z.record(jornadaSchema, z.number().int().nonnegative()),
+  /**
+   * Partial on purpose: a point that never opens at night has no `NOCHE` key,
+   * and the centres already stored carry only `AM`/`PM`. Requiring every shift
+   * would fail them all against the schema and empty the catalogue.
+   */
+  cuposPorJornada: z.partialRecord(jornadaSchema, z.number().int().nonnegative()),
   activo: z.boolean(),
   coordinador: coordinadorSchema.nullable(),
 });

@@ -44,16 +44,17 @@
 
 var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
+var HOJA_TURNOS = "Turnos";
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
  *
- * Son las tres que cambian lo que la web ofrece: si el punto sigue autorizado y
+ * Son las que cambian lo que la web ofrece: si el punto sigue autorizado y
  * cuántos cupos tiene en cada jornada. Dirección, localidad u observaciones no
  * están acá a propósito — corregir una tilde no tiene por qué reenviar el
  * catálogo entero; para eso está el menú.
  */
-var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM"];
+var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM", "Cupos Noche"];
 
 /**
  * Único disparador automático: editar una de esas columnas en `Centros`.
@@ -131,6 +132,8 @@ function sincronizarCentros() {
       horarioOficial: leer(hoja, fila, mapa.columna("Horario oficial del punto")),
       cuposAm: leer(hoja, fila, mapa.columna("Cupos AM")),
       cuposPm: leer(hoja, fila, mapa.columna("Cupos PM")),
+      // Ausente en las hojas que no reinstauraron la noche: el backend la toma como 0.
+      cuposNoche: leer(hoja, fila, mapa.columna("Cupos Noche")),
       actividades: leer(hoja, fila, mapa.columna("Actividades habilitadas")),
       linkMaps: leer(hoja, fila, mapa.columna("Link Google Maps")),
       activo: leer(hoja, fila, mapa.columna("Activo")),
@@ -287,7 +290,8 @@ function doPost(e) {
     }
 
     var reservas = cuerpo.reservas || [];
-    if (reservas.length === 0) {
+    var turnos = cuerpo.turnos || [];
+    if (reservas.length === 0 && turnos.length === 0) {
       return respuesta({ success: true, data: { escritas: 0 } });
     }
 
@@ -297,7 +301,10 @@ function doPost(e) {
     candado.waitLock(20000);
 
     try {
-      var escritas = escribirReservas(reservas);
+      var escritas = 0;
+      if (reservas.length) escritas += escribirReservas(reservas);
+      if (turnos.length) escritas += escribirTurnos(turnos);
+
       return respuesta({ success: true, data: { escritas: escritas } });
     } finally {
       candado.releaseLock();
@@ -350,6 +357,48 @@ function escribirReservas(reservas) {
 }
 
 /** Código de reserva → número de fila, para no recorrer la hoja por cada una. */
+/**
+ * Refleja en `Turnos` el contador que lleva el backend.
+ *
+ * Solo viaja `Reservados`: disponibles, ocupación y estado son fórmulas sobre
+ * esa celda, así que la hoja los recalcula y no hay una segunda copia de la
+ * aritmética que se pueda desfasar.
+ */
+function escribirTurnos(turnos) {
+  var hoja = hojaPorNombre(HOJA_TURNOS);
+  var mapa = mapearEncabezados(hoja, ["ID_Turno", "Reservados"]);
+  var indice = indicePorIdTurno(hoja, mapa);
+  var escritas = 0;
+
+  for (var i = 0; i < turnos.length; i++) {
+    // Un turno que el tablero no tiene no se agrega: esa hoja la arma ella sola
+    // desde `Centros`, y una fila suelta al final le rompería las fórmulas.
+    var fila = indice[String(turnos[i].idTurno || "").trim()];
+    if (!fila) continue;
+
+    escribirCelda(hoja, mapa, fila, "Reservados", turnos[i].reservados);
+    escritas++;
+  }
+
+  return escritas;
+}
+
+function indicePorIdTurno(hoja, mapa) {
+  var colId = mapa.columna("ID_Turno");
+  var indice = {};
+  if (!colId || hoja.getLastRow() <= mapa.encabezado) return indice;
+
+  var alto = hoja.getLastRow() - mapa.encabezado;
+  var valores = hoja.getRange(mapa.encabezado + 1, colId, alto, 1).getValues();
+
+  for (var i = 0; i < valores.length; i++) {
+    var id = String(valores[i][0] || "").trim();
+    if (id) indice[id] = mapa.encabezado + 1 + i;
+  }
+
+  return indice;
+}
+
 function indicePorCodigo(hoja, mapa) {
   var colId = mapa.columna("ID");
   var indice = {};
