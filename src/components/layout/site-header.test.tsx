@@ -8,15 +8,19 @@ import { siteConfig } from "@/config/site";
 import { SiteHeader } from "./site-header";
 
 describe("SiteHeader", () => {
-  it("renders one link per configured nav item", () => {
+  it("shows the site name and links back home", () => {
     render(<SiteHeader />);
 
-    const nav = screen.getByRole("navigation", { name: "Principal" });
+    expect(screen.getByText(siteConfig.name)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: `${siteConfig.name} · Inicio` })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
 
-    for (const item of siteConfig.nav) {
-      expect(screen.getByRole("link", { name: item.label })).toHaveAttribute("href", item.href);
-    }
+  it("shows the program dates", () => {
+    render(<SiteHeader />);
 
-    expect(nav).toBeInTheDocument();
+    expect(screen.getByText(siteConfig.eventLabel)).toBeInTheDocument();
   });
 });
