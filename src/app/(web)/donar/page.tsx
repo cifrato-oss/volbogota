@@ -12,6 +12,7 @@ export default function DonarPage() {
       titulo="Elige un centro para donar"
       descripcion="Consulta qué necesita cada punto de acopio antes de llevar tu donación."
       hrefBase="/donar"
+      mostrarCupos={false}
     />
   );
 }

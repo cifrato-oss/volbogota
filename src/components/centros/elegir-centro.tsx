@@ -2,6 +2,7 @@
 
 import { CentroOption } from "@/components/centros/centro-option";
 import { CentroOptionSkeleton } from "@/components/centros/centro-option-skeleton";
+import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
 import { getErrorMessage } from "@/lib/get-error-message";
 import useCentros from "@/queries/centros/useCentros";
@@ -13,6 +14,8 @@ type ElegirCentroProps = {
   descripcion: string;
   /** Base path a chosen center opens, e.g. "/centros" or "/donar". */
   hrefBase: string;
+  /** Show cupos per shift on each card — true for volunteering, false for donating. */
+  mostrarCupos?: boolean;
 };
 
 /**
@@ -20,14 +23,23 @@ type ElegirCentroProps = {
  * navigates straight to its page under `hrefBase`. Shared by the volunteer and
  * donation flows.
  */
-export function ElegirCentro({ titulo, descripcion, hrefBase }: ElegirCentroProps) {
+export function ElegirCentro({
+  titulo,
+  descripcion,
+  hrefBase,
+  mostrarCupos = true,
+}: ElegirCentroProps) {
   const { data: centros, isPending, isError, error, refetch } = useCentros();
 
   return (
     <div className="space-y-6">
-      <header className="space-y-1">
+      <div>
+        <BackButton href="/">Volver al inicio</BackButton>
+      </div>
+
+      <header className="space-y-1 text-center">
         <h1 className="font-heading text-2xl font-bold tracking-tight">{titulo}</h1>
-        <p className="text-muted-foreground text-sm">{descripcion}</p>
+        <p className="text-muted-foreground text-sm text-pretty">{descripcion}</p>
       </header>
 
       {isError ? (
@@ -39,7 +51,12 @@ export function ElegirCentro({ titulo, descripcion, hrefBase }: ElegirCentroProp
                 <CentroOptionSkeleton key={index} />
               ))
             : centros.map((centro) => (
-                <CentroOption key={centro.id} centro={centro} href={`${hrefBase}/${centro.id}`} />
+                <CentroOption
+                  key={centro.id}
+                  centro={centro}
+                  href={`${hrefBase}/${centro.id}`}
+                  mostrarCupos={mostrarCupos}
+                />
               ))}
         </div>
       )}

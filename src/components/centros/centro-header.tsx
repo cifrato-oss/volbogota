@@ -1,7 +1,5 @@
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/shared/back-button";
 import type { Centro } from "@/types/volbogota";
 
 type CentroHeaderProps = {
@@ -10,19 +8,13 @@ type CentroHeaderProps = {
   backLabel: string;
 };
 
-/** Blue header card for a center's detail page: name, location, hours, map. */
+/** Header card for a center's detail page: name, location, hours, map. */
 export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps) {
   const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
 
   return (
     <div className="space-y-4">
-      <Link
-        href={backHref}
-        className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        {backLabel}
-      </Link>
+      <BackButton href={backHref}>{backLabel}</BackButton>
 
       <div className="border-primary/15 bg-primary/5 rounded-2xl border p-6">
         <div className="flex items-start justify-between gap-3">

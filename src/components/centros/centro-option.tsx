@@ -1,7 +1,7 @@
 import { ArrowRight, Clock, MapPin } from "lucide-react";
 import Link from "next/link";
 
-import { JORNADA_LABEL, JORNADA_ORDER, JORNADA_STYLE } from "@/constants/jornadas";
+import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
 import { formatNumero } from "@/lib/format-numero";
 import { cn } from "@/lib/utils";
 import type { Centro } from "@/types/volbogota";
@@ -10,6 +10,8 @@ type CentroOptionProps = {
   centro: Centro;
   /** Where tapping this center goes, e.g. `/centros/vive-claro`. */
   href: string;
+  /** Show cupos per shift — relevant when volunteering, not when donating. */
+  mostrarCupos?: boolean;
 };
 
 function EstadoActivo({ activo }: { activo: boolean }) {
@@ -34,7 +36,7 @@ function EstadoActivo({ activo }: { activo: boolean }) {
 }
 
 /** A center in the picker. Tapping it navigates straight to the center page. */
-export function CentroOption({ centro, href }: CentroOptionProps) {
+export function CentroOption({ centro, href, mostrarCupos = true }: CentroOptionProps) {
   const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
 
   return (
@@ -66,18 +68,20 @@ export function CentroOption({ centro, href }: CentroOptionProps) {
 
       <EstadoActivo activo={centro.activo} />
 
-      <dl className="mt-auto grid grid-cols-3 gap-2 text-center">
-        {JORNADA_ORDER.map((jornada) => (
-          <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
-            <dt className="text-muted-foreground text-[11px]">
-              <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
-            </dt>
-            <dd className="font-medium tabular-nums">
-              {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {mostrarCupos ? (
+        <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
+          {JORNADAS_VOLUNTARIADO.map((jornada) => (
+            <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
+              <dt className="text-muted-foreground text-[11px]">
+                <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
+              </dt>
+              <dd className="font-medium tabular-nums">
+                {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </Link>
   );
 }
