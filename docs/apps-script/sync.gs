@@ -7,6 +7,13 @@
  *   API_URL     https://tu-despliegue.vercel.app     (sin barra final)
  *   HOOK_TOKEN  el valor de SHEETS_HOOK_TOKEN del .env
  *
+ * Opcional, para probar contra un backend local expuesto por un túnel:
+ *
+ *   API_URL2    https://xxxxx.lhr.life                (sin barra final)
+ *
+ * Mientras exista, todo va a esa; bórrala para volver a producción. El menú
+ * «¿A dónde estoy sincronizando?» dice cuál está activa.
+ *
  * Y en Activadores (el reloj de la izquierda) → Añadir activador:
  *   función  alEditar · desde hoja de cálculo · Al editar
  *
@@ -49,6 +56,8 @@ function onOpen() {
     .createMenu("VolBogotá")
     .addItem("Sincronizar centros", "sincronizarCentros")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
+    .addSeparator()
+    .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
     .addToUi();
 }
 
@@ -387,13 +396,46 @@ function leer(hoja, fila, columna) {
   return String(valor).trim();
 }
 
+/**
+ * A dónde se sincroniza.
+ *
+ * `API_URL2` le gana a `API_URL` cuando existe: es el desvío para probar contra
+ * un backend local (por un túnel) sin tocar la de producción. Se quita borrando
+ * la propiedad, y `dondeEstoySincronizando()` en el menú dice cuál está
+ * mandando — dejarla puesta sin darse cuenta es el error fácil de cometer.
+ */
+function baseUrl() {
+  var props = PropertiesService.getScriptProperties();
+  return props.getProperty("API_URL2") || props.getProperty("API_URL");
+}
+
+/** Menú: confirma a qué backend está apuntando la hoja ahora mismo. */
+function dondeEstoySincronizando() {
+  var props = PropertiesService.getScriptProperties();
+  var prueba = props.getProperty("API_URL2");
+
+  var mensaje = prueba
+    ? "PRUEBA — API_URL2:\n" +
+      prueba +
+      "\n\nProducción (en pausa):\n" +
+      (props.getProperty("API_URL") || "sin definir") +
+      "\n\nBorra API_URL2 para volver a producción."
+    : "Producción — API_URL:\n" + (props.getProperty("API_URL") || "sin definir");
+
+  SpreadsheetApp.getUi().alert(
+    "Sincronizando contra",
+    mensaje,
+    SpreadsheetApp.getUi().ButtonSet.OK,
+  );
+}
+
 function llamar(ruta, cuerpo) {
   var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty("API_URL");
+  var url = baseUrl();
   var token = props.getProperty("HOOK_TOKEN");
 
   if (!url || !token) {
-    throw new Error("Faltan API_URL o HOOK_TOKEN en las propiedades del script.");
+    throw new Error("Faltan API_URL (o API_URL2) o HOOK_TOKEN en las propiedades del script.");
   }
 
   var respuesta = UrlFetchApp.fetch(url + ruta, {
