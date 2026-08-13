@@ -5,11 +5,16 @@ import { reservaSchema, type EstadoReserva } from "@/server/modules/reservas/res
 /**
  * Exports the reservations back to the spreadsheet.
  *
- * CSV rather than a generated .xlsx, and deliberately so: the `Reservas` sheet
- * exists to be pasted into — its own instructions say "aquí pegas o digitas
- * cada persona que se inscribe en la página web" — so matching its columns and
- * order is worth more than producing a second workbook nobody asked for. It
- * also keeps a heavy spreadsheet library out of the serverless bundle.
+ * CSV rather than a generated .xlsx: it keeps a heavy spreadsheet library out
+ * of the serverless bundle, and every tool the coordinators use opens it.
+ *
+ * The columns are the contract's, not the sheet's. They used to be described as
+ * the `Reservas` sheet's own order so a paste would land in the right cells,
+ * but that stopped being true — the sheet carries 21 columns, including
+ * `Validación` in the fifth position and several the API does not model, and
+ * carries no age. Pasting this into it would misalign every row. Keeping the
+ * contract's shape is the honest option now that `/api/hooks/sheets/reservas`
+ * is what actually writes back into the sheet, column by column.
  *
  * Two details make the difference between a file that opens clean and one that
  * shows `Ana MarÃ­a` in mangled columns: a UTF-8 BOM, and semicolons — which is
@@ -19,7 +24,7 @@ import { reservaSchema, type EstadoReserva } from "@/server/modules/reservas/res
 const SEPARADOR = ";";
 const BOM = "\uFEFF";
 
-/** Column order of the `Reservas` sheet, so a paste lands in the right cells. */
+/** The contract's fields, in the order a coordinator expects to read them. */
 const ENCABEZADOS = [
   "ID",
   "Fecha/hora registro",

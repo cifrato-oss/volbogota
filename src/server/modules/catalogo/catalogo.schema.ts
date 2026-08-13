@@ -130,6 +130,50 @@ export function buildTurnoId(centroId: string, fecha: string, jornada: Jornada):
   return `${centroId}_${fecha}_${jornada.toLowerCase()}`;
 }
 
+const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+/** Pinned to noon UTC so the weekday never rolls across time zones. */
+export function diaSemanaDe(fecha: string): string {
+  return DIAS_SEMANA[new Date(`${fecha}T12:00:00Z`).getUTCDay()] ?? "";
+}
+
+/**
+ * One shift per centre × date × slot, mirroring the `Turnos` sheet.
+ *
+ * Shared by the spreadsheet import and the sync hook so that "capacity 0 means
+ * the point does not open in that shift" is decided in exactly one place. The
+ * sheet's own instructions are explicit that those shifts must not be bookable.
+ */
+export function construirTurnos(centros: Centro[], fechas: string[]): Turno[] {
+  const turnos: Turno[] = [];
+
+  for (const centro of centros) {
+    for (const fecha of fechas) {
+      for (const jornada of JORNADAS) {
+        const cupos = centro.cuposPorJornada[jornada] ?? 0;
+
+        turnos.push({
+          id: buildTurnoId(centro.id, fecha, jornada),
+          centroId: centro.id,
+          centroNombre: centro.nombre,
+          fecha,
+          diaSemana: diaSemanaDe(fecha),
+          jornada,
+          horario: HORARIOS[jornada],
+          horarioOficialCentro: centro.horarioOficial,
+          centroActivo: centro.activo,
+          cuposTotales: cupos,
+          reservados: 0,
+          estado: centro.activo && cupos > 0 ? "ABIERTO" : "CERRADO",
+          coordinador: centro.coordinador,
+        });
+      }
+    }
+  }
+
+  return turnos;
+}
+
 /** `Vive Claro` → `vive-claro`. Accents are folded so ids stay ASCII. */
 export function slugify(value: string): string {
   return value

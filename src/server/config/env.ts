@@ -37,6 +37,19 @@ const serverSchema = z.object({
     .string()
     .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
     .optional(),
+
+  // Shared secret the spreadsheet's Apps Script presents to /api/hooks/sheets.
+  // Those endpoints write the catalogue and create reservations, so this is what
+  // separates them from anyone who finds the URL. Kept separate from the admin
+  // token because the sheet is shared with more people than the panel is, and
+  // revoking one should not force rotating the other.
+  //
+  // Not required in production on purpose: the hooks fail closed without it, so
+  // a deploy that happens before the script is installed is safe, not broken.
+  SHEETS_HOOK_TOKEN: z
+    .string()
+    .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
+    .optional(),
 });
 
 const clientSchema = z.object({
@@ -97,6 +110,7 @@ const parsed = serverSchema
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
     CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
+    SHEETS_HOOK_TOKEN: process.env.SHEETS_HOOK_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -127,6 +141,7 @@ export const env = {
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL,
   celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
   adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
+  sheetsHookToken: parsed.data.SHEETS_HOOK_TOKEN ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

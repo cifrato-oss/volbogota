@@ -1,10 +1,12 @@
-import { notFound } from "@/server/http/errors";
+import { badRequest, notFound } from "@/server/http/errors";
 
 import {
+  desactivarCentrosAusentes,
   findCentroById,
   findCentros,
   findTurnoById,
   findTurnos,
+  guardarCatalogo,
   type TurnoFilters,
 } from "./catalogo.repository";
 import {
@@ -12,6 +14,7 @@ import {
   ETIQUETA_JORNADA,
   HORARIOS,
   JORNADAS,
+  construirTurnos,
   toTurnoPublico,
   type Centro,
   type TurnoPublico,
@@ -60,6 +63,49 @@ export async function obtenerTurno(id: string): Promise<TurnoPublico> {
   }
 
   return toTurnoPublico(turno);
+}
+
+export type SincronizacionCatalogo = {
+  centros: number;
+  turnos: number;
+  /** Points that disappeared from the sheet and were retired. */
+  desactivados: string[];
+  fechas: string[];
+};
+
+/**
+ * Applies a catalogue edit that came from the spreadsheet.
+ *
+ * The sheet is the authority here — it is where coordinators set capacity,
+ * addresses and whether a point is still authorised — so its values overwrite
+ * ours. The one thing it does not own is `reservados`, which the booking
+ * transaction keeps and `guardarCatalogo` carries over. Lowering capacity below
+ * what is already booked is therefore applied as written and leaves the shift
+ * visibly oversold rather than silently dropping volunteers.
+ */
+export async function sincronizarCatalogo(
+  centros: Centro[],
+  fechas?: string[],
+): Promise<SincronizacionCatalogo> {
+  const fechasEfectivas = fechas?.length ? [...new Set(fechas)].sort() : await fechasVigentes();
+  const turnos = construirTurnos(centros, fechasEfectivas);
+
+  const guardado = await guardarCatalogo(centros, turnos);
+  const desactivados = await desactivarCentrosAusentes(centros.map((centro) => centro.id));
+
+  return { ...guardado, desactivados, fechas: fechasEfectivas };
+}
+
+/** The dates already in play, so a capacity edit need not restate the calendar. */
+async function fechasVigentes(): Promise<string[]> {
+  const turnos = await findTurnos();
+  const fechas = [...new Set(turnos.map((turno) => turno.fecha))].sort();
+
+  if (fechas.length === 0) {
+    throw badRequest("No hay turnos cargados todavía: manda las fechas del programa.");
+  }
+
+  return fechas;
 }
 
 /** Everything the booking form needs to populate its selects. */

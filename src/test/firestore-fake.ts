@@ -107,6 +107,10 @@ export class FakeFirestore {
     return new FakeQuery(this, name);
   }
 
+  batch(): FakeWriteBatch {
+    return new FakeWriteBatch(this);
+  }
+
   async runTransaction<TResult>(body: (tx: FakeTransaction) => Promise<TResult>): Promise<TResult> {
     for (let attempt = 0; attempt < this.internalRetries; attempt += 1) {
       const reads = new Map<string, number>();
@@ -141,6 +145,13 @@ export class FakeFirestore {
   _set(path: string, data: DocData): void {
     const version = this.versionOf(path);
     this.docs.set(path, { data: { ...data }, version: version + 1 });
+  }
+
+  /** @internal — `set` with `{ merge: true }`, which creates when absent. */
+  _merge(path: string, partial: DocData): void {
+    const stored = this.docs.get(path);
+    const data = stored ? { ...stored.data, ...partial } : { ...partial };
+    this.docs.set(path, { data, version: (stored?.version ?? -1) + 1 });
   }
 
   /** @internal */
@@ -205,6 +216,47 @@ export class FakeDocRef {
   async get(): Promise<FakeDocSnapshot> {
     await this.db._yield();
     return this.db._readDoc(this.path, this.id);
+  }
+
+  async set(data: DocData, options?: { merge?: boolean }): Promise<void> {
+    await this.db._yield();
+    if (options?.merge) this.db._merge(this.path, data);
+    else this.db._set(this.path, data);
+  }
+
+  async update(partial: DocData): Promise<void> {
+    await this.db._yield();
+    this.db._update(this.path, partial);
+  }
+}
+
+/** Batched writes. Like Firestore's, they only land when `commit` runs. */
+export class FakeWriteBatch {
+  private readonly operaciones: Array<() => void> = [];
+
+  constructor(private readonly db: FakeFirestore) {}
+
+  set(ref: FakeDocRef, data: DocData, options?: { merge?: boolean }): FakeWriteBatch {
+    this.operaciones.push(() => {
+      if (options?.merge) this.db._merge(ref.path, data);
+      else this.db._set(ref.path, data);
+    });
+    return this;
+  }
+
+  update(ref: FakeDocRef, partial: DocData): FakeWriteBatch {
+    this.operaciones.push(() => this.db._update(ref.path, partial));
+    return this;
+  }
+
+  delete(ref: FakeDocRef): FakeWriteBatch {
+    this.operaciones.push(() => this.db._delete(ref.path));
+    return this;
+  }
+
+  async commit(): Promise<void> {
+    await this.db._yield();
+    for (const operacion of this.operaciones) operacion();
   }
 }
 
