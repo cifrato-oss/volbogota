@@ -175,7 +175,28 @@ y habilitar **Firestore Database**. Región `nam5` o `us-central1`.
 > guardan nombres, celulares y edades de voluntarios: elige **modo bloqueado** y
 > deja que el paso 4 ponga las reglas reales.
 
-**2. Generar la clave de servicio**: Configuración del proyecto → Cuentas de
+**2. Credenciales.** Hay tres caminos, y el primero puede estar cerrado:
+
+**a) Cuenta de servicio** (⚙️ → Cuentas de servicio → Generar nueva clave privada).
+Descarga un JSON con `client_email` y `private_key`. Muchas organizaciones lo
+prohíben con `constraints/iam.disableServiceAccountKeyCreation` — si el botón
+falla, es eso, y no hay que insistir: es un guardarraíl razonable.
+
+**b) Credenciales por defecto**, para desarrollo sin llave descargable:
+
+```bash
+gcloud auth application-default login
+```
+
+La app las detecta sola; no hay que poner `FIREBASE_CLIENT_EMAIL` ni
+`FIREBASE_PRIVATE_KEY`.
+
+**c) Identidad del runtime**, que es lo que conviene en producción: desplegando
+en Cloud Run o Firebase App Hosting, la cuenta de servicio va adjunta al
+servicio y **no existe ninguna llave que filtrar**. Es la única opción que no
+tiene un secreto rotando por ahí.
+
+**2-bis. Generar la clave de servicio** (solo si vas por la vía a): Configuración del proyecto → Cuentas de
 servicio → _Generar nueva clave privada_. Descarga el JSON.
 
 **3. Escribir `.env.local`** a partir de ese JSON:
