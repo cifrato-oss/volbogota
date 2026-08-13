@@ -16,6 +16,21 @@ const eslintConfig = defineConfig([
     "coverage/**",
   ]),
   {
+    // A leading underscore is how we mark a binding that exists only to be
+    // discarded — a stripped field, an unused handler argument.
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
+  },
+  {
     // Presentation and browser-shared code must not reach into the server layer:
     // it would drag secrets and server-only modules into the client bundle.
     // Components receive data as props; pages and route handlers do the fetching.
