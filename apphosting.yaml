@@ -46,10 +46,16 @@ env:
   # que esta tiene que estar disponible en BUILD y no solo en RUNTIME: cambiarla
   # después no afecta al JavaScript ya compilado, hay que volver a construir.
   #
-  # Apunta al dominio de App Hosting hasta que el dominio propio resuelva; ahí se
-  # cambia por él y el siguiente despliegue la incrusta.
+  # `volbogota.org` mientras `centrosdeacopiobogota.org` termina de emitir su
+  # certificado; cuando sirva, se cambia acá y se vuelve a desplegar.
+  #
+  # Ponerla antes de que el dominio resuelva no rompe nada: los clientes de
+  # `src/lib` solo consultan esta variable cuando `window` es undefined, y hoy
+  # todo el consumo de `src/queries` sale de componentes cliente — no hay
+  # prefetch en servidor. En el navegador la base es `window.location.origin`, así
+  # que la app responde igual por el dominio de App Hosting y por el propio.
   - variable: NEXT_PUBLIC_APP_URL
-    value: https://volbogota--volbogota.us-central1.hosted.app
+    value: https://volbogota.org
     availability:
       - BUILD
       - RUNTIME
