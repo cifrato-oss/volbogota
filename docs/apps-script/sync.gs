@@ -45,23 +45,42 @@
 var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 
-/** Se dispara con cada edición. Solo actúa sobre las dos hojas que sincronizamos. */
+/**
+ * Único disparador automático: marcar un punto como Activo = Sí en `Centros`.
+ *
+ * Antes salía en cualquier edición, incluidas las que hace el propio backend al
+ * escribir en `Reservas` — eso devolvía esas filas al backend y las marcaba como
+ * pendientes, un ida y vuelta que no llevaba a ninguna parte. Ahora hace falta
+ * un gesto deliberado, y `Reservas` solo se envía desde el menú.
+ */
 function alEditar(e) {
-  // Ejecutado a mano desde el editor no hay evento: sincroniza todo en vez de
-  // reventar en `e.range`, que es lo que parece un trigger roto y no lo es.
-  if (!e || !e.range) {
-    sincronizarCentros();
-    sincronizarTodasLasReservas();
-    return;
-  }
+  if (!e || !e.range) return;
 
-  var nombre = e.range.getSheet().getName();
+  var hoja = e.range.getSheet();
+  if (hoja.getName() !== HOJA_CENTROS) return;
 
-  if (nombre === HOJA_CENTROS) {
-    sincronizarCentros();
-  } else if (nombre === HOJA_RESERVAS) {
-    sincronizarReservas(e.range.getRow());
+  var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
+  var colActivo = mapa.columna("Activo");
+  if (!colActivo) return;
+
+  // Un pegado abarca varias celdas: basta con que el rango toque la columna.
+  var primera = e.range.getColumn();
+  var ultima = primera + e.range.getNumColumns() - 1;
+  if (colActivo < primera || colActivo > ultima) return;
+
+  var desde = e.range.getRow();
+  var hasta = desde + e.range.getNumRows() - 1;
+
+  for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
+    if (esSi(hoja.getRange(fila, colActivo).getValue())) {
+      sincronizarCentros();
+      return;
+    }
   }
+}
+
+function esSi(valor) {
+  return normalizar(valor).indexOf("s") === 0;
 }
 
 /** Menú manual, para reenviar todo sin esperar a una edición. */
@@ -176,26 +195,14 @@ function enviarReservas(hoja, mapa, numerosDeFila) {
 
   var respuesta = llamar("/api/hooks/sheets/reservas", { filas: filas });
 
-  // El backend caído no puede costarle el registro a nadie: la hoja sigue
-  // siendo operativa por sí sola. Se marcan las filas como pendientes y
-  // "Sincronizar todas las reservas" las reconcilia cuando vuelva.
+  // Un backend inalcanzable se registra y ya: pisar la celda de Validación con
+  // un aviso nuestro borraba lo que la hoja calcula ahí por su cuenta.
   if (!respuesta || !respuesta.success) {
-    marcarPendientes(hoja, mapa, filas);
+    Logger.log("El backend no respondió; no se escribe nada en la hoja.");
     return;
   }
 
   escribirResultados(hoja, mapa, respuesta.data.resultados);
-}
-
-var PENDIENTE = "Pendiente de sincronizar";
-
-function marcarPendientes(hoja, mapa, filas) {
-  var colValidacion = mapa.columna("Validación");
-  if (!colValidacion) return;
-
-  for (var i = 0; i < filas.length; i++) {
-    hoja.getRange(filas[i].fila, colValidacion).setValue(PENDIENTE);
-  }
 }
 
 /**
