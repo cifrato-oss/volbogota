@@ -6,6 +6,6 @@ import { obtenerResumen } from "@/server/modules/admin/resumen.service";
 export const dynamic = "force-dynamic";
 
 export const GET = withRoute(async (request) => {
-  requireAdmin(request);
+  await requireAdmin(request);
   return ok(await obtenerResumen());
 });

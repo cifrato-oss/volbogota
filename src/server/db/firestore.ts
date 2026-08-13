@@ -33,6 +33,10 @@ export const COLLECTIONS = {
   catalogoDonaciones: "catalogoDonaciones",
   /** Need state per centre × item, the "Quiero donar" semaphore. */
   necesidades: "necesidades",
+  /** Panel accounts. Document id is the username. Never readable from a client. */
+  usuarios: "usuarios",
+  /** Open panel sessions, one per login. Deleting one logs that browser out. */
+  sesiones: "sesiones",
 } as const;
 
 /**

@@ -7,7 +7,7 @@ import { listarReservasSchema } from "@/server/modules/reservas/reservas.admin.s
 export const dynamic = "force-dynamic";
 
 export const GET = withRoute(async (request) => {
-  requireAdmin(request);
+  await requireAdmin(request);
 
   const filtros = parseSearchParams(request, listarReservasSchema);
   return ok(await listarReservas(filtros));

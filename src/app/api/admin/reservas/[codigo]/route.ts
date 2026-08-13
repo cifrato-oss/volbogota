@@ -11,7 +11,7 @@ import { cambiarEstadoSchema } from "@/server/modules/reservas/reservas.admin.sc
 export const dynamic = "force-dynamic";
 
 export const GET = withRoute(async (request, ctx: RouteContext<"/api/admin/reservas/[codigo]">) => {
-  requireAdmin(request);
+  await requireAdmin(request);
 
   const { codigo } = await ctx.params;
   const reserva = await buscarReservaPorCodigo(codigo);
@@ -22,7 +22,7 @@ export const GET = withRoute(async (request, ctx: RouteContext<"/api/admin/reser
 
 export const PATCH = withRoute(
   async (request, ctx: RouteContext<"/api/admin/reservas/[codigo]">) => {
-    requireAdmin(request);
+    await requireAdmin(request);
 
     const { codigo } = await ctx.params;
     const { estado } = await parseJsonBody(request, cambiarEstadoSchema);

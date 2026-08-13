@@ -12,7 +12,7 @@ const cambiarEstadoSchema = z.object({ estado: estadoNecesidadSchema });
 
 export const PATCH = withRoute(
   async (request, ctx: RouteContext<"/api/admin/necesidades/[id]">) => {
-    requireAdmin(request);
+    await requireAdmin(request);
 
     const { id } = await ctx.params;
     const { estado } = await parseJsonBody(request, cambiarEstadoSchema);

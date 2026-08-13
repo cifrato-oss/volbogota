@@ -24,6 +24,7 @@
     "limpiar:noche": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/limpiar-turnos-noche.ts",
     "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes",
     "limpiar:cupos": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/limpiar-cupos-jornada.ts",
+    "admin:hash": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/hash-password.ts",
     "check:admin": "node scripts/check-admin.mjs"
   },
   "dependencies": {
@@ -36,6 +37,7 @@
     "axios": "^1.19.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "firebase": "^12.17.1",
     "firebase-admin": "^14.2.0",
     "google-auth-library": "^11.0.2",
@@ -64,7 +66,6 @@
     "@vitejs/plugin-react": "^4.7.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
-    "exceljs": "^4.4.0",
     "firebase-tools": "^15.26.0",
     "jsdom": "^27.0.1",
     "prettier": "^3.9.6",

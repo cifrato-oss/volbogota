@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const POST = withRoute(
   async (request, ctx: RouteContext<"/api/admin/reservas/[codigo]/check-in">) => {
-    requireAdmin(request);
+    await requireAdmin(request);
 
     const { codigo } = await ctx.params;
     const { hora } = await parseJsonBody(request, registrarHoraSchema);
