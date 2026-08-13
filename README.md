@@ -317,9 +317,12 @@ mismo salen los registros que hay que crear. El proceso tiene dos rondas:
 
 El apex no admite `CNAME` por especificación de DNS, y el **Alias de Route 53 no
 sirve acá**: solo apunta a recursos de AWS (CloudFront, ELB, S3, otro registro de la
-misma zona), no a un hostname externo como `hosted.app`. Así que el apex va con
-registros `A`/`AAAA` y las IPs que entregue Firebase, y `www` con un `CNAME` al
-dominio de App Hosting.
+misma zona), no a un hostname externo como `hosted.app`. App Hosting resuelve esto
+entregando un registro `A` con una IP anycast, y lo hace igual para el apex y para
+`www` — los dos son un `A` a la misma IP, no un `CNAME`.
+
+Cada hostname es un recurso `Domain` aparte y trae su propio `TXT` de propiedad. El
+`CNAME` de `_acme-challenge_*`, en cambio, es uno solo para los dos.
 
 Los TTL bajos (300s) valen la pena hasta que todo resuelva: un TTL de un día
 convierte un registro equivocado en un día de espera.

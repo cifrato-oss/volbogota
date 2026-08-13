@@ -80,8 +80,11 @@ function mapearColumnas(sheet: ExcelJS.Worksheet): {
       if (texto) titulos.set(normalizar(texto), col);
     }
 
-    // The row that names both the point and its capacity is the header.
-    if (titulos.has("direccion") && titulos.has("cupos am")) {
+    // The row that names both the point and its capacity is the header. The
+    // capacity columns were renamed between versions — "Cupos AM" became
+    // "Cupos Mañana" — so either spelling identifies the row.
+    // Keys are already normalised, so "Cupos Mañana" is looked up as "cupos manana".
+    if (titulos.has("direccion") && (titulos.has("cupos am") || titulos.has("cupos manana"))) {
       return {
         headerRow: rowNumber,
         columna: (titulo) => titulos.get(normalizar(titulo)) ?? null,
@@ -100,6 +103,11 @@ function normalizar(valor: string): string {
     .trim();
 }
 
+/** A jornada the file does not model is zero cupos, not a broken import. */
+function cuposDe(row: ExcelJS.Row, column: number | null): number {
+  return column ? cellNumber(row, column) : 0;
+}
+
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   const sheet = workbook.getWorksheet("Centros");
   if (!sheet) throw new Error("El archivo no tiene la hoja 'Centros'.");
@@ -108,12 +116,28 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
 
   // The point's name column has been called both "Centro" and "Punto de acopio".
   const colNombre = columna("Punto de acopio") ?? columna("Centro");
-  const colCuposAm = columna("Cupos AM");
-  const colCuposPm = columna("Cupos PM");
+
+  /**
+   * The jornada columns have been renamed and dropped across versions: "Cupos AM"
+   * became "Cupos Mañana", and the third version of the file has no afternoon
+   * column at all — the points run two shifts, morning and night.
+   *
+   * So each jornada is read if its column exists and counted as zero otherwise,
+   * and what fails loudly is a sheet with no capacity column at all. Requiring
+   * all three would refuse the current file; requiring none would import every
+   * centre with zero cupos and look like a working import that oversells nothing
+   * because nothing is available.
+   */
+  const colCuposAm = columna("Cupos AM") ?? columna("Cupos Mañana");
+  const colCuposPm = columna("Cupos PM") ?? columna("Cupos Tarde");
   const colCuposNoche = columna("Cupos Noche");
 
-  if (!colNombre || !colCuposAm || !colCuposPm || !colCuposNoche) {
-    throw new Error("A la hoja 'Centros' le faltan columnas obligatorias.");
+  if (!colNombre) {
+    throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
+  }
+
+  if (!colCuposAm && !colCuposPm && !colCuposNoche) {
+    throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
   }
 
   const colDireccion = columna("Dirección");
@@ -150,9 +174,9 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       observaciones: readOptional(row, colObservaciones),
       actividades,
       cuposPorJornada: {
-        AM: cellNumber(row, colCuposAm),
-        PM: cellNumber(row, colCuposPm),
-        NOCHE: cellNumber(row, colCuposNoche),
+        AM: cuposDe(row, colCuposAm),
+        PM: cuposDe(row, colCuposPm),
+        NOCHE: cuposDe(row, colCuposNoche),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
       // The second version of the file dropped the coordinator columns. The
