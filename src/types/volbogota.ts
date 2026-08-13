@@ -6,8 +6,8 @@
  * literal unions for closed sets, `| null` for nullable fields.
  */
 
-/** Shift period. Always uppercase. Mañana = apertura–12:00, Noche = 13:00–cierre. */
-export type Jornada = "MANANA" | "NOCHE";
+/** Shift period. Always uppercase. `AM` 8:00 a.m.–2:00 p.m., `PM` 1:00–5:00 p.m. */
+export type Jornada = "AM" | "PM";
 
 /** Volunteer activity. Closed set enforced by the API on POST. */
 export type Actividad = "Empaque" | "Clasificación" | "Carga y descarga";
@@ -51,11 +51,7 @@ export interface CatalogoCentro {
 export interface CatalogoJornada {
   valor: Jornada;
   etiqueta: string;
-  /**
-   * The rule, not a fixed schedule: the actual hours depend on each centre's
-   * opening/closing time. Read `Turno.horario` or `Centro` for the real hours.
-   */
-  descripcion: string;
+  horario: Horario;
 }
 
 export interface Catalogos {
@@ -76,17 +72,10 @@ export interface Centro {
   linkMaps: string | null;
   /**
    * When the point is actually open, e.g. "8:00 a.m. - 9:00 p.m." or
-   * "24 horas". NOT the same as the shift schedule: the evening shift runs to
-   * 10 p.m. but three of the six points close earlier. Show this one.
+   * "24 horas". NOT the same as the shift schedule — CC Unicentro opens at
+   * 9:00 a.m., not 8:00. Show this one.
    */
   horarioOficial: string | null;
-  /**
-   * `HH:MM`, 24h. When and where the shift schedule is computed from: Mañana
-   * runs `apertura`–12:00, Noche runs 13:00–`cierre`. `null` when the point
-   * has not confirmed its hours yet.
-   */
-  apertura: string | null;
-  cierre: string | null;
   /**
    * Free-form operational notes from the coordinators. This is where the file
    * says Palacio de los Deportes collects for Chocó rather than for the Bogotá
@@ -194,7 +183,7 @@ export interface ReservaTurnoResumen {
   centroNombre: string;
   /** ISO date (YYYY-MM-DD). */
   fecha: string;
-  /** Display label, e.g. "Noche" — not the `NOCHE` enum value. */
+  /** Display label ready to show, e.g. "AM". */
   jornada: string;
   /** Already-formatted schedule label, e.g. "8:00 a.m. - 2:00 p.m.". */
   horario: string;

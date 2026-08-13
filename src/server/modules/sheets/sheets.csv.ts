@@ -117,27 +117,20 @@ async function leerCentros(): Promise<Record<string, string>[]> {
   const filas = await descargar("Centros");
   const encabezado = filas[0] ?? [];
 
-  // "Cupos AM" became "Cupos Mañana" when the sheet moved to two shifts —
-  // either spelling is accepted so an older copy of the sheet still imports.
   const columnas = {
     puntoDeAcopio: indiceDe(encabezado, "Punto de acopio"),
     direccion: indiceDe(encabezado, "Dirección"),
     localidad: indiceDe(encabezado, "Localidad"),
     horarioOficial: indiceDe(encabezado, "Horario oficial"),
-    apertura: indiceDe(encabezado, "Apertura"),
-    cierre: indiceDe(encabezado, "Cierre"),
-    cuposManana: (() => {
-      const manana = indiceDe(encabezado, "Cupos Mañana");
-      return manana !== -1 ? manana : indiceDe(encabezado, "Cupos AM");
-    })(),
-    cuposNoche: indiceDe(encabezado, "Cupos Noche"),
+    cuposAm: indiceDe(encabezado, "Cupos AM"),
+    cuposPm: indiceDe(encabezado, "Cupos PM"),
     actividades: indiceDe(encabezado, "Actividades"),
     linkMaps: indiceDe(encabezado, "Link"),
     activo: indiceDe(encabezado, "Activo"),
     observaciones: indiceDe(encabezado, "Observaciones"),
   };
 
-  if (columnas.puntoDeAcopio === -1 || columnas.cuposManana === -1) {
+  if (columnas.puntoDeAcopio === -1 || columnas.cuposAm === -1) {
     throw new Error("La hoja 'Centros' no trae las columnas esperadas.");
   }
 

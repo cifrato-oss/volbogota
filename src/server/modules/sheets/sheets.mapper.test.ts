@@ -37,37 +37,40 @@ describe("fechas", () => {
 });
 
 describe("jornadas", () => {
-  it("maps the sheet's Noche to the domain's NOCHE", () => {
-    expect(jornadaDesdeSheet("Noche")).toBe("NOCHE");
+  it("maps the sheet's labels to the domain's", () => {
+    expect(jornadaDesdeSheet("AM")).toBe("AM");
+    expect(jornadaDesdeSheet("PM")).toBe("PM");
   });
 
-  it("ignores case and accents", () => {
-    expect(jornadaDesdeSheet("noche")).toBe("NOCHE");
-    expect(jornadaDesdeSheet(" manana ")).toBe("MANANA");
-    expect(jornadaDesdeSheet("Mañana")).toBe("MANANA");
+  it("ignores case and surrounding space", () => {
+    expect(jornadaDesdeSheet(" am ")).toBe("AM");
+    expect(jornadaDesdeSheet("pm")).toBe("PM");
   });
 
   it("rejects anything outside the two slots", () => {
     expect(() => jornadaDesdeSheet("Madrugada")).toThrowError(/no es válida/i);
   });
+
+  it("rejects the retired evening shift the sheet's dropdown still offers", () => {
+    // Such a row must come back with a verdict, not book a shift that is gone.
+    expect(() => jornadaDesdeSheet("Noche")).toThrowError(/no es válida/i);
+  });
 });
 
 describe("turnoId", () => {
   it("translates the sheet's piped id into the Firestore one", () => {
-    expect(turnoIdDesdeSheet("Punto Usaquén|2026-08-13|Mañana")).toBe(
-      "punto-usaquen_2026-08-13_manana",
-    );
+    expect(turnoIdDesdeSheet("Punto Usaquén|2026-08-13|AM")).toBe("punto-usaquen_2026-08-13_am");
   });
 
   it("slugs accents and punctuation out of the point's name", () => {
-    expect(turnoIdDesdeSheet("U. Jorge Tadeo Lozano|2026-08-13|Noche")).toBe(
-      "u-jorge-tadeo-lozano_2026-08-13_noche",
+    expect(turnoIdDesdeSheet("U. Jorge Tadeo Lozano|2026-08-13|PM")).toBe(
+      "u-jorge-tadeo-lozano_2026-08-13_pm",
     );
   });
 
   it("builds the same id from the separate columns", () => {
-    expect(turnoIdDesdeColumnas("Punto Usaquén", "13/08/2026", "Mañana")).toBe(
-      "punto-usaquen_2026-08-13_manana",
+    expect(turnoIdDesdeColumnas("Punto Usaquén", "13/08/2026", "AM")).toBe(
+      "punto-usaquen_2026-08-13_am",
     );
   });
 

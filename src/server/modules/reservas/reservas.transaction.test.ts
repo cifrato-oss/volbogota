@@ -19,7 +19,7 @@ vi.mock("@/server/db/firestore", () => ({
 
 const { crearReservaEnTransaccion, hashCelular } = await import("./reservas.repository");
 
-const TURNO_ID = "cruz-roja_2026-08-13_manana";
+const TURNO_ID = "cruz-roja_2026-08-13_am";
 
 function seedTurno(overrides: Record<string, unknown> = {}, id = TURNO_ID): string {
   db.seed(`turnos/${id}`, {
@@ -27,7 +27,7 @@ function seedTurno(overrides: Record<string, unknown> = {}, id = TURNO_ID): stri
     centroNombre: "Cruz Roja",
     fecha: "2026-08-13",
     diaSemana: "Jueves",
-    jornada: "MANANA",
+    jornada: "AM",
     horario: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
     horarioOficialCentro: "24 horas",
     centroActivo: true,

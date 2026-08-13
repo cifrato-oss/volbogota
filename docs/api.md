@@ -55,42 +55,47 @@ En un 422, `details` viene listo para pintar el error bajo cada input:
 
 | Concepto      | Qué es                                                                                        |
 | ------------- | --------------------------------------------------------------------------------------------- |
-| **Punto**     | Punto de acopio autorizado. `id` es un slug: `cruz-roja`                                      |
-| **Jornada**   | `MANANA` · `NOCHE` — siempre en mayúsculas, sin tilde                                         |
-| **Turno**     | Un punto + una fecha + una jornada                                                            |
+| **Punto**     | Punto de acopio autorizado. 6 en total. `id` es un slug: `cruz-roja`                          |
+| **Jornada**   | `AM` · `PM` — siempre en mayúsculas. La jornada noche se eliminó                              |
+| **Turno**     | Un punto + una fecha + una jornada. 48 en total (6 × 4 días × 2)                              |
 | **Reserva**   | La inscripción de un voluntario a un turno                                                    |
 | **Categoría** | Una de las 5 categorías de donación (ver abajo)                                               |
 | **Necesidad** | El estado de un elemento del catálogo en un punto: `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA` |
 
 El `turnoId` es predecible — `{puntoId}_{YYYY-MM-DD}_{jornada en minúscula}`, o
-sea `cruz-roja_2026-08-13_manana`. Aun así, **no lo armes a mano**: úsalo como
-viene en las respuestas.
+sea `cruz-roja_2026-08-13_am`. Aun así, **no lo armes a mano**: úsalo como viene
+en las respuestas.
 
-Programa: **13 al 16 de agosto de 2026**, puntos oficiales de la Alcaldía Mayor
-de Bogotá y la Cruz Roja.
+Programa: **13 al 16 de agosto de 2026**, 6 puntos, **8.400 cupos**.
+
+Dos jornadas por día: `AM` de 8:00 a.m. a 2:00 p.m. y `PM` de 1:00 p.m. a
+5:00 p.m. Se solapan una hora — es lo que dice la hoja maestra, no un error de
+transcripción.
 
 > **Fechas**: van como strings `YYYY-MM-DD`, sin hora ni zona horaria. No las
 > pases por `new Date()` sin fijar la zona o te puede correr un día.
 
-### Las dos jornadas
+### Los seis puntos
 
-Ya no son tres jornadas fijas (`AM`/`PM`/`NOCHE`): son dos, y su horario
-depende de cada punto, no de una tabla global.
+| Punto                   | Localidad      | Horario oficial       | Cupos AM/PM |
+| ----------------------- | -------------- | --------------------- | ----------- |
+| U. Jorge Tadeo Lozano   | Santa Fe       | 8:00 a.m. - 9:00 p.m. | 150 / 150   |
+| Punto Usaquén           | Usaquén        | 8:00 a.m. - 9:00 p.m. | 150 / 150   |
+| CC Unicentro            | Usaquén        | 9:00 a.m. - 5:00 p.m. | 150 / 150   |
+| Cruz Roja               | Barrios Unidos | 24 horas              | 150 / 150   |
+| Palacio de los Deportes | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | 150 / 150   |
+| Estadio El Campín       | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | 300 / 300   |
 
-| Jornada  | Regla                                         |
-| -------- | --------------------------------------------- |
-| `MANANA` | Desde la apertura del punto hasta el mediodía |
-| `NOCHE`  | Desde la 1:00 p.m. hasta el cierre del punto  |
+⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el sismo
+de Bogotá. Viene dicho en su campo `observaciones` — vale la pena mostrarlo
+distinto en la UI para que nadie done al destino equivocado. Es también un caso
+real de `NO_APLICA` en el semáforo de donaciones: no todo el catálogo general
+aplica igual ahí.
 
-El horario real de cada turno sale calculado en `turno.horario` (ver
-`/api/turnos`) a partir de `apertura`/`cierre` del punto (ver `/api/centros`).
-Si un punto aún no ha confirmado su horario, `turno.horario.etiqueta` viene
-como `"Horario por confirmar"` en vez de una hora — eso **no** bloquea la
-reserva, solo avisa que falta el dato.
-
-⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el
-sismo de Bogotá. Viene dicho en su campo `observaciones` — vale la pena
-mostrarlo distinto en la UI para que nadie done al destino equivocado.
+⚠️ El `horario` del turno es el horario nominal de la jornada; el
+`horarioOficial` del punto es cuando la puerta está realmente abierta, y no
+siempre coinciden — Unicentro abre a las 9:00 a.m., no a las 8:00.
+**Muestra el horario oficial del punto** o mandarás gente a un sitio cerrado.
 
 ### Las cinco categorías de donación
 
@@ -117,23 +122,15 @@ llamada. **Empieza por acá para "Quiero ser voluntario".**
   ],
   "jornadas": [
     {
-      "valor": "MANANA",
-      "etiqueta": "Mañana",
-      "descripcion": "Desde la apertura del punto hasta el mediodía."
-    },
-    {
-      "valor": "NOCHE",
-      "etiqueta": "Noche",
-      "descripcion": "Desde la 1:00 p.m. hasta el cierre del punto."
+      "valor": "AM",
+      "etiqueta": "AM",
+      "horario": { "inicio": "08:00", "fin": "14:00", "etiqueta": "8:00 a.m. - 2:00 p.m." }
     }
   ],
   "actividades": ["Empaque", "Clasificación", "Carga y descarga"],
   "fechas": ["2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16"]
 }
 ```
-
-`jornadas[].descripcion` explica la regla, no un horario fijo: la hora real de
-cada punto sale en `/api/turnos` y en `/api/centros`, no acá.
 
 `actividades` es **informativo** — qué se hace en cada punto. Ya no es un campo
 del formulario; el `POST` no lo recibe.
@@ -153,24 +150,17 @@ Los puntos activos, ordenados por nombre.
     "localidad": "Barrios Unidos",
     "linkMaps": "https://maps.app.goo.gl/KSYQ52viibBuktq48",
     "horarioOficial": "24 horas",
-    "apertura": "08:00",
-    "cierre": "20:00",
-    "observaciones": "Sede administrativa. Opera 24 horas: es el único punto que recibe donaciones sin parar.",
+    "observaciones": "Sede administrativa. Opera 24 horas.",
     "actividades": ["Empaque", "Clasificación", "Carga y descarga"],
-    "cuposPorJornada": { "MANANA": 150, "NOCHE": 150 },
+    "cuposPorJornada": { "AM": 150, "PM": 150 },
     "activo": true
   }
 ]
 ```
 
-- **`horarioOficial`** — cuándo abre el punto de verdad, como texto libre.
-  Puede ser `"24 horas"`. Es para mostrar, no para calcular.
-- **`apertura`/`cierre`** — `HH:MM`, 24 horas. De ahí se calculan las dos
-  jornadas: Mañana corre de `apertura` a las 12:00 m., Noche de la 1:00 p.m. a
-  `cierre`. Pueden venir `null` si el punto no ha confirmado su horario todavía
-  — el turno lo muestra como "Horario por confirmar".
-- **`observaciones`** — texto libre del equipo coordinador. Puede ser `null`.
-  Es donde aparece lo del Chocó y cualquier advertencia operativa. Muéstralo.
+- **`horarioOficial`** — cuándo abre el punto de verdad. Puede ser `"24 horas"`.
+- **`observaciones`** — texto libre del equipo coordinador. Puede ser `null`. Es
+  donde aparece lo del Chocó y las advertencias de cierre. Muéstralo.
 - **`cuposPorJornada`** — un `0` significa que el punto **no opera** en esa
   jornada, y su turno viene `CERRADO`.
 
@@ -189,23 +179,23 @@ Turnos con su ocupación en vivo. Alimenta el selector de cupos.
 
 **Query params** (todos opcionales, combinables):
 
-| Param         | Valores          | Efecto                               |
-| ------------- | ---------------- | ------------------------------------ |
-| `centro`      | id de punto      | Solo ese punto                       |
-| `fecha`       | `YYYY-MM-DD`     | Solo ese día                         |
-| `jornada`     | `MANANA` `NOCHE` | Solo esa jornada                     |
-| `disponibles` | `true` `false`   | Con `true` esconde llenos y cerrados |
+| Param         | Valores        | Efecto                               |
+| ------------- | -------------- | ------------------------------------ |
+| `centro`      | id de punto    | Solo ese punto                       |
+| `fecha`       | `YYYY-MM-DD`   | Solo ese día                         |
+| `jornada`     | `AM` `PM`      | Solo esa jornada                     |
+| `disponibles` | `true` `false` | Con `true` esconde llenos y cerrados |
 
 ```json
 [
   {
-    "id": "cruz-roja_2026-08-13_manana",
+    "id": "cruz-roja_2026-08-13_am",
     "centroId": "cruz-roja",
     "centroNombre": "Cruz Roja",
     "fecha": "2026-08-13",
     "diaSemana": "Jueves",
-    "jornada": "MANANA",
-    "horario": { "inicio": "08:00", "fin": "12:00", "etiqueta": "8:00 a.m. - 12:00 m." },
+    "jornada": "AM",
+    "horario": { "inicio": "08:00", "fin": "14:00", "etiqueta": "8:00 a.m. - 2:00 p.m." },
     "horarioOficialCentro": "24 horas",
     "centroActivo": true,
     "cuposTotales": 150,
@@ -224,11 +214,12 @@ Campos derivados, ya calculados — no los recalcules:
 - **`disponibles`** = `cuposTotales − reservados`, nunca negativo
 - **`ocupacion`** = fracción de 0 a 1
 - **`agotado`** = `disponibles === 0`
-- **`estado`** = `ABIERTO` o `CERRADO`. Un turno con `cuposTotales: 0` viene
-  `CERRADO` — así dice la hoja que ese punto no opera en esa jornada.
+- **`estado`** = `ABIERTO` o `CERRADO`. Un punto con `0` cupos en una jornada
+  trae ese turno `CERRADO` con `cuposTotales: 0`
 
-**Un turno es inscribible si `estado === "ABIERTO" && !agotado"`.** Eso es
-exactamente lo que filtra `disponibles=true`.
+**Un turno es inscribible si `estado === "ABIERTO" && !agotado`.** Eso es
+exactamente lo que filtra `disponibles=true`. Hoy los 48 tienen cupo, pero eso
+cambia en cuanto un punto ponga una jornada en `0`.
 
 `horarioOficialCentro` está denormalizado acá para que no tengas que pedir el
 punto solo para saber a qué hora abre.
@@ -253,7 +244,7 @@ Inscribe a un voluntario. **Cinco campos y el turno, nada más.**
   "apellido": "Ramírez Gómez",
   "celular": "3001234567",
   "edad": 30,
-  "turnoId": "cruz-roja_2026-08-13_manana",
+  "turnoId": "cruz-roja_2026-08-13_am",
   "autorizoDatos": true
 }
 ```
@@ -284,11 +275,11 @@ Cualquier campo extra que mandes se ignora en silencio.
   "estado": "RESERVADO",
   "nombre": "Ana María Ramírez Gómez",
   "turno": {
-    "id": "cruz-roja_2026-08-13_manana",
+    "id": "cruz-roja_2026-08-13_am",
     "centroNombre": "Cruz Roja",
     "fecha": "2026-08-13",
-    "jornada": "Mañana",
-    "horario": "8:00 a.m. - 12:00 m.",
+    "jornada": "AM",
+    "horario": "8:00 a.m. - 2:00 p.m.",
     "direccion": "Carrera 24 # 73-38",
     "horarioOficial": "24 horas"
   }
@@ -300,8 +291,8 @@ sin `O`/`0` ni `I`/`1`/`L`, para que nadie lo transcriba mal al dictarlo en la
 portería. Es único — lo garantiza Firestore — y es la llave con la que el
 check-in va a buscar la reserva. La confirmación trae **dirección y
 horario oficial** para que la pantalla de «listo, quedaste inscrito» le diga a
-dónde ir sin otra petición. `jornada` viene como etiqueta lista para mostrar
-(`"Noche"`, no `"NOCHE"`).
+dónde ir sin otra petición. `jornada` viene como etiqueta lista para mostrar,
+no como el valor del enum.
 
 ### Errores que tienes que manejar
 
@@ -374,24 +365,23 @@ hace falta un catálogo aparte.
 ```
 
 - **`categorias`** trae **siempre las 5**, en el mismo orden, aunque una no
-  tenga nada pendiente — así la grilla de categorías no tiene que esperar una
-  segunda llamada para saber qué mostrar.
+  tenga nada pendiente — la grilla de categorías no espera una segunda
+  llamada para saber qué mostrar.
 - **`necesita`** — `true` si al menos un elemento de esa categoría está en
-  `SE_NECESITA`. Es lo que responde "¿cuáles categorías necesitan algo?" sin
-  que el front tenga que recorrer `elementos`.
-- **`mensaje`** es una nota **de categoría**, no de ítem — la de vencimientos
-  en Alimentos, "También puedes donar para recuperar espacios familiares" en
-  Hogar, "Reconstruir también es acompañar" en Materiales de construcción.
-  Muéstrala una vez por categoría.
+  `SE_NECESITA`. Responde "¿cuáles categorías necesitan algo?" sin recorrer
+  `elementos` en el front.
+- **`mensaje`** es una nota **de categoría**, no de ítem — sale una vez por
+  categoría, no repetida por elemento.
 - **`estado`** por elemento — `SE_NECESITA` (🔴) · `SUFICIENTE` (🟢) ·
   `NO_APLICA` (⚪ ese punto no maneja este ítem — el caso de Palacio de los
   Deportes, que no recoge para el mismo destino que el resto).
 - **`semaforo`** — el color ya resuelto (`ROJO`/`VERDE`/`GRIS`), para no
   reimplementar el mapeo estado → color en el front.
 - **`actualizadoEn`** viene `null` cuando el punto nunca ha tocado ese ítem —
-  el semáforo por defecto es `SE_NECESITA`.
-- `categoria=X` en la query reduce `categorias` a un solo elemento — útil si
-  ya sabes cuál eligió la persona y quieres un payload más chico.
+  el semáforo por defecto es `SE_NECESITA`: se asume que hace falta hasta que
+  un coordinador diga lo contrario.
+- `categoria=Alimentos` en la query reduce `categorias` a un solo elemento —
+  útil si ya sabes cuál eligió la persona y quieres un payload más chico.
 - `404` si el punto no existe o está inactivo. Omitir `centro` es `422`.
 
 Cambiar un estado es cosa del panel de coordinación:
@@ -434,8 +424,8 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Centros_
 FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
 ```
 
-Queda con los puntos, turnos, catálogo de donaciones y semáforo reales del
-Excel, sin tocar producción.
+Queda con los 6 puntos, 48 turnos, 8.400 cupos, el catálogo de donaciones y el
+semáforo reales del Excel, sin tocar producción.
 
 ---
 
@@ -466,7 +456,7 @@ o bien `Authorization: Bearer <token>`. Sin token o con token inválido → `401
 | `turno`   | `turnoId`                  | Solo ese turno                      |
 | `centro`  | id de punto                | Solo ese punto                      |
 | `fecha`   | `YYYY-MM-DD`               | Solo ese día                        |
-| `jornada` | `MANANA` `NOCHE`           | Solo esa jornada                    |
+| `jornada` | `AM` `PM`                  | Solo esa jornada                    |
 | `estado`  | ver estados abajo          | Solo ese estado                     |
 | `q`       | texto (2–60)               | Busca en nombre, apellido y celular |
 | `limite`  | 1–500 (default 100)        | Tamaño de página                    |

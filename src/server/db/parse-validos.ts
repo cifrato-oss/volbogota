@@ -19,7 +19,7 @@ import { logger } from "@/server/lib/logger";
  */
 export function parseValidos<TOut>(
   coleccion: string,
-  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  docs: FirebaseFirestore.DocumentSnapshot[],
   schema: z.ZodType<TOut>,
   extras: Record<string, unknown> = {},
 ): TOut[] {

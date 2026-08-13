@@ -29,11 +29,9 @@ const centro: Centro = {
   localidad: "Barrios Unidos",
   linkMaps: null,
   horarioOficial: "24 horas",
-  apertura: "08:00",
-  cierre: "20:00",
   observaciones: null,
   actividades: [],
-  cuposPorJornada: { MANANA: 150, NOCHE: 150 },
+  cuposPorJornada: { AM: 150, PM: 150 },
   activo: true,
   coordinador: null,
 };

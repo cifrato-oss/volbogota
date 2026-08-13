@@ -20,12 +20,12 @@ import ExcelJS from "exceljs";
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
 import {
   ETIQUETA_JORNADA,
-  DESCRIPCION_JORNADA,
+  HORARIOS,
   JORNADAS,
   buildTurnoId,
-  horarioDeJornada,
   slugify,
   type Centro,
+  type Jornada,
   type Turno,
 } from "@/server/modules/catalogo/catalogo.schema";
 import {
@@ -67,28 +67,6 @@ function cellNumber(row: ExcelJS.Row, column: number): number {
   const value = row.getCell(column).value;
   const parsed = typeof value === "number" ? value : Number(cellText(row, column));
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-/**
- * Reads a time-only cell (`Apertura`, `Cierre`) as `HH:MM`.
- *
- * Excel stores a time-only value as a `Date` on 1899-12-30 in UTC, so the wall
- * clock is the UTC hour/minute, not the local one. A plain-text cell like
- * `"8:00"` is accepted too, since that is what a hand-typed edit looks like.
- */
-function cellHora(row: ExcelJS.Row, column: number | null): string | null {
-  if (column === null) return null;
-
-  const value = row.getCell(column).value;
-  if (value instanceof Date) {
-    const horas = String(value.getUTCHours()).padStart(2, "0");
-    const minutos = String(value.getUTCMinutes()).padStart(2, "0");
-    return `${horas}:${minutos}`;
-  }
-
-  const texto = cellText(row, column);
-  const match = texto ? /^(\d{1,2}):(\d{2})/.exec(texto) : null;
-  return match?.[1] && match[2] ? `${match[1].padStart(2, "0")}:${match[2]}` : null;
 }
 
 /** Reads a datetime cell (the `Necesidades` sheet's "Última actualización" row) as ISO. */
@@ -141,6 +119,41 @@ function cuposDe(row: ExcelJS.Row, column: number | null): number {
   return column ? cellNumber(row, column) : 0;
 }
 
+/**
+ * Every name a capacity column has had across versions of the file.
+ *
+ * "Cupos AM" was "Cupos Mañana" for a version. The second shift has been called
+ * PM, Tarde and Noche, but it is one shift — the one that runs from 1 p.m. to
+ * the point's closing time — so all three names land on `PM`.
+ */
+const ALIAS_CUPOS: Record<Jornada, string[]> = {
+  AM: ["Cupos AM", "Cupos Mañana"],
+  PM: ["Cupos PM", "Cupos Tarde", "Cupos Noche"],
+};
+
+/**
+ * The column that holds a jornada's capacity.
+ *
+ * A file carrying two names for the same shift is reported instead of resolved
+ * silently: taking the first would drop the other column's capacity, and reading
+ * an import that says nothing is the way that goes unnoticed.
+ */
+function columnaDeCupos(
+  columna: (titulo: string) => number | null,
+  jornada: Jornada,
+): number | null {
+  const presentes = ALIAS_CUPOS[jornada].filter((titulo) => columna(titulo) !== null);
+
+  if (presentes.length > 1) {
+    console.warn(
+      `⚠ La hoja trae ${presentes.join(" y ")} para la jornada ${jornada}. Uso ${presentes[0]}.`,
+    );
+  }
+
+  const elegida = presentes[0];
+  return elegida ? columna(elegida) : null;
+}
+
 // --- Centros ----------------------------------------------------------------
 
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
@@ -156,26 +169,18 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
     throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
   }
 
-  /**
-   * The jornada columns have been renamed and dropped across versions: "Cupos AM"
-   * became "Cupos Mañana", and the current file has no afternoon column at all —
-   * the points run two shifts, morning and night.
-   *
-   * So each jornada is read if its column exists and counted as zero otherwise,
-   * and what fails loudly is a sheet with no capacity column at all.
-   */
-  const colCuposManana = columna("Cupos Mañana") ?? columna("Cupos AM");
-  const colCuposNoche = columna("Cupos Noche");
+  // A jornada whose column the file omits is read as zero; what fails loudly is
+  // a sheet with no capacity column at all.
+  const colCuposAm = columnaDeCupos(columna, "AM");
+  const colCuposPm = columnaDeCupos(columna, "PM");
 
-  if (!colCuposManana && !colCuposNoche) {
+  if (!colCuposAm && !colCuposPm) {
     throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
   }
 
   const colDireccion = columna("Dirección");
   const colLocalidad = columna("Localidad");
   const colHorario = columna("Horario oficial del punto");
-  const colApertura = columna("Apertura");
-  const colCierre = columna("Cierre");
   const colActividades = columna("Actividades habilitadas");
   const colLink = columna("Link Google Maps");
   const colActivo = columna("Activo");
@@ -204,13 +209,11 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       localidad: readOptional(row, colLocalidad),
       linkMaps: readOptional(row, colLink),
       horarioOficial: readOptional(row, colHorario),
-      apertura: cellHora(row, colApertura),
-      cierre: cellHora(row, colCierre),
       observaciones: readOptional(row, colObservaciones),
       actividades,
       cuposPorJornada: {
-        MANANA: cuposDe(row, colCuposManana),
-        NOCHE: cuposDe(row, colCuposNoche),
+        AM: cuposDe(row, colCuposAm),
+        PM: cuposDe(row, colCuposPm),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
       // The second version of the file dropped the coordinator columns. The
@@ -273,7 +276,7 @@ function buildTurnos(centros: Centro[], fechas: string[]): Turno[] {
           fecha,
           diaSemana: diaSemana(fecha),
           jornada,
-          horario: horarioDeJornada(centro, jornada),
+          horario: HORARIOS[jornada],
           horarioOficialCentro: centro.horarioOficial,
           centroActivo: centro.activo,
           cuposTotales: cupos,
@@ -486,7 +489,7 @@ async function main(): Promise<void> {
     console.log(`\nTurnos cerrados por cupo 0: ${sinCupos.length} — ${detalle}`);
   }
 
-  reportarHorariosSinConfirmar(centros);
+  reportarHorariosEnConflicto(centros);
   reportarInconsistenciasDonaciones(centros, elementos, necesidades);
 
   const sinDireccion = centros.filter((centro) => !centro.direccion).map((centro) => centro.nombre);
@@ -530,7 +533,7 @@ async function main(): Promise<void> {
     jornadas: JORNADAS.map((jornada) => ({
       valor: jornada,
       etiqueta: ETIQUETA_JORNADA[jornada],
-      descripcion: DESCRIPCION_JORNADA[jornada],
+      horario: HORARIOS[jornada],
     })),
     categoriasDonacion: [...CATEGORIAS_DONACION],
     actualizadoEn: new Date().toISOString(),
@@ -580,28 +583,57 @@ async function retirarLoQueYaNoEstaAutorizado(
 }
 
 /**
- * Under the old fixed three-shift table, the evening shift's nominal end could
- * fall after a point's real closing time. That mismatch cannot happen anymore:
- * Noche's `fin` is now read straight from the centre's own `cierre`. What can
- * still happen is a centre that has not confirmed its hours at all — Estadio
- * El Campín shipped without them — so the shift ends up with a "Horario por
- * confirmar" placeholder instead of a real time. That is what this flags.
+ * A shift that ends after the point locks its door sends volunteers to a closed
+ * site, so the mismatch is surfaced on every import until the hours are
+ * reconciled. Checked per shift because each point publishes its own hours.
  */
-function reportarHorariosSinConfirmar(centros: Centro[]): void {
-  const sinApertura = centros.filter(
-    (centro) => (centro.cuposPorJornada.MANANA ?? 0) > 0 && !centro.apertura,
-  );
-  const sinCierre = centros.filter(
-    (centro) => (centro.cuposPorJornada.NOCHE ?? 0) > 0 && !centro.cierre,
-  );
+function reportarHorariosEnConflicto(centros: Centro[]): void {
+  const conflictos: string[] = [];
 
-  if (sinApertura.length === 0 && sinCierre.length === 0) return;
+  for (const centro of centros) {
+    if (!centro.horarioOficial) continue;
+    if (/24\s*horas/i.test(centro.horarioOficial)) continue;
 
-  console.warn(
-    "\n⚠ Puntos con cupos pero sin hora confirmada — su turno mostrará 'Horario por confirmar':",
-  );
-  for (const centro of sinApertura) console.warn(`   ${centro.nombre} — falta Apertura (Mañana)`);
-  for (const centro of sinCierre) console.warn(`   ${centro.nombre} — falta Cierre (Noche)`);
+    const cierre = leerHoraDeCierre(centro.horarioOficial);
+    if (cierre === null) continue;
+
+    for (const jornada of JORNADAS) {
+      if ((centro.cuposPorJornada[jornada] ?? 0) === 0) continue;
+      if (cierre >= enMinutos(HORARIOS[jornada].fin)) continue;
+
+      conflictos.push(
+        `   ${centro.nombre} — jornada ${jornada} (${HORARIOS[jornada].etiqueta}), cierra ${centro.horarioOficial}`,
+      );
+    }
+  }
+
+  if (conflictos.length === 0) return;
+
+  console.warn(`\n⚠ ${conflictos.length} turno(s) terminan después del cierre del punto:`);
+  for (const linea of conflictos) console.warn(linea);
+  console.warn("   Los cupos siguen abiertos: alinear horarios antes de publicar la web.");
+}
+
+/** `"17:00"` → minutes past midnight, to compare against the closing time. */
+function enMinutos(hora: string): number {
+  const [horas = "0", minutos = "0"] = hora.split(":");
+  return Number(horas) * 60 + Number(minutos);
+}
+
+/** Reads the closing time out of "8:00 a.m. - 9:00 p.m." as minutes past midnight. */
+function leerHoraDeCierre(horario: string): number | null {
+  const partes = horario.split("-");
+  const fin = partes[partes.length - 1]?.trim();
+  if (!fin) return null;
+
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)$/i.exec(fin.replace(/\s+/g, " "));
+  if (!match?.[1] || !match[3]) return null;
+
+  const hora = Number(match[1]) % 12;
+  const minutos = Number(match[2] ?? 0);
+  const esPm = /^p/i.test(match[3]);
+
+  return (hora + (esPm ? 12 : 0)) * 60 + minutos;
 }
 
 /**

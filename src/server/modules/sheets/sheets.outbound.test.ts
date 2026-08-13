@@ -24,7 +24,7 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     centroId: "punto-usaquen",
     centroNombre: "Punto Usaquén",
     fecha: "2026-08-13",
-    jornada: "NOCHE",
+    jornada: "PM",
     nombre: "Ana María",
     apellido: "Ramírez Gómez",
     celular: "3001234567",
@@ -77,8 +77,8 @@ describe("empujarReservasAlSheet", () => {
       nombreCompleto: "Ana María Ramírez Gómez",
       // The sheet writes dates day-first and shifts with pipes and a label.
       fechaJornada: "13/08/2026",
-      jornada: "Noche",
-      idTurno: "Punto Usaquén|2026-08-13|Noche",
+      jornada: "PM",
+      idTurno: "Punto Usaquén|2026-08-13|PM",
       autorizoDatos: "Sí",
       estado: "Asistió",
     });

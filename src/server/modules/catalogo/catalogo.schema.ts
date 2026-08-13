@@ -8,79 +8,24 @@ import { z } from "zod";
  * what lives in Firestore once imported, not the raw spreadsheet columns.
  */
 
-/**
- * Shifts run twice a day at every centre: Mañana and Noche.
- *
- * Unlike the old three-shift model, the schedule is not a fixed table — it
- * depends on each centre's own opening/closing time (`horarioDeJornada`
- * below). Mañana always runs from the centre's opening until noon; Noche
- * always runs from 1 p.m. until the centre's closing.
- */
-export const JORNADAS = ["MANANA", "NOCHE"] as const;
+/** Shifts run twice a day at every centre: morning and afternoon. */
+export const JORNADAS = ["AM", "PM"] as const;
 export const jornadaSchema = z.enum(JORNADAS, {
   error: () => `La jornada debe ser una de: ${JORNADAS.join(", ")}.`,
 });
 export type Jornada = z.infer<typeof jornadaSchema>;
 
+/** Fixed schedule per shift, taken from the spreadsheet. */
+export const HORARIOS: Record<Jornada, { inicio: string; fin: string; etiqueta: string }> = {
+  AM: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
+  PM: { inicio: "13:00", fin: "17:00", etiqueta: "1:00 p.m. - 5:00 p.m." },
+};
+
 /** Label used in the spreadsheet and in the UI. */
 export const ETIQUETA_JORNADA: Record<Jornada, string> = {
-  MANANA: "Mañana",
-  NOCHE: "Noche",
+  AM: "AM",
+  PM: "PM",
 };
-
-/** The rule behind each shift's schedule — for reference listings, not a real timetable. */
-export const DESCRIPCION_JORNADA: Record<Jornada, string> = {
-  MANANA: "Desde la apertura del punto hasta el mediodía.",
-  NOCHE: "Desde la 1:00 p.m. hasta el cierre del punto.",
-};
-
-/** `HH:MM`, 24 hours. */
-export const horaSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "La hora debe ser HH:MM.");
-export type Hora = z.infer<typeof horaSchema>;
-
-/** Where the Noche shift starts, fixed regardless of the centre. */
-const INICIO_NOCHE: Hora = "13:00";
-/** Where the Mañana shift ends, fixed regardless of the centre. */
-const FIN_MANANA: Hora = "12:00";
-
-/** `"08:00"` → `"8:00 a.m."`, `"13:00"` → `"1:00 p.m."`. Colombian Spanish, lowercase. */
-export function formatearHora12(hora: Hora): string {
-  const [horasStr = "0", minutos = "00"] = hora.split(":");
-  const horas24 = Number(horasStr);
-  const meridiano = horas24 < 12 ? "a.m." : "p.m.";
-  const horas12 = horas24 % 12 === 0 ? 12 : horas24 % 12;
-
-  return `${horas12}:${minutos} ${meridiano}`;
-}
-
-/**
- * Computes a shift's real schedule from the centre's own opening/closing
- * time, mirroring the spreadsheet's `Turnos` sheet formula.
- *
- * A centre that has not confirmed its hours yet (`apertura`/`cierre` still
- * `null`, e.g. Estadio El Campín) gets a placeholder label rather than a
- * throw: capacity, not schedule completeness, is what decides bookability.
- */
-export function horarioDeJornada(
-  centro: Pick<Centro, "apertura" | "cierre">,
-  jornada: Jornada,
-): { inicio: string; fin: string; etiqueta: string } {
-  if (jornada === "MANANA") {
-    if (!centro.apertura) return { inicio: "", fin: FIN_MANANA, etiqueta: "Horario por confirmar" };
-    return {
-      inicio: centro.apertura,
-      fin: FIN_MANANA,
-      etiqueta: `${formatearHora12(centro.apertura)} - 12:00 m.`,
-    };
-  }
-
-  if (!centro.cierre) return { inicio: INICIO_NOCHE, fin: "", etiqueta: "Horario por confirmar" };
-  return {
-    inicio: INICIO_NOCHE,
-    fin: centro.cierre,
-    etiqueta: `1:00 p.m. - ${formatearHora12(centro.cierre)}`,
-  };
-}
 
 export const ACTIVIDADES = ["Empaque", "Clasificación", "Carga y descarga"] as const;
 export const actividadSchema = z.enum(ACTIVIDADES, {
@@ -112,13 +57,6 @@ export const centroSchema = z.object({
    * schedule: several points close before the evening shift's nominal end.
    */
   horarioOficial: z.string().nullable(),
-  /**
-   * `HH:MM`, the centre's real opening/closing time. Feeds `horarioDeJornada`
-   * to compute the Mañana/Noche schedule. `null` until the point confirms it —
-   * see Estadio El Campín, which opened without one.
-   */
-  apertura: horaSchema.nullable(),
-  cierre: horaSchema.nullable(),
   /**
    * Operational notes straight from the spreadsheet, verbatim. Kept as prose
    * because that is what it is: parsing it into flags would invent structure
@@ -185,7 +123,7 @@ export function toTurnoPublico(turno: Turno): TurnoPublico {
   };
 }
 
-/** `vive-claro_2026-08-13_manana` — stable, URL-safe, and derivable from its parts. */
+/** `vive-claro_2026-08-13_am` — stable, URL-safe, and derivable from its parts. */
 export function buildTurnoId(centroId: string, fecha: string, jornada: Jornada): string {
   return `${centroId}_${fecha}_${jornada.toLowerCase()}`;
 }
@@ -219,7 +157,7 @@ export function construirTurnos(centros: Centro[], fechas: string[]): Turno[] {
           fecha,
           diaSemana: diaSemanaDe(fecha),
           jornada,
-          horario: horarioDeJornada(centro, jornada),
+          horario: HORARIOS[jornada],
           horarioOficialCentro: centro.horarioOficial,
           centroActivo: centro.activo,
           cuposTotales: cupos,
