@@ -2,7 +2,9 @@
 
 import { ExternalLink } from "lucide-react";
 import dynamic from "next/dynamic";
+import type { ReactNode } from "react";
 
+import { ErrorBoundary } from "@/components/shared/error-boundary";
 import { Skeleton } from "@/components/ui/skeleton";
 import useGeocode from "@/queries/geocode/useGeocode";
 import type { Centro } from "@/types/volbogota";
@@ -17,9 +19,21 @@ function buildQuery(centro: Centro): string | null {
   return [centro.direccion, centro.localidad, "Bogotá", "Colombia"].filter(Boolean).join(", ");
 }
 
+function MapaFallback({ message, comoLlegar }: { message: string; comoLlegar: ReactNode }) {
+  return (
+    <div className="text-muted-foreground space-y-2 rounded-xl border border-dashed px-6 py-8 text-center text-sm">
+      <p>{message}</p>
+      {comoLlegar}
+    </div>
+  );
+}
+
 /**
  * "Ubicación" section for the center detail: an interactive OSM map placed by
  * geocoding the address, with the Google Maps link as the precise fallback.
+ *
+ * The map subtree is wrapped in an ErrorBoundary so a Leaflet/render crash
+ * degrades to the fallback instead of taking down the detail page.
  */
 export function CentroMapa({ centro }: { centro: Centro }) {
   const query = buildQuery(centro);
@@ -50,19 +64,24 @@ export function CentroMapa({ centro }: { centro: Centro }) {
         <Skeleton className="h-64 w-full rounded-xl" />
       ) : point ? (
         <>
-          <MapaView
-            lat={point.lat}
-            lng={point.lng}
-            nombre={centro.nombre}
-            direccion={centro.direccion}
-          />
+          <ErrorBoundary
+            key={`${point.lat},${point.lng}`}
+            fallback={<MapaFallback message="No pudimos cargar el mapa." comoLlegar={comoLlegar} />}
+          >
+            <MapaView
+              lat={point.lat}
+              lng={point.lng}
+              nombre={centro.nombre}
+              direccion={centro.direccion}
+            />
+          </ErrorBoundary>
           {comoLlegar}
         </>
       ) : (
-        <div className="text-muted-foreground space-y-2 rounded-xl border border-dashed px-6 py-8 text-center text-sm">
-          <p>{isError ? "No pudimos cargar el mapa." : "Ubicación no disponible en el mapa."}</p>
-          {comoLlegar}
-        </div>
+        <MapaFallback
+          message={isError ? "No pudimos cargar el mapa." : "Ubicación no disponible en el mapa."}
+          comoLlegar={comoLlegar}
+        />
       )}
     </section>
   );
