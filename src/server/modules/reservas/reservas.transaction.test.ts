@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FakeFirestore } from "@/test/firestore-fake";
+import { MemoryFirestore } from "@/server/db/drivers/memory.driver";
 
 import type { CrearReservaInput } from "./reservas.schema";
 
-let db = new FakeFirestore();
+let db = new MemoryFirestore();
 
 vi.mock("@/server/db/firestore", () => ({
   COLLECTIONS: {
@@ -58,7 +58,7 @@ function reservadosDe(id = TURNO_ID): number {
 }
 
 beforeEach(() => {
-  db = new FakeFirestore();
+  db = new MemoryFirestore();
 });
 
 describe("crearReservaEnTransaccion", () => {

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FakeFirestore } from "@/test/firestore-fake";
+import { MemoryFirestore } from "@/server/db/drivers/memory.driver";
 
-let db = new FakeFirestore();
+let db = new MemoryFirestore();
 
 vi.mock("@/server/db/firestore", () => ({
   COLLECTIONS: {
@@ -69,7 +69,7 @@ function filaReserva(overrides: Record<string, unknown> = {}) {
 }
 
 beforeEach(() => {
-  db = new FakeFirestore();
+  db = new MemoryFirestore();
 });
 
 describe("sincronizarCentrosDesdeSheet", () => {
@@ -256,9 +256,22 @@ describe("sincronizarReservasDesdeSheet", () => {
   });
 
   it("defaults the age to the legal minimum, which the sheet does not carry", async () => {
-    const { resultados } = await sincronizarReservas({ filas: [filaReserva()] });
+    // Omitted entirely, not sent as null: the sheet has no such column, so
+    // Apps Script never puts the key in the payload.
+    const { resultados } = await sincronizarReservas({
+      filas: [
+        {
+          fila: 2,
+          nombreCompleto: "Fulanita Pérez Gómez",
+          celular: "3001234567",
+          idTurno: "Punto Usaquén|2026-08-13|AM",
+          autorizoDatos: "Sí",
+        },
+      ],
+    });
     const codigo = resultados[0]?.codigo ?? "";
 
+    expect(resultados[0]?.validacion).toBe("OK");
     expect(db.peek(`reservas/${codigo}`)).toMatchObject({ edad: 18 });
   });
 
@@ -278,7 +291,8 @@ describe("sincronizarReservasDesdeSheet", () => {
     });
 
     expect(creadas).toBe(0);
-    expect(resultados[0]?.validacion).toMatch(/autorizar el tratamiento/i);
+    // The message itself, not a serialised issue object: this lands in a cell.
+    expect(resultados[0]?.validacion).toBe("Debes autorizar el tratamiento de datos personales.");
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 0 });
   });
 

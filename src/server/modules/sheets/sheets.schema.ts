@@ -70,11 +70,14 @@ export type SincronizarCentrosInput = z.infer<typeof sincronizarCentrosSchema>;
  */
 export const EDAD_POR_DEFECTO = EDAD_MINIMA;
 
-const edadSchema = z.union([z.number(), z.string(), z.null(), z.undefined()]).transform((valor) => {
-  if (valor === null || valor === undefined || valor === "") return EDAD_POR_DEFECTO;
-  const numero = Number(valor);
-  return Number.isFinite(numero) ? numero : EDAD_POR_DEFECTO;
-});
+const edadSchema = z
+  .union([z.number(), z.string(), z.null()])
+  .optional()
+  .transform((valor) => {
+    if (valor === null || valor === undefined || valor === "") return EDAD_POR_DEFECTO;
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero : EDAD_POR_DEFECTO;
+  });
 
 /** A row of the `Reservas` sheet. */
 export const filaReservaSchema = z.object({

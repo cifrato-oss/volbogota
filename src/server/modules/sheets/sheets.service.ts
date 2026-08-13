@@ -1,4 +1,4 @@
-import { badRequest, isAppError } from "@/server/http/errors";
+import { badRequest, isAppError, unprocessable } from "@/server/http/errors";
 import { logger } from "@/server/lib/logger";
 import {
   ACTIVIDADES,
@@ -164,7 +164,7 @@ async function crearDesdeFila(fila: FilaReserva): Promise<ResultadoFila> {
 
   // Through the same schema the web form uses: the phone gets normalised, the
   // age coerced, and a missing consent rejected before anything is written.
-  const input = crearReservaSchema.parse({
+  const parsed = crearReservaSchema.safeParse({
     nombre,
     apellido,
     celular: fila.celular,
@@ -172,6 +172,14 @@ async function crearDesdeFila(fila: FilaReserva): Promise<ResultadoFila> {
     turnoId: turnoIdDe(fila),
     autorizoDatos: siNoDesdeSheet(fila.autorizoDatos),
   });
+
+  // The messages, not the raw issue objects: this text lands in the sheet's
+  // Validación cell, where a coordinator reads it.
+  if (!parsed.success) {
+    throw unprocessable(parsed.error.issues.map((issue) => issue.message).join(" "));
+  }
+
+  const input = parsed.data;
 
   // The same transaction the web uses, so a hand-typed row cannot oversell a
   // shift or slip past the one-per-phone rule.

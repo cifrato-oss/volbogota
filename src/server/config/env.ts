@@ -14,6 +14,11 @@ const serverSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
+  // Where the data lives. `memory` runs the whole app with no credentials at
+  // all — useful for a demo or a first run — at the cost of losing everything
+  // on restart and not surviving more than one instance.
+  DB_DRIVER: z.enum(["firestore", "memory"]).default("firestore"),
+
   // Firebase service account. Required in production; optional elsewhere so the
   // web app and the test suite run without credentials. `getDb()` fails with a
   // precise message if something actually reaches Firestore without them.
@@ -105,6 +110,7 @@ const parsed = serverSchema
   .safeParse({
     NODE_ENV: process.env.NODE_ENV,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    DB_DRIVER: process.env.DB_DRIVER,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
@@ -138,6 +144,7 @@ const firebaseConfigured = Boolean(
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   logLevel: parsed.data.LOG_LEVEL,
+  dbDriver: parsed.data.DB_DRIVER,
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL,
   celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
   adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,

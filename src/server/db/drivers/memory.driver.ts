@@ -26,13 +26,13 @@ function abortedError(): Error & { code: number } {
   return Object.assign(new Error("ABORTED: too much contention"), { code: 10 });
 }
 
-export type FakeDocSnapshot = {
+export type MemoryDocSnapshot = {
   id: string;
   exists: boolean;
   data: () => DocData | undefined;
 };
 
-function snapshot(id: string, stored: StoredDoc | undefined): FakeDocSnapshot {
+function snapshot(id: string, stored: StoredDoc | undefined): MemoryDocSnapshot {
   return {
     id,
     exists: stored !== undefined,
@@ -44,7 +44,7 @@ function snapshot(id: string, stored: StoredDoc | undefined): FakeDocSnapshot {
 type Filter = { field: string; value: unknown };
 type Order = { field: string; direction: "asc" | "desc" };
 
-export class FakeFirestore {
+export class MemoryFirestore {
   private readonly docs = new Map<string, StoredDoc>();
 
   /** How many times a transaction retries itself before surfacing ABORTED. */
@@ -89,7 +89,7 @@ export class FakeFirestore {
     return this.docs.get(path)?.version ?? -1;
   }
 
-  private read(path: string, id: string): FakeDocSnapshot {
+  private read(path: string, id: string): MemoryDocSnapshot {
     const collection = path.split("/")[0] ?? "";
     if (this.forcedExists.has(collection) && !this.docs.has(path)) {
       return snapshot(id, { data: {}, version: 0 });
@@ -103,19 +103,21 @@ export class FakeFirestore {
     await Promise.resolve();
   }
 
-  collection(name: string): FakeQuery {
-    return new FakeQuery(this, name);
+  collection(name: string): MemoryQuery {
+    return new MemoryQuery(this, name);
   }
 
-  batch(): FakeWriteBatch {
-    return new FakeWriteBatch(this);
+  batch(): MemoryWriteBatch {
+    return new MemoryWriteBatch(this);
   }
 
-  async runTransaction<TResult>(body: (tx: FakeTransaction) => Promise<TResult>): Promise<TResult> {
+  async runTransaction<TResult>(
+    body: (tx: MemoryTransaction) => Promise<TResult>,
+  ): Promise<TResult> {
     for (let attempt = 0; attempt < this.internalRetries; attempt += 1) {
       const reads = new Map<string, number>();
       const writes: Array<() => void> = [];
-      const tx = new FakeTransaction(this, reads, writes);
+      const tx = new MemoryTransaction(this, reads, writes);
 
       // A rejection here is an answer — full shift, duplicate phone — and must
       // reach the caller instead of being retried as if it were contention.
@@ -136,7 +138,7 @@ export class FakeFirestore {
   }
 
   /** @internal — used by the transaction and reference wrappers. */
-  _readDoc(path: string, id: string, reads?: Map<string, number>): FakeDocSnapshot {
+  _readDoc(path: string, id: string, reads?: Map<string, number>): MemoryDocSnapshot {
     reads?.set(path, this.versionOf(path));
     return this.read(path, id);
   }
@@ -202,18 +204,18 @@ export class FakeFirestore {
   }
 }
 
-export class FakeDocRef {
+export class MemoryDocRef {
   constructor(
-    private readonly db: FakeFirestore,
+    private readonly db: MemoryFirestore,
     readonly path: string,
     readonly id: string,
   ) {}
 
-  collection(name: string): FakeQuery {
-    return new FakeQuery(this.db, `${this.path}/${name}`);
+  collection(name: string): MemoryQuery {
+    return new MemoryQuery(this.db, `${this.path}/${name}`);
   }
 
-  async get(): Promise<FakeDocSnapshot> {
+  async get(): Promise<MemoryDocSnapshot> {
     await this.db._yield();
     return this.db._readDoc(this.path, this.id);
   }
@@ -231,12 +233,12 @@ export class FakeDocRef {
 }
 
 /** Batched writes. Like Firestore's, they only land when `commit` runs. */
-export class FakeWriteBatch {
+export class MemoryWriteBatch {
   private readonly operaciones: Array<() => void> = [];
 
-  constructor(private readonly db: FakeFirestore) {}
+  constructor(private readonly db: MemoryFirestore) {}
 
-  set(ref: FakeDocRef, data: DocData, options?: { merge?: boolean }): FakeWriteBatch {
+  set(ref: MemoryDocRef, data: DocData, options?: { merge?: boolean }): MemoryWriteBatch {
     this.operaciones.push(() => {
       if (options?.merge) this.db._merge(ref.path, data);
       else this.db._set(ref.path, data);
@@ -244,12 +246,12 @@ export class FakeWriteBatch {
     return this;
   }
 
-  update(ref: FakeDocRef, partial: DocData): FakeWriteBatch {
+  update(ref: MemoryDocRef, partial: DocData): MemoryWriteBatch {
     this.operaciones.push(() => this.db._update(ref.path, partial));
     return this;
   }
 
-  delete(ref: FakeDocRef): FakeWriteBatch {
+  delete(ref: MemoryDocRef): MemoryWriteBatch {
     this.operaciones.push(() => this.db._delete(ref.path));
     return this;
   }
@@ -260,46 +262,46 @@ export class FakeWriteBatch {
   }
 }
 
-export class FakeQuery {
+export class MemoryQuery {
   private filters: Filter[] = [];
   private order: Order | null = null;
   private max: number | null = null;
   private cursor: string | null = null;
 
   constructor(
-    private readonly db: FakeFirestore,
+    private readonly db: MemoryFirestore,
     private readonly collectionPath: string,
   ) {}
 
-  doc(id: string): FakeDocRef {
-    return new FakeDocRef(this.db, `${this.collectionPath}/${id}`, id);
+  doc(id: string): MemoryDocRef {
+    return new MemoryDocRef(this.db, `${this.collectionPath}/${id}`, id);
   }
 
-  where(field: string, _op: string, value: unknown): FakeQuery {
+  where(field: string, _op: string, value: unknown): MemoryQuery {
     const next = this.clone();
     next.filters = [...this.filters, { field, value }];
     return next;
   }
 
-  orderBy(field: string, direction: "asc" | "desc" = "asc"): FakeQuery {
+  orderBy(field: string, direction: "asc" | "desc" = "asc"): MemoryQuery {
     const next = this.clone();
     next.order = { field, direction };
     return next;
   }
 
-  limit(count: number): FakeQuery {
+  limit(count: number): MemoryQuery {
     const next = this.clone();
     next.max = count;
     return next;
   }
 
-  startAfter(value: string): FakeQuery {
+  startAfter(value: string): MemoryQuery {
     const next = this.clone();
     next.cursor = value;
     return next;
   }
 
-  async get(): Promise<{ docs: FakeDocSnapshot[]; size: number; empty: boolean }> {
+  async get(): Promise<{ docs: MemoryDocSnapshot[]; size: number; empty: boolean }> {
     await this.db._yield();
 
     let paths = this.db._query(this.collectionPath, this.filters, this.order);
@@ -321,8 +323,8 @@ export class FakeQuery {
     return { docs, size: docs.length, empty: docs.length === 0 };
   }
 
-  private clone(): FakeQuery {
-    const next = new FakeQuery(this.db, this.collectionPath);
+  private clone(): MemoryQuery {
+    const next = new MemoryQuery(this.db, this.collectionPath);
     next.filters = [...this.filters];
     next.order = this.order;
     next.max = this.max;
@@ -331,27 +333,27 @@ export class FakeQuery {
   }
 }
 
-export class FakeTransaction {
+export class MemoryTransaction {
   constructor(
-    private readonly db: FakeFirestore,
+    private readonly db: MemoryFirestore,
     private readonly reads: Map<string, number>,
     private readonly writes: Array<() => void>,
   ) {}
 
-  async get(ref: FakeDocRef): Promise<FakeDocSnapshot> {
+  async get(ref: MemoryDocRef): Promise<MemoryDocSnapshot> {
     await this.db._yield();
     return this.db._readDoc(ref.path, ref.id, this.reads);
   }
 
-  set(ref: FakeDocRef, data: DocData): void {
+  set(ref: MemoryDocRef, data: DocData): void {
     this.writes.push(() => this.db._set(ref.path, data));
   }
 
-  update(ref: FakeDocRef, partial: DocData): void {
+  update(ref: MemoryDocRef, partial: DocData): void {
     this.writes.push(() => this.db._update(ref.path, partial));
   }
 
-  delete(ref: FakeDocRef): void {
+  delete(ref: MemoryDocRef): void {
     this.writes.push(() => this.db._delete(ref.path));
   }
 }
