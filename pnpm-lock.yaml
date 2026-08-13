@@ -22,6 +22,9 @@ importers:
       "@tanstack/react-query":
         specifier: ^5.101.4
         version: 5.101.4(react@19.2.8)
+      "@vercel/oidc":
+        specifier: ^3.8.4
+        version: 3.8.4
       axios:
         specifier: ^1.19.0
         version: 1.19.0
@@ -34,6 +37,9 @@ importers:
       firebase-admin:
         specifier: ^14.2.0
         version: 14.2.0
+      google-auth-library:
+        specifier: ^11.0.2
+        version: 11.0.2
       leaflet:
         specifier: ^1.9.4
         version: 1.9.4
@@ -2884,6 +2890,26 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  "@vercel/cli-config@0.2.3":
+    resolution:
+      {
+        integrity: sha512-Ggh0Wmi92TUkUexmSUPkkDtvJmbjUr7IvF5T3FkSsWrXXs3GFzOujfxFpECdJZpux1JG4SWDv9BT4w++TDgD6A==,
+      }
+
+  "@vercel/cli-exec@1.0.1":
+    resolution:
+      {
+        integrity: sha512-g9XerViJ/paZujufXYcu5XYI2vU2rtB4sgdpjUHde5RnOkdmpu0ngH46LCFGHoPXO/C+qDPSczIHIRN+8Q2YKQ==,
+      }
+    engines: { node: ">= 18" }
+
+  "@vercel/oidc@3.8.4":
+    resolution:
+      {
+        integrity: sha512-FGNvVZ5pgX9FaBqkPt6VkYFZ6bWAMDzYi7nxW+1Xt+Z4fn5PuTULVwsxjKc+0uKhysyWBQmvsmM50Oh6C2/oMA==,
+      }
+    engines: { node: ">= 20" }
+
   "@vitejs/plugin-react@4.7.0":
     resolution:
       {
@@ -5352,6 +5378,13 @@ packages:
       }
     engines: { node: ">=18" }
 
+  gcp-metadata@9.0.3:
+    resolution:
+      {
+        integrity: sha512-2YYnIlHaKBGT2IPg3G2M57hia9Galz15zsEOvw9T3oRf0lSn6KN6VcHQLqby7x8ksYKnjXvp3rp2KJyLCN6zfQ==,
+      }
+    engines: { node: ">=22" }
+
   generator-function@2.0.1:
     resolution:
       {
@@ -5518,6 +5551,13 @@ packages:
       }
     engines: { node: ">=18" }
 
+  google-auth-library@11.0.2:
+    resolution:
+      {
+        integrity: sha512-vzpgPutxrghPsnjrjpzLX2bdv8IOL719Rh0oEjGnQu8YCIbnbMuTTQ5zU9LcKvLdOPgCxBwppbvnhgW90Qna5Q==,
+      }
+    engines: { node: ">=22" }
+
   google-auth-library@9.15.1:
     resolution:
       {
@@ -5552,6 +5592,13 @@ packages:
         integrity: sha512-WE9av4wKDZgRjBwgVUabocx8T6/7o3Ca1Fat46FXDhXVAFibzNadedcOXrdgd1Kzmk8tsk/9ZH89Wyf/SqeZ3A==,
       }
     engines: { node: ">=18" }
+
+  google-logging-utils@2.0.1:
+    resolution:
+      {
+        integrity: sha512-HMhaQghlOTvbcb3c4T5jmmOMtG3JUF1iOQMezaJXL86CDS+Tm2vHd0IeLFRAx3+ewd+bo9E1HFHoy17X5aJa9A==,
+      }
+    engines: { node: ">=22" }
 
   googleapis-common@8.0.3:
     resolution:
@@ -6366,6 +6413,12 @@ packages:
     resolution:
       {
         integrity: sha512-jnt9OC34sLXMLJ6YfPQ2ZEKrR9mB5ZbSnQb4LPaOx1c5rTzxpR33L18jjp0r75mGGTJmsil3qwN1B5IBeTnSSA==,
+      }
+
+  jose@5.10.0:
+    resolution:
+      {
+        integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==,
       }
 
   jose@6.2.8:
@@ -7607,6 +7660,13 @@ packages:
         integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==,
       }
     engines: { node: ">=18" }
+
+  os-paths@4.4.0:
+    resolution:
+      {
+        integrity: sha512-wrAwOeXp1RRMFfQY8Sy7VaGVmPocaLwSFOYCGKSyo8qmJ+/yaafCl5BCA1IQZWqFSRBrKDYFeR9d/VyQzfH/jg==,
+      }
+    engines: { node: ">= 6.0" }
 
   own-keys@1.0.2:
     resolution:
@@ -9934,12 +9994,26 @@ packages:
       }
     engines: { node: ">=20" }
 
+  xdg-app-paths@5.5.1:
+    resolution:
+      {
+        integrity: sha512-hI3flOB4PLZIy5prbtTpirobtPE2ZtZ52szO+2mM9Efp6ErM398La+C1lIpNWDfNoQk+6Lsi6nMcCwVB7pxeMQ==,
+      }
+    engines: { node: ">= 6.0" }
+
   xdg-basedir@4.0.0:
     resolution:
       {
         integrity: sha512-PSNhEJDejZYV7h50BohL09Er9VaIefr2LMAf3OEmpCkjOi34eYyQYAXUTjEQtZJTKcF0E2UKTh+osDLsgNim9Q==,
       }
     engines: { node: ">=8" }
+
+  xdg-portable@7.3.0:
+    resolution:
+      {
+        integrity: sha512-sqMMuL1rc0FmMBOzCpd0yuy9trqF2yTTVe+E9ogwCSWQCdDEtQUwrZPT6AxqtsFGRNxycgncbP/xmOOSPw5ZUw==,
+      }
+    engines: { node: ">= 6.0" }
 
   xml-name-validator@5.0.0:
     resolution:
@@ -10087,6 +10161,12 @@ packages:
     resolution:
       {
         integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==,
+      }
+
+  zod@4.1.11:
+    resolution:
+      {
+        integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==,
       }
 
   zod@4.4.3:
@@ -11686,6 +11766,21 @@ snapshots:
 
   "@unrs/resolver-binding-win32-x64-msvc@1.12.2":
     optional: true
+
+  "@vercel/cli-config@0.2.3":
+    dependencies:
+      xdg-app-paths: 5.5.1
+      zod: 4.1.11
+
+  "@vercel/cli-exec@1.0.1":
+    dependencies:
+      execa: 5.1.1
+
+  "@vercel/oidc@3.8.4":
+    dependencies:
+      "@vercel/cli-config": 0.2.3
+      "@vercel/cli-exec": 1.0.1
+      jose: 5.10.0
 
   "@vitejs/plugin-react@4.7.0(vite@7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.12)(yaml@2.9.0))":
     dependencies:
@@ -13568,7 +13663,7 @@ snapshots:
   gcp-metadata@8.1.2:
     dependencies:
       gaxios: 7.3.1
-      google-logging-utils: 1.1.3
+      google-logging-utils: 1.2.0
       json-bigint: 1.0.0
     transitivePeerDependencies:
       - supports-color
@@ -13577,6 +13672,14 @@ snapshots:
     dependencies:
       gaxios: 7.1.3
       google-logging-utils: 1.1.3
+      json-bigint: 1.0.0
+    transitivePeerDependencies:
+      - supports-color
+
+  gcp-metadata@9.0.3:
+    dependencies:
+      gaxios: 7.3.1
+      google-logging-utils: 2.0.1
       json-bigint: 1.0.0
     transitivePeerDependencies:
       - supports-color
@@ -13704,6 +13807,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  google-auth-library@11.0.2:
+    dependencies:
+      base64-js: 1.5.1
+      ecdsa-sig-formatter: 1.0.11
+      gaxios: 7.3.1
+      gcp-metadata: 9.0.3
+      google-logging-utils: 2.0.1
+      jws: 4.0.1
+    transitivePeerDependencies:
+      - supports-color
+
   google-auth-library@9.15.1:
     dependencies:
       base64-js: 1.5.1
@@ -13737,6 +13851,8 @@ snapshots:
   google-logging-utils@1.1.3: {}
 
   google-logging-utils@1.2.0: {}
+
+  google-logging-utils@2.0.1: {}
 
   googleapis-common@8.0.3:
     dependencies:
@@ -14156,6 +14272,8 @@ snapshots:
       as-array: 2.0.0
       url-join: 0.0.1
       valid-url: 1.0.9
+
+  jose@5.10.0: {}
 
   jose@6.2.8: {}
 
@@ -14847,6 +14965,8 @@ snapshots:
       stdin-discarder: 0.2.2
       string-width: 7.2.0
       strip-ansi: 7.2.0
+
+  os-paths@4.4.0: {}
 
   own-keys@1.0.2:
     dependencies:
@@ -16415,7 +16535,16 @@ snapshots:
       is-wsl: 3.1.1
       powershell-utils: 0.1.0
 
+  xdg-app-paths@5.5.1:
+    dependencies:
+      os-paths: 4.4.0
+      xdg-portable: 7.3.0
+
   xdg-basedir@4.0.0: {}
+
+  xdg-portable@7.3.0:
+    dependencies:
+      os-paths: 4.4.0
 
   xml-name-validator@5.0.0: {}
 
@@ -16493,5 +16622,7 @@ snapshots:
       zod: 4.4.3
 
   zod@3.25.76: {}
+
+  zod@4.1.11: {}
 
   zod@4.4.3: {}

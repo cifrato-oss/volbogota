@@ -26,6 +26,16 @@ const serverSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
 
+  // Workload Identity Federation: how the Vercel deployment authenticates
+  // without a service-account key. Vercel issues an OIDC token per request;
+  // these four identify which GCP pool and service account exchange it for
+  // short-lived credentials. Optional outside Vercel, where ADC (or a
+  // developer's own key pair) takes over instead.
+  GCP_PROJECT_NUMBER: z.string().optional(),
+  GCP_SERVICE_ACCOUNT_EMAIL: z.string().optional(),
+  GCP_WORKLOAD_IDENTITY_POOL_ID: z.string().optional(),
+  GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID: z.string().optional(),
+
   // Secret key for the per-shift deduplication digest of a phone number.
   // A plain hash would not protect anything: Colombian mobiles span about
   // 3e9 values, so the whole dictionary precomputes in seconds and every
@@ -115,6 +125,24 @@ const parsed = serverSchema
           "credenciales por defecto del entorno (ADC).",
       });
     }
+
+    // Same reasoning as the pair above: the four WIF identifiers only mean
+    // something together, so a partial set is a typo worth catching at boot.
+    const wifVars = [
+      "GCP_PROJECT_NUMBER",
+      "GCP_SERVICE_ACCOUNT_EMAIL",
+      "GCP_WORKLOAD_IDENTITY_POOL_ID",
+      "GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID",
+    ] as const;
+    const wifPresent = wifVars.filter((key) => Boolean(value[key]));
+
+    if (wifPresent.length > 0 && wifPresent.length < wifVars.length) {
+      for (const key of wifVars) {
+        if (!value[key]) {
+          ctx.addIssue({ code: "custom", path: [key], message: "Van las cuatro o ninguna." });
+        }
+      }
+    }
   })
   .safeParse({
     NODE_ENV: process.env.NODE_ENV,
@@ -123,6 +151,10 @@ const parsed = serverSchema
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+    GCP_PROJECT_NUMBER: process.env.GCP_PROJECT_NUMBER,
+    GCP_SERVICE_ACCOUNT_EMAIL: process.env.GCP_SERVICE_ACCOUNT_EMAIL,
+    GCP_WORKLOAD_IDENTITY_POOL_ID: process.env.GCP_WORKLOAD_IDENTITY_POOL_ID,
+    GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID: process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID,
     CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
     SHEETS_HOOK_TOKEN: process.env.SHEETS_HOOK_TOKEN,
@@ -151,6 +183,13 @@ const firebaseConfigured = Boolean(
   parsed.data.FIREBASE_PRIVATE_KEY,
 );
 
+const wifConfigured = Boolean(
+  parsed.data.GCP_PROJECT_NUMBER &&
+  parsed.data.GCP_SERVICE_ACCOUNT_EMAIL &&
+  parsed.data.GCP_WORKLOAD_IDENTITY_POOL_ID &&
+  parsed.data.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID,
+);
+
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   logLevel: parsed.data.LOG_LEVEL,
@@ -165,6 +204,13 @@ export const env = {
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",
     clientEmail: parsed.data.FIREBASE_CLIENT_EMAIL ?? "",
     privateKey: parsed.data.FIREBASE_PRIVATE_KEY ?? "",
+  },
+  gcpWorkloadIdentity: {
+    configured: wifConfigured,
+    projectNumber: parsed.data.GCP_PROJECT_NUMBER ?? "",
+    serviceAccountEmail: parsed.data.GCP_SERVICE_ACCOUNT_EMAIL ?? "",
+    poolId: parsed.data.GCP_WORKLOAD_IDENTITY_POOL_ID ?? "",
+    providerId: parsed.data.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID ?? "",
   },
 } as const;
 
