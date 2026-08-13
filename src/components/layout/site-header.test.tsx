@@ -21,6 +21,6 @@ describe("SiteHeader", () => {
   it("shows the program dates", () => {
     render(<SiteHeader />);
 
-    expect(screen.getByText(siteConfig.eventLabel)).toBeInTheDocument();
+    expect(screen.getByText(siteConfig.eventLabelLong)).toBeInTheDocument();
   });
 });

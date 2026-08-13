@@ -9,8 +9,10 @@ export const siteConfig = {
   description:
     "Aquí encontrarás toda la información sobre los puntos de acopio oficiales de la Alcaldía Mayor de Bogotá y la Cruz Roja.",
   locale: "es-CO",
-  /** Program window, shown in the header badge. */
+  /** Program window, shown in the landing badge. */
   eventLabel: "13 – 16 Agosto 2026",
+  /** Longer form for the header badge. */
+  eventLabelLong: "Jornadas del 13 al 16 de Agosto 2026",
   nav: [{ label: "Inicio", href: "/" }],
 } as const;
 

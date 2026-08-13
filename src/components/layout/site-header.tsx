@@ -24,7 +24,7 @@ export function SiteHeader() {
 
         <span className="bg-primary/10 text-primary inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium">
           <span aria-hidden>📅</span>
-          {siteConfig.eventLabel}
+          {siteConfig.eventLabelLong}
         </span>
       </div>
     </header>
