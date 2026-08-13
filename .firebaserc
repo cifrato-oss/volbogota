@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "centros-de-acopio-5e6a1"
+    "default": "volbogota",
+    "prod": "volbogota",
+    "dev": "volbogota-dev",
+    "acopio": "centros-de-acopio-5e6a1"
   }
 }

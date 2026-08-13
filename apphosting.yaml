@@ -1,0 +1,89 @@
+# Configuración del backend de Firebase App Hosting.
+#
+# El backend `volbogota` despliega este repo desde `main` en cada push. Sin este
+# archivo arranca sin ninguna variable, y `src/server/config/env.ts` exige tres
+# en producción: la app sirve la home pero todo `/api/*` responde 500.
+#
+# Las variables se declaran primero en `src/server/config/env.ts` y se documentan
+# en `.env.example`; acá van los valores del deploy.
+
+runConfig:
+  # Los valores por defecto de App Hosting, explícitos para que se vean.
+  cpu: 1
+  memoryMiB: 512
+  concurrency: 80
+  # `minInstances: 0` significa arranque en frío en la primera visita después de
+  # un rato sin tráfico. Para el día del evento vale subirlo a 1 y bajarlo
+  # después: una instancia encendida se cobra por hora, haya o no visitas.
+  minInstances: 0
+  maxInstances: 10
+
+env:
+  # --- Firestore --------------------------------------------------------
+  # No van FIREBASE_CLIENT_EMAIL ni FIREBASE_PRIVATE_KEY: acá no hace falta
+  # ninguna llave. App Hosting adjunta la cuenta de servicio
+  # `firebase-app-hosting-compute@volbogota.iam.gserviceaccount.com` al servicio
+  # y `db/drivers/firestore.driver.ts` cae solo al camino de ADC. Esa cuenta ya
+  # trae permisos de Firestore por `roles/firebase.sdkAdminServiceAgent`, así que
+  # no hay nada que conceder ni un secreto rotando por ahí.
+  - variable: FIREBASE_PROJECT_ID
+    value: volbogota
+    availability:
+      - RUNTIME
+
+  - variable: DB_DRIVER
+    value: firestore
+    availability:
+      - RUNTIME
+
+  - variable: LOG_LEVEL
+    value: info
+    availability:
+      - RUNTIME
+
+  # --- URL pública ------------------------------------------------------
+  # Next.js incrusta las `NEXT_PUBLIC_*` en el bundle durante `next build`, así
+  # que esta tiene que estar disponible en BUILD y no solo en RUNTIME: cambiarla
+  # después no afecta al JavaScript ya compilado, hay que volver a construir.
+  #
+  # Apunta al dominio de App Hosting hasta que el dominio propio resuelva; ahí se
+  # cambia por él y el siguiente despliegue la incrusta.
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://volbogota--volbogota.us-central1.hosted.app
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # --- Secretos ---------------------------------------------------------
+  # Viven en Cloud Secret Manager; acá va el nombre, nunca el valor. Se crean con
+  #   firebase apphosting:secrets:set <NOMBRE> --project volbogota
+  #
+  # OJO con CELULAR_HASH_SALT: entra en el digest que deduplica inscripciones por
+  # turno. Cambiarla cuando ya existan inscripciones reales invalida todos los
+  # digests guardados y rompe la deduplicación en silencio. Se define una vez.
+  - variable: CELULAR_HASH_SALT
+    secret: CELULAR_HASH_SALT
+    availability:
+      - RUNTIME
+
+  - variable: ADMIN_API_TOKEN
+    secret: ADMIN_API_TOKEN
+    availability:
+      - RUNTIME
+
+  # --- Sincronización con la hoja maestra -------------------------------
+  # El token es el mismo que valida el Apps Script en el cuerpo de la petición:
+  # los dos extremos de la misma sincronización responden al mismo secreto, así
+  # que este valor no se genera, se copia del script.
+  - variable: SHEETS_HOOK_TOKEN
+    secret: SHEETS_HOOK_TOKEN
+    availability:
+      - RUNTIME
+
+  # El despliegue "Web app" del script, para el sentido contrario: por acá el
+  # backend empuja las reservas hacia la hoja. La URL no es un secreto — quien
+  # autoriza es SHEETS_HOOK_TOKEN, que el script valida en el cuerpo.
+  - variable: SHEETS_WEBHOOK_URL
+    value: https://script.google.com/macros/s/AKfycbxXqxAGPJcfcYU5c5i4XAfLv52gbiMso0m_sQCJFsxxyWAK-cDipctBF-oY4cASoQA/exec
+    availability:
+      - RUNTIME
