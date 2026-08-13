@@ -8,30 +8,66 @@ el mismo repo y el mismo deploy, pero separados por capas.
 - Node.js `>= 20.19` (ver `engines` en `package.json`)
 - npm 10+
 
+## De dónde sale la data
+
+```
+Excel maestro  ──import──▶  Firestore  ──▶  API  ──▶  front
+(administración)            (runtime)
+```
+
+El **Excel es la fuente administrativa**: los coordinadores editan centros,
+cupos, direcciones y actividades ahí. **Firestore es el runtime**: atiende las
+lecturas del evento y absorbe las inscripciones concurrentes con transacciones.
+
+`scripts/import-excel.ts` empuja el catálogo del Excel a Firestore. Correrlo de
+nuevo es la forma normal de que un cambio de cupos llegue a producción: los
+contadores de `reservados` se leen antes y se conservan, así que **un import
+nunca borra inscripciones**.
+
 ## Arranque
 
 ```bash
 npm install
-cp .env.example .env.local
+cp .env.example .env.local   # completa las credenciales de Firebase
 npm run dev
 ```
 
 - Front: http://localhost:3000
 - API: http://localhost:3000/api/health
+- Contrato de endpoints para el front: [`docs/api.md`](docs/api.md)
+
+### Sin credenciales, con el emulador
+
+Levanta Firestore local, siembra el Excel y arranca la app apuntando ahí:
+
+```bash
+npm run emulator
+```
+
+```bash
+FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Voluntariado_Bogota_Centros_Acopio.xlsx
+```
+
+```bash
+FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
+```
 
 ## Scripts
 
-| Script               | Qué hace                                         |
-| -------------------- | ------------------------------------------------ |
-| `npm run dev`        | Servidor de desarrollo                           |
-| `npm run build`      | Build de producción                              |
-| `npm start`          | Sirve el build                                   |
-| `npm run lint`       | ESLint                                           |
-| `npm run typecheck`  | Genera tipos de rutas y corre `tsc --noEmit`     |
-| `npm run format`     | Prettier sobre todo el repo                      |
-| `npm test`           | Vitest (una pasada)                              |
-| `npm run test:watch` | Vitest en watch                                  |
-| `npm run verify`     | Formato + lint + tipos + tests (lo mismo que CI) |
+| Script                    | Qué hace                                         |
+| ------------------------- | ------------------------------------------------ |
+| `npm run dev`             | Servidor de desarrollo                           |
+| `npm run build`           | Build de producción                              |
+| `npm start`               | Sirve el build                                   |
+| `npm run lint`            | ESLint                                           |
+| `npm run typecheck`       | Genera tipos de rutas y corre `tsc --noEmit`     |
+| `npm run format`          | Prettier sobre todo el repo                      |
+| `npm test`                | Vitest (una pasada)                              |
+| `npm run test:watch`      | Vitest en watch                                  |
+| `npm run verify`          | Formato + lint + tipos + tests (lo mismo que CI) |
+| `npm run emulator`        | Firestore local en el puerto 8080                |
+| `npm run import:excel`    | Excel → Firestore. `--file <ruta>`, `--dry`      |
+| `npm run stress:reservas` | Prueba de sobreventa contra el emulador          |
 
 ## Estructura
 
