@@ -15,6 +15,7 @@ import {
   actualizarEstadoReserva,
   crearReserva,
   encontrarReserva,
+  encontrarReservaDeCelular,
   registrarHoraReserva,
 } from "@/server/modules/reservas/reservas.service";
 
@@ -200,10 +201,30 @@ async function actualizarDesdeFila(reserva: Reserva, fila: FilaReserva): Promise
   };
 }
 
+/**
+ * Finds the booking a row refers to, by code or by who it is for.
+ *
+ * The code is the direct route, but a row can legitimately lack one: the sheet
+ * keeps operating while Firestore is unavailable, so a row typed during an
+ * outage arrives later with nothing written back yet. Falling back to the
+ * shift's phone lock is what lets that re-sync land as an update instead of
+ * bouncing off the one-per-shift rule forever.
+ */
+async function encontrarDeLaFila(fila: FilaReserva): Promise<Reserva | null> {
+  if (fila.codigo && CODIGO_PROPIO.test(fila.codigo)) {
+    const porCodigo = await encontrarReserva(fila.codigo);
+    if (porCodigo) return porCodigo;
+  }
+
+  const celular = crearReservaSchema.shape.celular.safeParse(fila.celular);
+  if (!celular.success) return null;
+
+  return encontrarReservaDeCelular(turnoIdDe(fila), celular.data);
+}
+
 async function procesarFila(fila: FilaReserva): Promise<ResultadoFila> {
   try {
-    const existente =
-      fila.codigo && CODIGO_PROPIO.test(fila.codigo) ? await encontrarReserva(fila.codigo) : null;
+    const existente = await encontrarDeLaFila(fila);
 
     return existente ? await actualizarDesdeFila(existente, fila) : await crearDesdeFila(fila);
   } catch (error) {

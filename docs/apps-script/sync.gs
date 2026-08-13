@@ -139,9 +139,27 @@ function enviarReservas(hoja, mapa, numerosDeFila) {
   if (filas.length === 0) return;
 
   var respuesta = llamar("/api/hooks/sheets/reservas", { filas: filas });
-  if (!respuesta || !respuesta.success) return;
+
+  // El backend caído no puede costarle el registro a nadie: la hoja sigue
+  // siendo operativa por sí sola. Se marcan las filas como pendientes y
+  // "Sincronizar todas las reservas" las reconcilia cuando vuelva.
+  if (!respuesta || !respuesta.success) {
+    marcarPendientes(hoja, mapa, filas);
+    return;
+  }
 
   escribirResultados(hoja, mapa, respuesta.data.resultados);
+}
+
+var PENDIENTE = "Pendiente de sincronizar";
+
+function marcarPendientes(hoja, mapa, filas) {
+  var colValidacion = mapa.columna("Validación");
+  if (!colValidacion) return;
+
+  for (var i = 0; i < filas.length; i++) {
+    hoja.getRange(filas[i].fila, colValidacion).setValue(PENDIENTE);
+  }
 }
 
 /**

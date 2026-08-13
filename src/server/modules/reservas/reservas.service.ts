@@ -4,7 +4,7 @@ import { findCentroById } from "@/server/modules/catalogo/catalogo.repository";
 import { ETIQUETA_JORNADA, HORARIOS } from "@/server/modules/catalogo/catalogo.schema";
 
 import { buscarReservaPorCodigo, cambiarEstado, registrarHora } from "./reservas.admin.repository";
-import { crearReservaEnTransaccion } from "./reservas.repository";
+import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
 import type {
   ConfirmacionReserva,
   CrearReservaInput,
@@ -68,6 +68,21 @@ export async function obtenerCentroDeReserva(centroId: string) {
 /** Null rather than throwing: the sync uses it to decide create vs. update. */
 export async function encontrarReserva(codigo: string): Promise<Reserva | null> {
   return buscarReservaPorCodigo(codigo);
+}
+
+/**
+ * Finds an existing booking by the pair that identifies a volunteer in a shift.
+ *
+ * Lets a re-sync recognise a row it already booked even when the row lost its
+ * code — the sheet keeps working while Firestore is unavailable, so the two
+ * sides have to be able to meet again afterwards.
+ */
+export async function encontrarReservaDeCelular(
+  turnoId: string,
+  celular: string,
+): Promise<Reserva | null> {
+  const codigo = await buscarReservaDeCelularEnTurno(turnoId, celular);
+  return codigo ? buscarReservaPorCodigo(codigo) : null;
 }
 
 export async function actualizarEstadoReserva(

@@ -68,6 +68,33 @@ export function generarCodigo(): string {
   return `VB-${codigo}`;
 }
 
+/**
+ * The reservation holding this shift's lock for that phone, if any.
+ *
+ * Exists so a re-sync can converge. The spreadsheet and the app are meant to
+ * work independently — if Firestore is down when a row is typed, the sheet
+ * carries on and syncs later — but a retry then hits the one-per-shift lock and
+ * would report "already enrolled" forever, leaving that row without its code.
+ * Reading the lock turns that dead end into an update of the booking that is
+ * already there.
+ */
+export async function buscarReservaDeCelularEnTurno(
+  turnoId: string,
+  celular: string,
+): Promise<string | null> {
+  const doc = await getDb()
+    .collection(COLLECTIONS.turnos)
+    .doc(turnoId)
+    .collection(COLLECTIONS.inscritos)
+    .doc(hashCelular(celular))
+    .get();
+
+  if (!doc.exists) return null;
+
+  const reservaId = doc.data()?.reservaId;
+  return typeof reservaId === "string" && reservaId !== "" ? reservaId : null;
+}
+
 /** Enough attempts to drain a launch burst; the last ceiling is ~1.9 s. */
 const MAX_INTENTOS_CONTENCION = 7;
 const ESPERA_BASE_MS = 30;

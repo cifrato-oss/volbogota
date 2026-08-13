@@ -282,14 +282,31 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 0 });
   });
 
-  it("does not duplicate when the same row is sent twice", async () => {
-    await sincronizarReservas({ filas: [filaReserva()] });
-    const { resultados, creadas } = await sincronizarReservas({ filas: [filaReserva()] });
+  it("recovers the code when a row comes back without one, instead of bouncing off the lock", async () => {
+    // The sheet keeps working while Firestore is unavailable, so a row can
+    // arrive again with nothing written back. Reporting "already enrolled"
+    // would leave that row without its code forever.
+    const primera = await sincronizarReservas({ filas: [filaReserva()] });
+    const codigo = primera.resultados[0]?.codigo;
+
+    const { resultados, creadas, actualizadas } = await sincronizarReservas({
+      filas: [filaReserva({ codigo: null })],
+    });
 
     expect(creadas).toBe(0);
-    expect(resultados[0]?.validacion).toBe(
-      "Ya hay una inscripción con este celular en este turno.",
-    );
+    expect(actualizadas).toBe(1);
+    expect(resultados[0]?.validacion).toBe("OK");
+    expect(resultados[0]?.codigo).toBe(codigo);
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+  });
+
+  it("keeps converging however many times the same row is resent", async () => {
+    await sincronizarReservas({ filas: [filaReserva()] });
+    await sincronizarReservas({ filas: [filaReserva({ codigo: null })] });
+    const { resultados } = await sincronizarReservas({ filas: [filaReserva({ codigo: null })] });
+
+    expect(resultados[0]?.validacion).toBe("OK");
+    expect(db.pathsIn("reservas")).toHaveLength(1);
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
   });
 
