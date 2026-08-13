@@ -222,6 +222,26 @@ function escribirResultados(hoja, mapa, resultados) {
  * una persona, no a escrituras hechas por un script, así que lo que se escriba
  * acá no vuelve a disparar `alEditar`.
  */
+/**
+ * Diagnóstico: abre la URL del despliegue en el navegador.
+ *
+ * Existe para responder la pregunta que más cuesta: si la URL sirve la versión
+ * con este código o una anterior. Apps Script sirve la versión *desplegada*, no
+ * la guardada, así que pegar el archivo y guardar no basta — hay que crear una
+ * versión nueva. Si acá ves JSON, el despliegue está al día; si ves HTML de
+ * Google, no lo está.
+ */
+function doGet() {
+  return respuesta({
+    success: true,
+    data: {
+      servicio: "VolBogotá — sync de la hoja",
+      escribeReservas: true,
+      hoja: SpreadsheetApp.getActiveSpreadsheet().getName(),
+    },
+  });
+}
+
 function doPost(e) {
   try {
     var cuerpo = JSON.parse(e.postData.contents);
