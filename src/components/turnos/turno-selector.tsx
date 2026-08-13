@@ -4,7 +4,12 @@ import { useMemo } from "react";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
+import {
+  JORNADA_HORARIO,
+  JORNADA_LABEL,
+  JORNADA_STYLE,
+  JORNADAS_VOLUNTARIADO,
+} from "@/constants/jornadas";
 import { formatFecha } from "@/lib/format-fecha";
 import { formatNumero } from "@/lib/format-numero";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -74,7 +79,7 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
         if (list.length === 0) return null;
 
         const style = JORNADA_STYLE[jornada];
-        const horario = list[0]?.horario.etiqueta ?? "";
+        const horario = JORNADA_HORARIO[jornada] ?? list[0]?.horario.etiqueta ?? "";
 
         return (
           <div

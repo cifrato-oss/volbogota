@@ -16,6 +16,15 @@ export const JORNADA_LABEL: Record<Jornada, string> = {
   NOCHE: "Noche",
 };
 
+/**
+ * How each volunteer shift is described to users, per the program's definition
+ * (morning: opening → noon; night: 1 p.m. → closing).
+ */
+export const JORNADA_HORARIO: Partial<Record<Jornada, string>> = {
+  AM: "Desde la apertura del centro hasta el mediodía",
+  NOCHE: "Desde la 1:00 p.m. hasta el cierre del centro",
+};
+
 type JornadaStyle = {
   emoji: string;
   /** Colored top accent for the shift column. */
