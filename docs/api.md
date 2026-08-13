@@ -308,7 +308,7 @@ normalizan a `"3001234567"`. Puedes mandarlo como lo escriba el usuario.
 
 ```json
 {
-  "codigo": "VB-GDRHOR",
+  "codigo": "VB-K7M2QX9D",
   "estado": "RESERVADO",
   "nombre": "Ana María Ramírez",
   "turno": {
@@ -322,20 +322,29 @@ normalizan a `"3001234567"`. Puedes mandarlo como lo escriba el usuario.
 }
 ```
 
-`codigo` es el comprobante que se le muestra al voluntario. Ahí `jornada` viene
-como etiqueta lista para mostrar (`"Noche"`, no `"NOCHE"`).
+`codigo` es el comprobante del voluntario: `VB-` y 8 caracteres de un alfabeto
+sin `O`/`0` ni `I`/`1`/`L`, para que nadie lo transcriba mal al dictarlo en la
+portería. Es único — lo garantiza Firestore — y es la llave con la que el
+check-in va a buscar la reserva.
+
+Ahí `jornada` viene como etiqueta lista para mostrar (`"Noche"`, no `"NOCHE"`).
 
 ### Errores que tienes que manejar
 
-| HTTP | Situación                     | `message`                                                |
-| ---- | ----------------------------- | -------------------------------------------------------- |
-| 422  | Campos inválidos              | Revisa `details` y píntalos bajo cada input              |
-| 404  | El turno no existe            | `El turno no existe.`                                    |
-| 409  | Ya no hay cupo                | `El turno ya no tiene cupos disponibles.`                |
-| 409  | Turno cerrado                 | `El turno está cerrado.`                                 |
-| 409  | Celular repetido en ese turno | `Ya hay una inscripción con este celular en este turno.` |
+| HTTP | Situación                     | `message`                                                         |
+| ---- | ----------------------------- | ----------------------------------------------------------------- |
+| 422  | Campos inválidos              | Revisa `details` y píntalos bajo cada input                       |
+| 404  | El turno no existe            | `El turno no existe.`                                             |
+| 409  | Ya no hay cupo                | `El turno ya no tiene cupos disponibles.`                         |
+| 409  | Turno cerrado                 | `El turno está cerrado.`                                          |
+| 409  | Celular repetido en ese turno | `Ya hay una inscripción con este celular en este turno.`          |
+| 409  | Choque de código (rarísimo)   | `No pudimos generar tu código de confirmación. Intenta de nuevo.` |
 
-**El `409` de cupo es esperable, no es un bug.** Los cupos se validan en el
+El último 409 de la tabla es el único que se reintenta solo: es un choque de
+código, ocurre con probabilidad del orden de 1 en 10 millones, y reenviar el
+mismo body funciona.
+
+**El `409` de cupo, en cambio, es esperable y no es un bug.** Los cupos se validan en el
 servidor en el momento del `POST`: entre que el usuario vio "quedan 3" y le dio
 enviar, alguien más pudo tomarlos. Cuando llegue un 409 de cupo, recarga los
 turnos y pídele que elija otro — no reintentes automáticamente.

@@ -40,8 +40,18 @@ async function main(): Promise<void> {
 
   await turnoRef.update({ cuposTotales: cupos, reservados: 0 });
 
-  const previos = await turnoRef.collection(COLLECTIONS.inscritos).get();
-  await Promise.all(previos.docs.map((doc) => doc.ref.delete()));
+  // Wipe everything a previous run left behind, or the final count compares
+  // this run's bookings against an accumulated total and reports a phantom
+  // inconsistency.
+  const inscritosPrevios = await turnoRef.collection(COLLECTIONS.inscritos).get();
+  const reservasPrevias = await db
+    .collection(COLLECTIONS.reservas)
+    .where("turnoId", "==", turnoId)
+    .get();
+
+  await Promise.all(
+    [...inscritosPrevios.docs, ...reservasPrevias.docs].map((doc) => doc.ref.delete()),
+  );
 
   const respuestas = await Promise.all(
     Array.from({ length: intentos }, (_, index) =>
