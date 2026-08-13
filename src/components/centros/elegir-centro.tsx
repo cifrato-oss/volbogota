@@ -33,7 +33,7 @@ export function ElegirCentro({ titulo, descripcion, hrefBase }: ElegirCentroProp
       {isError ? (
         <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {isPending
             ? Array.from({ length: SKELETON_COUNT }, (_, index) => (
                 <CentroOptionSkeleton key={index} />
