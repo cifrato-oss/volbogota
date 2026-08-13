@@ -3,14 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import geocodeAddress from "@/services/geocode/geocodeAddress";
 
 /**
- * Geocodes an address to coordinates. Disabled until a query is provided, and
- * cached indefinitely — a street address doesn't move, so we never re-fetch it.
+ * Geocodes a location from ordered candidate queries. Disabled until at least
+ * one is provided, and cached indefinitely — a location doesn't move, so we
+ * never re-fetch it.
  */
-export default function useGeocode(query: string | null) {
+export default function useGeocode(queries: string[]) {
   return useQuery({
-    queryKey: ["geocode", query],
-    queryFn: () => geocodeAddress(query as string),
-    enabled: Boolean(query),
+    queryKey: ["geocode", queries],
+    queryFn: () => geocodeAddress(queries),
+    enabled: queries.length > 0,
     staleTime: Infinity,
     gcTime: Infinity,
     retry: 1,

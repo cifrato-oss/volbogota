@@ -14,9 +14,14 @@ const MapaView = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-64 w-full rounded-xl" /> },
 );
 
-function buildQuery(centro: Centro): string | null {
-  if (!centro.direccion && !centro.localidad) return null;
-  return [centro.direccion, centro.localidad, "Bogotá", "Colombia"].filter(Boolean).join(", ");
+/** Candidate queries tried in order: exact address → locality → name. */
+function buildQueries(centro: Centro): string[] {
+  const queries: string[] = [];
+  const direccion = [centro.direccion, centro.localidad].filter(Boolean).join(", ");
+  if (direccion) queries.push(`${direccion}, Bogotá, Colombia`);
+  if (centro.localidad) queries.push(`${centro.localidad}, Bogotá, Colombia`);
+  queries.push(`${centro.nombre}, Bogotá, Colombia`);
+  return queries;
 }
 
 function MapaFallback({ message, comoLlegar }: { message: string; comoLlegar: ReactNode }) {
@@ -34,10 +39,8 @@ function MapaFallback({ message, comoLlegar }: { message: string; comoLlegar: Re
  * in an ErrorBoundary so a Leaflet/render crash degrades gracefully.
  */
 export function CentroMapa({ centro }: { centro: Centro }) {
-  const query = buildQuery(centro);
-  const { data: point, isPending, isError } = useGeocode(query);
-
-  if (!query && !centro.linkMaps) return null;
+  const queries = buildQueries(centro);
+  const { data: point, isPending, isError } = useGeocode(queries);
 
   const comoLlegar = centro.linkMaps ? (
     <a
@@ -57,7 +60,7 @@ export function CentroMapa({ centro }: { centro: Centro }) {
         Ubicación
       </h2>
 
-      {query && isPending ? (
+      {isPending ? (
         <Skeleton className="h-64 w-full rounded-xl" />
       ) : point ? (
         <>
