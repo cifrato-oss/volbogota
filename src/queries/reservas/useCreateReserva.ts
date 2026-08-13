@@ -7,9 +7,9 @@ import type { CreateReservaInput, Reserva } from "@/types/volbogota";
 /**
  * Enrolls a volunteer in a shift.
  *
- * On success, occupancy changed, so shift and availability caches are
- * invalidated. Callers should handle `ApiClientError` (409 quota/duplicate,
- * 422 validation) from `mutateAsync` / `onError`.
+ * On success, occupancy changed, so the shift caches are invalidated. Callers
+ * should handle `ApiClientError` (409 quota/duplicate, 422 validation) from
+ * `mutateAsync` / `onError`.
  */
 export default function useCreateReserva() {
   const queryClient = useQueryClient();
@@ -18,7 +18,6 @@ export default function useCreateReserva() {
     mutationFn: createReserva,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.turnos.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.disponibilidad });
     },
   });
 }

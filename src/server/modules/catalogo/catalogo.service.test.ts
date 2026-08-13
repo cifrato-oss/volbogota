@@ -13,8 +13,7 @@ vi.mock("./catalogo.repository", () => ({
   findTurnoById: vi.fn(),
 }));
 
-const { listarCentros, listarTurnos, obtenerCentro, obtenerDisponibilidad } =
-  await import("./catalogo.service");
+const { listarCentros, listarTurnos, obtenerCentro } = await import("./catalogo.service");
 
 const centro: Centro = {
   id: "vive-claro",
@@ -100,23 +99,5 @@ describe("listarTurnos", () => {
     const disponibles = await listarTurnos({ soloDisponibles: true });
 
     expect(disponibles.map((t) => t.id)).toEqual(["c"]);
-  });
-});
-
-describe("obtenerDisponibilidad", () => {
-  it("builds the centre × date × shift grid with totals", async () => {
-    findTurnos.mockResolvedValue([
-      turno({ id: "am", jornada: "AM", reservados: 100 }),
-      turno({ id: "pm", jornada: "PM", cuposTotales: 300, reservados: 300 }),
-    ]);
-
-    const result = await obtenerDisponibilidad();
-
-    expect(result.fechas).toEqual(["2026-08-13"]);
-    expect(result.totales).toEqual({ cupos: 600, reservados: 400, disponibles: 200 });
-
-    const dia = result.centros[0]?.dias[0];
-    expect(dia?.fecha).toBe("2026-08-13");
-    expect(dia?.jornadas.map((j) => j.agotado)).toEqual([false, true]);
   });
 });

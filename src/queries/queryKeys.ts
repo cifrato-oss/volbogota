@@ -17,5 +17,4 @@ export const queryKeys = {
     list: (query: TurnosQuery = {}) => ["turnos", "list", query] as const,
     detail: (id: string) => ["turnos", "detail", id] as const,
   },
-  disponibilidad: ["disponibilidad"] as const,
 } as const;
