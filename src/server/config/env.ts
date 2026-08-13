@@ -55,6 +55,15 @@ const serverSchema = z.object({
     .string()
     .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
     .optional(),
+
+  // The spreadsheet's Apps Script web app, for the other direction: pushing
+  // reservations into the sheet so a volunteer who signed up on the web shows
+  // up on the list the coordinators read at the door.
+  //
+  // Optional: without it the push is skipped silently, which is the right
+  // behaviour before the script is deployed. It reuses SHEETS_HOOK_TOKEN, since
+  // both ends of the same sync answer to the same shared secret.
+  SHEETS_WEBHOOK_URL: z.url("Debe ser la URL del despliegue del Apps Script.").optional(),
 });
 
 const clientSchema = z.object({
@@ -117,6 +126,7 @@ const parsed = serverSchema
     CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
     SHEETS_HOOK_TOKEN: process.env.SHEETS_HOOK_TOKEN,
+    SHEETS_WEBHOOK_URL: process.env.SHEETS_WEBHOOK_URL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -149,6 +159,7 @@ export const env = {
   celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
   adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
   sheetsHookToken: parsed.data.SHEETS_HOOK_TOKEN ?? null,
+  sheetsWebhookUrl: parsed.data.SHEETS_WEBHOOK_URL ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

@@ -13,6 +13,19 @@
  * Tiene que ser un activador INSTALABLE, no la función simple `onEdit`: los
  * activadores simples no pueden hacer peticiones de red, así que un `onEdit`
  * normal nunca llamaría al backend.
+ *
+ * Para la dirección contraria (que el backend escriba en la hoja), despliega:
+ * Implementar → Nueva implementación → Aplicación web, con
+ *
+ *   Ejecutar como       Yo
+ *   Quién tiene acceso  Cualquiera
+ *
+ * Las dos cosas son necesarias: quien llama es el backend, que no tiene sesión
+ * de Google. "Cualquiera con cuenta de Google" devolvería un redirect al login,
+ * y "el usuario que accede" no tendría permiso para escribir esta hoja. Quien
+ * autoriza de verdad es HOOK_TOKEN, que `doPost` valida antes de tocar nada.
+ *
+ * La URL del despliegue va en SHEETS_WEBHOOK_URL del backend.
  */
 
 var HOJA_CENTROS = "Centros";
@@ -182,6 +195,128 @@ function escribirResultados(hoja, mapa, resultados) {
       hoja.getRange(resultado.fila, colEstado).setValue(resultado.estado);
     }
   }
+}
+
+// --- Entrada: el backend escribe en la hoja -------------------------------
+
+/**
+ * Recibe reservas del backend y las deja en la hoja `Reservas`.
+ *
+ * Es la otra mitad del control de dos lados: sin esto, un voluntario que se
+ * inscribe en la web nunca aparece en la lista que los coordinadores leen en la
+ * portería.
+ *
+ * No hay riesgo de bucle: los activadores de edición responden a acciones de
+ * una persona, no a escrituras hechas por un script, así que lo que se escriba
+ * acá no vuelve a disparar `alEditar`.
+ */
+function doPost(e) {
+  try {
+    var cuerpo = JSON.parse(e.postData.contents);
+
+    if (cuerpo.token !== PropertiesService.getScriptProperties().getProperty("HOOK_TOKEN")) {
+      return respuesta({ success: false, error: "Token inválido." });
+    }
+
+    var reservas = cuerpo.reservas || [];
+    if (reservas.length === 0) {
+      return respuesta({ success: true, data: { escritas: 0 } });
+    }
+
+    // Un candado: dos inscripciones simultáneas podrían calcular la misma fila
+    // libre y una sobreescribiría a la otra.
+    var candado = LockService.getScriptLock();
+    candado.waitLock(20000);
+
+    try {
+      var escritas = escribirReservas(reservas);
+      return respuesta({ success: true, data: { escritas: escritas } });
+    } finally {
+      candado.releaseLock();
+    }
+  } catch (error) {
+    // El backend no puede arreglar nada con un stack trace, pero sí necesita
+    // saber que no quedó escrito para reintentarlo con /api/hooks/sheets/push.
+    Logger.log("doPost falló: " + error);
+    return respuesta({ success: false, error: String(error) });
+  }
+}
+
+function escribirReservas(reservas) {
+  var hoja = hojaPorNombre(HOJA_RESERVAS);
+  var mapa = mapearEncabezados(hoja, ["Nombre completo", "Celular"]);
+  var indice = indicePorCodigo(hoja, mapa);
+  var escritas = 0;
+
+  for (var i = 0; i < reservas.length; i++) {
+    var reserva = reservas[i];
+    var fila = indice[reserva.codigo];
+
+    // Sin fila para ese código es una inscripción que nació en la web: va al
+    // final. Con fila, es una que ya estaba y solo cambió de estado u horas.
+    if (!fila) {
+      fila = hoja.getLastRow() + 1;
+      indice[reserva.codigo] = fila;
+    }
+
+    escribirCelda(hoja, mapa, fila, "ID", reserva.codigo);
+    escribirCelda(hoja, mapa, fila, "Fecha/hora registro", reserva.fechaRegistro);
+    escribirCelda(hoja, mapa, fila, "Nombre completo", reserva.nombreCompleto);
+    escribirCelda(hoja, mapa, fila, "Celular", reserva.celular);
+    escribirCelda(hoja, mapa, fila, "Edad", reserva.edad);
+    escribirCelda(hoja, mapa, fila, "Punto de acopio", reserva.puntoDeAcopio);
+    escribirCelda(hoja, mapa, fila, "Fecha jornada", reserva.fechaJornada);
+    escribirCelda(hoja, mapa, fila, "Jornada", reserva.jornada);
+    escribirCelda(hoja, mapa, fila, "ID_Turno", reserva.idTurno);
+    escribirCelda(hoja, mapa, fila, "Autorizó datos", reserva.autorizoDatos);
+    escribirCelda(hoja, mapa, fila, "Estado", reserva.estado);
+    escribirCelda(hoja, mapa, fila, "Check-in", reserva.checkIn);
+    escribirCelda(hoja, mapa, fila, "Check-out", reserva.checkOut);
+    escribirCelda(hoja, mapa, fila, "Horas", reserva.horas);
+    escribirCelda(hoja, mapa, fila, "Validación", reserva.validacion);
+
+    escritas++;
+  }
+
+  return escritas;
+}
+
+/** Código de reserva → número de fila, para no recorrer la hoja por cada una. */
+function indicePorCodigo(hoja, mapa) {
+  var colId = mapa.columna("ID");
+  var indice = {};
+  if (!colId || hoja.getLastRow() <= mapa.encabezado) return indice;
+
+  var alto = hoja.getLastRow() - mapa.encabezado;
+  var valores = hoja.getRange(mapa.encabezado + 1, colId, alto, 1).getValues();
+
+  for (var i = 0; i < valores.length; i++) {
+    var codigo = String(valores[i][0] || "").trim();
+    if (codigo) indice[codigo] = mapa.encabezado + 1 + i;
+  }
+
+  return indice;
+}
+
+/**
+ * Escribe una celda solo si esa columna existe y hay algo que poner.
+ *
+ * Las columnas que el contrato no modela — Actividad, EPS, contacto de
+ * emergencia, Notas — se dejan intactas: son del coordinador, no nuestras, y
+ * pisarlas con vacío borraría lo que alguien escribió a mano.
+ */
+function escribirCelda(hoja, mapa, fila, titulo, valor) {
+  var columna = mapa.columna(titulo);
+  if (!columna) return;
+  if (valor === null || valor === undefined || valor === "") return;
+
+  hoja.getRange(fila, columna).setValue(valor);
+}
+
+function respuesta(datos) {
+  return ContentService.createTextOutput(JSON.stringify(datos)).setMimeType(
+    ContentService.MimeType.JSON,
+  );
 }
 
 // --- Utilidades -----------------------------------------------------------
