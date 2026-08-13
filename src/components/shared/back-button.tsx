@@ -12,7 +12,7 @@ type BackButtonProps = {
 /** Consistent "back" control rendered as a ghost button with a left arrow. */
 export function BackButton({ href, children }: BackButtonProps) {
   return (
-    <Button variant="ghost" size="sm" render={<Link href={href} />}>
+    <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={href} />}>
       <ArrowLeft className="size-4" aria-hidden />
       {children}
     </Button>
