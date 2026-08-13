@@ -21,7 +21,8 @@
     "stress:reservas": "tsx --env-file-if-exists=.env.local scripts/stress-reservas.ts",
     "emulator": "firebase emulators:start --only firestore --project volbogota-local",
     "verify:firestore": "tsx --env-file-if-exists=.env.local scripts/verify-firestore.ts",
-    "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes"
+    "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes",
+    "check:admin": "node scripts/check-admin.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
