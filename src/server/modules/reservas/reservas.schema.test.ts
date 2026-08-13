@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { crearReservaSchema } from "./reservas.schema";
+import { EDAD_MINIMA, crearReservaSchema } from "./reservas.schema";
 
 const valido = {
-  nombre: "Ana María Ramírez",
+  nombre: "Ana María",
+  apellido: "Ramírez Gómez",
   celular: "3001234567",
-  turnoId: "vive-claro_2026-08-13_am",
-  actividad: "Empaque",
+  edad: 30,
+  turnoId: "cruz-roja_2026-08-13_am",
   autorizoDatos: true,
-  mayorDeEdad: true,
 };
 
 function issuesFor(input: unknown): string[] {
@@ -17,13 +17,30 @@ function issuesFor(input: unknown): string[] {
 }
 
 describe("crearReservaSchema", () => {
-  it("accepts a complete booking", () => {
+  it("accepts the five fields the form asks for", () => {
     expect(crearReservaSchema.safeParse(valido).success).toBe(true);
   });
 
+  it("requires name and surname separately", () => {
+    expect(issuesFor({ ...valido, apellido: "" })).toContain("apellido");
+    expect(issuesFor({ ...valido, nombre: "" })).toContain("nombre");
+  });
+
+  it("trims both", () => {
+    const parsed = crearReservaSchema.parse({
+      ...valido,
+      nombre: "  Ana María  ",
+      apellido: "  Ramírez  ",
+    });
+
+    expect(parsed.nombre).toBe("Ana María");
+    expect(parsed.apellido).toBe("Ramírez");
+  });
+
   it("strips separators from the phone number before validating", () => {
-    const result = crearReservaSchema.parse({ ...valido, celular: "300 123 4567" });
-    expect(result.celular).toBe("3001234567");
+    expect(crearReservaSchema.parse({ ...valido, celular: "300 123 4567" }).celular).toBe(
+      "3001234567",
+    );
   });
 
   it.each([
@@ -34,31 +51,45 @@ describe("crearReservaSchema", () => {
     expect(issuesFor({ ...valido, celular })).toContain("celular");
   });
 
+  it(`rejects anyone under ${EDAD_MINIMA}`, () => {
+    expect(issuesFor({ ...valido, edad: EDAD_MINIMA - 1 })).toContain("edad");
+  });
+
+  it(`accepts exactly ${EDAD_MINIMA}`, () => {
+    expect(crearReservaSchema.safeParse({ ...valido, edad: EDAD_MINIMA }).success).toBe(true);
+  });
+
+  it("accepts an age typed into a text input", () => {
+    // A number input still hands over a string in plenty of browsers.
+    expect(crearReservaSchema.parse({ ...valido, edad: "42" }).edad).toBe(42);
+  });
+
+  it.each([
+    ["fractional", 20.5],
+    ["implausible", 130],
+    ["not a number", "veinte"],
+  ])("rejects an %s age", (_label, edad) => {
+    expect(issuesFor({ ...valido, edad })).toContain("edad");
+  });
+
   it("rejects a booking without data-processing consent", () => {
     expect(issuesFor({ ...valido, autorizoDatos: false })).toContain("autorizoDatos");
   });
 
-  it("rejects a minor", () => {
-    expect(issuesFor({ ...valido, mayorDeEdad: false })).toContain("mayorDeEdad");
+  it("requires a shift", () => {
+    expect(issuesFor({ ...valido, turnoId: "" })).toContain("turnoId");
   });
 
-  it("rejects an activity outside the catalogue", () => {
-    expect(issuesFor({ ...valido, actividad: "Logística" })).toContain("actividad");
-  });
+  it("ignores fields the form no longer collects", () => {
+    const parsed = crearReservaSchema.parse({
+      ...valido,
+      eps: "Sura",
+      notas: "algo",
+      contactoEmergencia: { nombre: "Pedro", celular: "3009876543" },
+    });
 
-  it("trims the name and requires a real one", () => {
-    expect(crearReservaSchema.parse({ ...valido, nombre: "  Ana Ramírez  " }).nombre).toBe(
-      "Ana Ramírez",
-    );
-    expect(issuesFor({ ...valido, nombre: "A" })).toContain("nombre");
-  });
-
-  it("validates the emergency contact number with the same rule", () => {
-    expect(
-      issuesFor({
-        ...valido,
-        contactoEmergencia: { nombre: "Pedro Pérez", celular: "123" },
-      }),
-    ).toContain("contactoEmergencia.celular");
+    expect(parsed).not.toHaveProperty("eps");
+    expect(parsed).not.toHaveProperty("notas");
+    expect(parsed).not.toHaveProperty("contactoEmergencia");
   });
 });

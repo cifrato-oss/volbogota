@@ -47,7 +47,12 @@ export async function findTurnos(filters: TurnoFilters = {}): Promise<Turno[]> {
   if (filters.jornada) query = query.where("jornada", "==", filters.jornada);
 
   const snapshot = await query.get();
-  const turnos = snapshot.docs.map((doc) => turnoSchema.parse({ id: doc.id, ...doc.data() }));
+  const turnos = snapshot.docs
+    .map((doc) => turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() }))
+    // Shifts of retired points stay in Firestore for history but never surface:
+    // listing them would advertise a point the city no longer authorises, and
+    // counting them would inflate the published capacity.
+    .filter((turno) => turno.centroActivo);
 
   // Sorted in memory: ordering by three fields in Firestore would need a
   // composite index per filter combination, and 84 shifts fit comfortably here.
@@ -63,7 +68,7 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
   const doc = await getDb().collection(COLLECTIONS.turnos).doc(id).get();
   if (!doc.exists) return null;
 
-  return turnoSchema.parse({ id: doc.id, ...doc.data() });
+  return turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() });
 }
 
 function jornadaOrder(jornada: Jornada): number {

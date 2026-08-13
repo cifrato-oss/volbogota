@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
-import { conflict, notFound, unprocessable } from "@/server/http/errors";
+import { conflict, notFound } from "@/server/http/errors";
 import { turnoSchema, type Turno } from "@/server/modules/catalogo/catalogo.schema";
 
 import type { CrearReservaInput, Reserva } from "./reservas.schema";
@@ -36,30 +36,33 @@ export type ReservaCreada = { reserva: Reserva; turno: Turno };
  * one popular shift ever becomes a hotspot, the fix is to shard this counter
  * across N documents and sum them on read — the call sites do not change.
  */
-export async function crearReservaEnTransaccion(
-  input: CrearReservaInput,
-  actividadesPorCentro: (centroId: string) => Promise<string[]>,
-): Promise<ReservaCreada> {
+export async function crearReservaEnTransaccion(input: CrearReservaInput): Promise<ReservaCreada> {
   const db = getDb();
   const turnoRef = db.collection(COLLECTIONS.turnos).doc(input.turnoId);
   const inscritoRef = turnoRef.collection(COLLECTIONS.inscritos).doc(hashCelular(input.celular));
   const reservaRef = db.collection(COLLECTIONS.reservas).doc();
 
-  // Fetched before the transaction: it depends only on the centre catalogue,
-  // which the import owns, so keeping it out avoids locking that document on
-  // every single booking.
+  // Read outside the transaction. This is a load shedder, not the source of
+  // truth: a full shift rejects every later request, and letting each one open
+  // a transaction just to lose makes them queue on the same document. The
+  // authoritative checks are still inside the transaction below.
   const turnoPrevio = await turnoRef.get();
   if (!turnoPrevio.exists) {
     throw notFound("El turno no existe.");
   }
-  const actividades = await actividadesPorCentro(
-    turnoSchema.parse({ id: turnoPrevio.id, ...turnoPrevio.data() }).centroId,
-  );
 
-  if (!actividades.includes(input.actividad)) {
-    throw unprocessable("La actividad no está habilitada en este centro.", [
-      { field: "actividad", message: `Opciones válidas: ${actividades.join(", ")}.` },
-    ]);
+  const turnoLeido = turnoSchema.parse({
+    centroActivo: true,
+    id: turnoPrevio.id,
+    ...turnoPrevio.data(),
+  });
+
+  if (turnoLeido.estado !== "ABIERTO") {
+    throw conflict("El turno no está disponible para inscripción.");
+  }
+
+  if (turnoLeido.reservados >= turnoLeido.cuposTotales) {
+    throw conflict("El turno ya no tiene cupos disponibles.");
   }
 
   return db.runTransaction(async (tx) => {
@@ -70,7 +73,7 @@ export async function crearReservaEnTransaccion(
       throw notFound("El turno no existe.");
     }
 
-    const turno = turnoSchema.parse({ id: turnoSnap.id, ...turnoSnap.data() });
+    const turno = turnoSchema.parse({ centroActivo: true, id: turnoSnap.id, ...turnoSnap.data() });
 
     if (turno.estado !== "ABIERTO") {
       throw conflict("El turno está cerrado.");
@@ -94,14 +97,11 @@ export async function crearReservaEnTransaccion(
       fecha: turno.fecha,
       jornada: turno.jornada,
       nombre: input.nombre,
+      apellido: input.apellido,
       celular: input.celular,
-      actividad: input.actividad,
+      edad: input.edad,
       autorizoDatos: input.autorizoDatos,
-      mayorDeEdad: input.mayorDeEdad,
       estado: "RESERVADO",
-      contactoEmergencia: input.contactoEmergencia ?? null,
-      eps: input.eps ?? null,
-      notas: input.notas ?? null,
       creadoEn,
       checkIn: null,
       checkOut: null,
