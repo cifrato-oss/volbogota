@@ -1,11 +1,5 @@
-import { CentrosSection } from "@/components/centros/centros-section";
-import { HomeHero } from "@/components/home/home-hero";
+import { ElegirCentro } from "@/components/centros/elegir-centro";
 
 export default function HomePage() {
-  return (
-    <div className="space-y-12">
-      <HomeHero />
-      <CentrosSection />
-    </div>
-  );
+  return <ElegirCentro />;
 }
