@@ -9,7 +9,6 @@ import { FormField } from "@/components/shared/form-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ApiClientError } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/get-error-message";
 import useCreateReserva from "@/queries/reservas/useCreateReserva";
@@ -151,25 +150,26 @@ export function ReservaForm({ turno, onSuccess }: ReservaFormProps) {
             <div className="flex items-start gap-2">
               <Checkbox
                 id="autorizoDatos"
+                className="mt-0.5"
                 checked={field.value}
                 onCheckedChange={(checked) => field.onChange(Boolean(checked))}
                 onBlur={field.onBlur}
                 aria-invalid={Boolean(errors.autorizoDatos)}
                 aria-describedby={errors.autorizoDatos ? "autorizoDatos-error" : undefined}
               />
-              <Label htmlFor="autorizoDatos" className="text-sm leading-snug font-normal">
+              <label htmlFor="autorizoDatos" className="text-sm leading-snug">
                 Autorizo el{" "}
                 <Link
                   href="/tratamiento-datos"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(event) => event.stopPropagation()}
-                  className="text-foreground underline underline-offset-2 hover:opacity-80"
+                  className="underline underline-offset-2 hover:opacity-80"
                 >
                   tratamiento de mis datos personales
                 </Link>{" "}
                 para la gestión del voluntariado.
-              </Label>
+              </label>
             </div>
           )}
         />

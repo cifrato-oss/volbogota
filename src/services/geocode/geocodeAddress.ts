@@ -1,14 +1,6 @@
 export type GeoPoint = { lat: number; lng: number };
 
-/**
- * Resolves a free-text address to coordinates via Nominatim (OpenStreetMap's
- * free, keyless geocoder). Used only to place a map pin — the authoritative
- * directions link is the center's `linkMaps`.
- *
- * Nominatim's usage policy asks for low volume; results are cached forever by
- * the query hook (addresses don't move), so a center is geocoded at most once.
- */
-export default async function geocodeAddress(query: string): Promise<GeoPoint | null> {
+async function search(query: string): Promise<GeoPoint | null> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", query);
   url.searchParams.set("format", "jsonv2");
@@ -29,4 +21,25 @@ export default async function geocodeAddress(query: string): Promise<GeoPoint | 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   return { lat, lng };
+}
+
+/**
+ * Resolves a location to coordinates via Nominatim (OpenStreetMap's free,
+ * keyless geocoder), trying candidate queries in order — exact address first,
+ * then coarser fallbacks (locality, name) — until one resolves.
+ *
+ * Colombian street addresses (e.g. "Calle 161A # 7F-55") sometimes return no
+ * result, so the locality fallback still drops a pin in the right area. The
+ * center's `linkMaps` remains the authoritative directions link.
+ *
+ * Results are cached forever by the query hook (a location doesn't move), so a
+ * center is geocoded at most once and the fallbacks rarely fire more than once.
+ */
+export default async function geocodeAddress(queries: string[]): Promise<GeoPoint | null> {
+  for (const query of queries) {
+    if (!query.trim()) continue;
+    const point = await search(query);
+    if (point) return point;
+  }
+  return null;
 }

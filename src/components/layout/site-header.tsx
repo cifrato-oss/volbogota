@@ -4,23 +4,28 @@ import { siteConfig } from "@/config/site";
 
 export function SiteHeader() {
   return (
-    <header className="border-foreground/10 sticky top-0 z-50 border-b backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4">
-        <Link href="/" className="font-semibold tracking-tight">
-          {siteConfig.name}
+    <header className="border-primary/10 bg-primary/5 border-b">
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <Link
+          href="/"
+          className="flex items-center gap-3"
+          aria-label={`${siteConfig.name} · Inicio`}
+        >
+          <span className="text-2xl" aria-hidden>
+            🤝
+          </span>
+          <span className="leading-tight">
+            <span className="font-heading block text-lg font-bold tracking-tight">
+              {siteConfig.name}
+            </span>
+            <span className="text-muted-foreground block text-xs">Centros de Acopio Oficiales</span>
+          </span>
         </Link>
 
-        <nav aria-label="Principal">
-          <ul className="flex items-center gap-6 text-sm">
-            {siteConfig.nav.map((item) => (
-              <li key={item.href}>
-                <Link href={item.href} className="hover:text-foreground/70 transition-colors">
-                  {item.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <span className="bg-primary/10 text-primary inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium">
+          <span aria-hidden>📅</span>
+          {siteConfig.eventLabelLong}
+        </span>
       </div>
     </header>
   );
