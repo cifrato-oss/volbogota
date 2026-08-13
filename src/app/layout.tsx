@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Geist, Geist_Mono, IBM_Plex_Sans, Merriweather } from "next/font/google";
 
 import { siteConfig } from "@/config/site";
 import QueryProvider from "@/providers/query-provider";
@@ -7,7 +7,9 @@ import QueryProvider from "@/providers/query-provider";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const merriweatherHeading = Merriweather({ subsets: ["latin"], variable: "--font-heading" });
+
+const ibmPlexSans = IBM_Plex_Sans({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={cn("font-sans", inter.variable)}>
+    <html lang="es" className={cn("font-sans", ibmPlexSans.variable, merriweatherHeading.variable)}>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
         <QueryProvider>{children}</QueryProvider>
       </body>
