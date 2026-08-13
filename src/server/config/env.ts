@@ -29,6 +29,14 @@ const serverSchema = z.object({
     .string()
     .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
     .optional(),
+
+  // Shared secret for the coordinator endpoints under /api/admin. Those return
+  // volunteer names, phones and ages, so the token is what stands between that
+  // data and the open internet.
+  ADMIN_API_TOKEN: z
+    .string()
+    .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
+    .optional(),
 });
 
 const clientSchema = z.object({
@@ -54,6 +62,7 @@ const parsed = serverSchema
       "FIREBASE_CLIENT_EMAIL",
       "FIREBASE_PRIVATE_KEY",
       "CELULAR_HASH_SALT",
+      "ADMIN_API_TOKEN",
     ] as const) {
       if (!value[key]) {
         ctx.addIssue({ code: "custom", path: [key], message: "Requerida en producción." });
@@ -67,6 +76,7 @@ const parsed = serverSchema
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
     CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
+    ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -96,6 +106,7 @@ export const env = {
   logLevel: parsed.data.LOG_LEVEL,
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL,
   celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
+  adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

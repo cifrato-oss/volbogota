@@ -373,3 +373,114 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
 ```
 
 Queda con los 6 puntos, 72 turnos y 11.400 cupos reales, sin tocar producción.
+
+---
+
+# Endpoints de coordinación (`/api/admin`)
+
+**Todos exigen autenticación.** Devuelven nombres, celulares y edades de
+voluntarios: sin el token esto sería una fuga de datos personales.
+
+```
+x-admin-token: <token>
+```
+
+o bien `Authorization: Bearer <token>`. Sin token o con token inválido → `401`.
+
+> El token es **compartido**, no un sistema de identidad. Para una operación de
+> cuatro días con un puñado de coordinadores es el trato honesto: nada que
+> crear, nada que resetear a las 2 a.m. El costo también es real — **no hay
+> rastro de quién hizo cada cambio**, y revocarle el acceso a una persona
+> implica rotarlo para todas. Si esto sobrevive al evento, se reemplaza por
+> Firebase Auth con custom claims.
+
+## `GET /api/admin/reservas`
+
+| Param     | Valores                    | Efecto                              |
+| --------- | -------------------------- | ----------------------------------- |
+| `turno`   | `turnoId`                  | Solo ese turno                      |
+| `centro`  | id de punto                | Solo ese punto                      |
+| `fecha`   | `YYYY-MM-DD`               | Solo ese día                        |
+| `jornada` | `AM` `PM` `NOCHE`          | Solo esa jornada                    |
+| `estado`  | ver estados abajo          | Solo ese estado                     |
+| `q`       | texto (2–60)               | Busca en nombre, apellido y celular |
+| `limite`  | 1–500 (default 100)        | Tamaño de página                    |
+| `desde`   | `siguiente` de la anterior | Cursor de paginación                |
+
+```json
+{
+  "reservas": [/* … */],
+  "siguiente": "2026-08-13T14:05:00.000Z"
+}
+```
+
+`siguiente` en `null` significa que no hay más páginas. Pásalo como `desde` para
+la siguiente.
+
+> `q` filtra **dentro de la página**, no sobre toda la colección: Firestore no
+> hace búsqueda por subcadena. Con pocos miles de filas alcanza; si el listado
+> crece, hay que montar un buscador aparte.
+
+## `GET /api/admin/reservas/{codigo}`
+
+Una reserva completa, con todos sus datos personales. El código es el id del
+documento, así que es una lectura directa.
+
+## `PATCH /api/admin/reservas/{codigo}`
+
+```json
+{ "estado": "CONFIRMADO" }
+```
+
+Estados y transiciones permitidas:
+
+```
+RESERVADO   → CONFIRMADO · ASISTIO · NO_ASISTIO · CANCELADO
+CONFIRMADO  → ASISTIO · NO_ASISTIO · CANCELADO
+ASISTIO     ⇄ NO_ASISTIO          (solo para corregir un error de digitación)
+CANCELADO   → (final)
+```
+
+- Mandar el estado que ya tiene devuelve `200` sin cambiar nada. Es
+  **idempotente a propósito**: un doble toque con mala señal no debe dar error.
+- Una transición no permitida devuelve `409` diciendo cuál era.
+- **`CANCELADO` libera el cupo**: baja el contador del turno y suelta el
+  candado del celular, así que esa persona puede volver a inscribirse en ese
+  mismo turno. Las dos escrituras van en una transacción.
+
+## `POST /api/admin/reservas/{codigo}/check-in` · `/check-out`
+
+```json
+{ "hora": "08:05" }
+```
+
+`hora` es opcional — omitirla usa la hora actual de Bogotá, que es el caso
+normal en la portería. Formato `HH:MM` en 24 horas.
+
+- El **check-in marca `ASISTIO`** automáticamente. No hay que registrarlo dos veces.
+- El **check-out calcula `horas`**, que alimentan los certificados de voluntariado.
+- Check-out sin check-in previo → `409`.
+- Salida anterior o igual a la entrada → `409`, en vez de guardar un negativo.
+
+## `GET /api/admin/resumen`
+
+La hoja `Resumen` calculada en vivo: cupos ofertados/reservados/disponibles,
+reservas por estado, asistencia, horas donadas, y desgloses por punto y por día.
+
+Los cupos salen de los contadores de turno; la asistencia se cuenta recorriendo
+las reservas, porque nada lleva un acumulado y —a diferencia del cupo— no
+necesita ser exacta bajo concurrencia.
+
+## `GET /api/admin/export`
+
+Devuelve un **CSV**, no el sobre JSON: el navegador lo baja como archivo.
+
+| Param    | Efecto         |
+| -------- | -------------- |
+| `fecha`  | Solo ese día   |
+| `centro` | Solo ese punto |
+
+Las columnas siguen el orden de la hoja `Reservas` para que **se pueda pegar
+directo** en el Excel maestro. Sale con BOM UTF-8 y separado por `;`, que es lo
+que Excel espera en configuración regional española — sin eso, los acentos se
+rompen y todo cae en una sola columna.
