@@ -3,6 +3,17 @@
 Monolito en **Next.js 16 (App Router) + TypeScript**: el front y la API viven en
 el mismo repo y el mismo deploy, pero separados por capas.
 
+Web de voluntariado para los **centros de acopio oficiales de Bogotá**, del 13 al
+16 de agosto de 2026. En producción: [centrosdeacopiobogota.org](https://centrosdeacopiobogota.org).
+
+## Quiénes lo hicieron
+
+- **Andrés Sanabria** — [@80asv](https://github.com/80asv)
+- **Julio Márquez** — [@julio439](https://github.com/julio439)
+- **Cristian Rojas** — [@MrSancks](https://github.com/MrSancks)
+- **Juan Bernal** — [@jfbg98](https://github.com/jfbg98) — mantiene el repo, la
+  infraestructura y el proyecto de Firebase
+
 ## Requisitos
 
 - Node.js `>= 20.19` (ver `engines` en `package.json`)
@@ -75,6 +86,9 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 pnpm run dev
 | `pnpm run emulator`        | Firestore local en el puerto 8080                |
 | `pnpm run import:excel`    | Excel → Firestore. `--file <ruta>`, `--dry`      |
 | `pnpm run stress:reservas` | Prueba de sobreventa contra el emulador          |
+| `pnpm run admin:hash`      | Genera el `passwordHash` de una cuenta del panel |
+| `pnpm run limpiar:cupos`   | Deja `cuposPorJornada` solo con AM y PM          |
+| `pnpm run limpiar:noche`   | Borra los turnos huérfanos de la jornada noche   |
 
 ## Estructura
 
