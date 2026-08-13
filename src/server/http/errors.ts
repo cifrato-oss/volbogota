@@ -13,7 +13,8 @@ export type AppErrorCode =
   | "CONFLICT"
   | "UNPROCESSABLE_ENTITY"
   | "TOO_MANY_REQUESTS"
-  | "INTERNAL_SERVER_ERROR";
+  | "INTERNAL_SERVER_ERROR"
+  | "SERVICE_UNAVAILABLE";
 
 const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   BAD_REQUEST: 400,
@@ -24,6 +25,7 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   UNPROCESSABLE_ENTITY: 422,
   TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
+  SERVICE_UNAVAILABLE: 503,
 };
 
 export class AppError extends Error {
@@ -68,3 +70,9 @@ export const tooManyRequests = (message = "Demasiadas solicitudes.", details?: u
 
 export const internalError = (message = "Ocurrió un error inesperado.", details?: unknown) =>
   new AppError("INTERNAL_SERVER_ERROR", message, details);
+
+/** Transient: the caller should retry the exact same request. */
+export const serviceUnavailable = (
+  message = "El servicio está congestionado. Intenta de nuevo en unos segundos.",
+  details?: unknown,
+) => new AppError("SERVICE_UNAVAILABLE", message, details);
