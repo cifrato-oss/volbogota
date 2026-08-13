@@ -46,3 +46,7 @@ firebase-debug.log
 firestore-debug.log
 ui-debug.log
 .firebase/
+
+# Firestore admin key + local connection guide (never commit)
+volbogota-admin.json
+volbogota-conexion-firestore.md
