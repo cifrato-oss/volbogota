@@ -1,5 +1,5 @@
-import { ElegirCentro } from "@/components/centros/elegir-centro";
+import { InicioLanding } from "@/components/inicio/inicio-landing";
 
 export default function HomePage() {
-  return <ElegirCentro />;
+  return <InicioLanding />;
 }
