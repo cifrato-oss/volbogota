@@ -1,4 +1,7 @@
+import type { z } from "zod";
+
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
+import { logger } from "@/server/lib/logger";
 
 import {
   centroSchema,
@@ -12,6 +15,47 @@ import {
  * Firestore reads for the catalogue. Documents are parsed on the way out so a
  * malformed import surfaces here instead of halfway through a request.
  */
+
+/**
+ * Parses a page of documents, dropping the ones that do not fit the schema.
+ *
+ * A single bad document should cost its own card, not the whole page. Parsing
+ * inside a `.map` used to throw, which reached `withRoute` as an unexpected
+ * error and answered 500 — six good collection points vanishing because a
+ * seventh was malformed. That is not hypothetical: coordinators edit Firestore
+ * from the console during the event, and a document with `activo: true` and
+ * nothing else is enough to do it.
+ *
+ * Every discard is logged with its id and the failing fields. Serving less data
+ * than exists is its own kind of bug, and the log is what turns "a point is
+ * missing from the website" into a one-minute lookup.
+ */
+function parseValidos<TOut>(
+  coleccion: string,
+  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  schema: z.ZodType<TOut>,
+  extras: Record<string, unknown> = {},
+): TOut[] {
+  const validos: TOut[] = [];
+
+  for (const doc of docs) {
+    const parsed = schema.safeParse({ ...extras, id: doc.id, ...doc.data() });
+
+    if (parsed.success) {
+      validos.push(parsed.data);
+      continue;
+    }
+
+    logger.warn(`Documento descartado en '${coleccion}': no cumple el esquema.`, {
+      id: doc.id,
+      problemas: parsed.error.issues.map(
+        (issue) => `${issue.path.join(".") || "(raíz)"}: ${issue.message}`,
+      ),
+    });
+  }
+
+  return validos;
+}
 
 export type TurnoFilters = {
   centroId?: string;
@@ -33,9 +77,9 @@ export async function findCentros(soloActivos = true): Promise<Centro[]> {
   // `orderBy("nombre")` would oblige Firestore to have a composite index, and
   // the emulator does not enforce that — the query passes locally and fails on
   // the first real request. There are six points; the sort is free.
-  return snapshot.docs
-    .map((doc) => centroSchema.parse({ id: doc.id, ...doc.data() }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  return parseValidos(COLLECTIONS.centros, snapshot.docs, centroSchema).sort((a, b) =>
+    a.nombre.localeCompare(b.nombre, "es"),
+  );
 }
 
 export async function findCentroById(id: string): Promise<Centro | null> {
@@ -54,8 +98,9 @@ export async function findTurnos(filters: TurnoFilters = {}): Promise<Turno[]> {
   if (filters.jornada) query = query.where("jornada", "==", filters.jornada);
 
   const snapshot = await query.get();
-  const turnos = snapshot.docs
-    .map((doc) => turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() }))
+  const turnos = parseValidos(COLLECTIONS.turnos, snapshot.docs, turnoSchema, {
+    centroActivo: true,
+  })
     // Shifts of retired points stay in Firestore for history but never surface:
     // listing them would advertise a point the city no longer authorises, and
     // counting them would inflate the published capacity.
