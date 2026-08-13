@@ -9,7 +9,7 @@
  *
  *   npx firebase emulators:start --only firestore --project volbogota-local
  *   FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
- *   npm run stress:reservas -- --turno cruz-roja_2026-08-16_noche
+ *   npm run stress:reservas -- --turno cruz-roja_2026-08-16_pm
  *
  * Never run this against production: it rewrites the shift's capacity.
  */
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     throw new Error("Solo contra el emulador: exporta FIRESTORE_EMULATOR_HOST=localhost:8080.");
   }
 
-  const turnoId = arg("turno", "cruz-roja_2026-08-16_noche");
+  const turnoId = arg("turno", "cruz-roja_2026-08-16_pm");
   const cupos = Number(arg("cupos", "5"));
   const intentos = Number(arg("intentos", "40"));
   const baseUrl = arg("url", "http://localhost:3000");

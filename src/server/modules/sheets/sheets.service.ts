@@ -88,7 +88,6 @@ function aCentro(fila: FilaCentro): Centro {
     cuposPorJornada: {
       AM: fila.cuposAm,
       PM: fila.cuposPm,
-      NOCHE: fila.cuposNoche,
     },
     // An empty cell means the point is in operation: the column exists to
     // retire one, not to enable each.

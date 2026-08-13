@@ -46,13 +46,20 @@ export function fechaHaciaSheet(iso: string): string {
   return `${dia}/${mes}/${anio}`;
 }
 
-/** The sheet writes `Noche`; the domain uses `NOCHE`. */
+/**
+ * The sheet's `Jornada` column, case- and accent-insensitive.
+ *
+ * The evening shift no longer exists, but the sheet's dropdown and its older
+ * `Turnos` rows still offer `Noche`. Such a row is rejected here with its own
+ * verdict for the `Validación` column instead of being quietly booked into a
+ * shift the programme no longer runs.
+ */
 export function jornadaDesdeSheet(valor: string): Jornada {
   const normalizada = normalizar(valor).toUpperCase();
   const jornada = JORNADAS.find((candidata) => candidata === normalizada);
 
   if (!jornada) {
-    throw badRequest(`La jornada "${valor}" no es válida. Usa AM, PM o Noche.`);
+    throw badRequest(`La jornada "${valor}" no es válida. Usa AM o PM.`);
   }
 
   return jornada;
@@ -61,7 +68,6 @@ export function jornadaDesdeSheet(valor: string): Jornada {
 const ETIQUETA_JORNADA_SHEET: Record<Jornada, string> = {
   AM: "AM",
   PM: "PM",
-  NOCHE: "Noche",
 };
 
 export function jornadaHaciaSheet(jornada: Jornada): string {
