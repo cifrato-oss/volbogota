@@ -23,6 +23,7 @@ import {
   buildTurnoId,
   slugify,
   type Centro,
+  type Jornada,
   type Turno,
 } from "@/server/modules/catalogo/catalogo.schema";
 
@@ -108,6 +109,41 @@ function cuposDe(row: ExcelJS.Row, column: number | null): number {
   return column ? cellNumber(row, column) : 0;
 }
 
+/**
+ * Every name a capacity column has had across versions of the file.
+ *
+ * "Cupos AM" was "Cupos Mañana" for a version. The second shift has been called
+ * PM, Tarde and Noche, but it is one shift — the one that runs from 1 p.m. to
+ * the point's closing time — so all three names land on `PM`.
+ */
+const ALIAS_CUPOS: Record<Jornada, string[]> = {
+  AM: ["Cupos AM", "Cupos Mañana"],
+  PM: ["Cupos PM", "Cupos Tarde", "Cupos Noche"],
+};
+
+/**
+ * The column that holds a jornada's capacity.
+ *
+ * A file carrying two names for the same shift is reported instead of resolved
+ * silently: taking the first would drop the other column's capacity, and reading
+ * an import that says nothing is the way that goes unnoticed.
+ */
+function columnaDeCupos(
+  columna: (titulo: string) => number | null,
+  jornada: Jornada,
+): number | null {
+  const presentes = ALIAS_CUPOS[jornada].filter((titulo) => columna(titulo) !== null);
+
+  if (presentes.length > 1) {
+    console.warn(
+      `⚠ La hoja trae ${presentes.join(" y ")} para la jornada ${jornada}. Uso ${presentes[0]}.`,
+    );
+  }
+
+  const elegida = presentes[0];
+  return elegida ? columna(elegida) : null;
+}
+
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   const sheet = workbook.getWorksheet("Centros");
   if (!sheet) throw new Error("El archivo no tiene la hoja 'Centros'.");
@@ -117,26 +153,16 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   // The point's name column has been called both "Centro" and "Punto de acopio".
   const colNombre = columna("Punto de acopio") ?? columna("Centro");
 
-  /**
-   * The jornada columns have been renamed and dropped across versions: "Cupos AM"
-   * became "Cupos Mañana", and the third version of the file has no afternoon
-   * column at all — the points run two shifts, morning and night.
-   *
-   * So each jornada is read if its column exists and counted as zero otherwise,
-   * and what fails loudly is a sheet with no capacity column at all. Requiring
-   * all three would refuse the current file; requiring none would import every
-   * centre with zero cupos and look like a working import that oversells nothing
-   * because nothing is available.
-   */
-  const colCuposAm = columna("Cupos AM") ?? columna("Cupos Mañana");
-  const colCuposPm = columna("Cupos PM") ?? columna("Cupos Tarde");
-  const colCuposNoche = columna("Cupos Noche");
+  // A jornada whose column the file omits is read as zero; what fails loudly is
+  // a sheet with no capacity column at all.
+  const colCuposAm = columnaDeCupos(columna, "AM");
+  const colCuposPm = columnaDeCupos(columna, "PM");
 
   if (!colNombre) {
     throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
   }
 
-  if (!colCuposAm && !colCuposPm && !colCuposNoche) {
+  if (!colCuposAm && !colCuposPm) {
     throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
   }
 
@@ -176,7 +202,6 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       cuposPorJornada: {
         AM: cuposDe(row, colCuposAm),
         PM: cuposDe(row, colCuposPm),
-        NOCHE: cuposDe(row, colCuposNoche),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
       // The second version of the file dropped the coordinator columns. The
@@ -381,28 +406,41 @@ async function retirarLoQueYaNoEstaAutorizado(
 }
 
 /**
- * The evening shift runs 7–10 p.m., but several points close earlier. Publishing
- * a shift that ends after the door is locked sends volunteers to a closed site,
- * so the mismatch is surfaced on every import until the hours are reconciled.
+ * A shift that ends after the point locks its door sends volunteers to a closed
+ * site, so the mismatch is surfaced on every import until the hours are
+ * reconciled. Checked per shift because each point publishes its own hours.
  */
 function reportarHorariosEnConflicto(centros: Centro[]): void {
-  const conflictos = centros.filter((centro) => {
-    if (!centro.horarioOficial || (centro.cuposPorJornada.NOCHE ?? 0) === 0) return false;
-    if (/24\s*horas/i.test(centro.horarioOficial)) return false;
+  const conflictos: string[] = [];
+
+  for (const centro of centros) {
+    if (!centro.horarioOficial) continue;
+    if (/24\s*horas/i.test(centro.horarioOficial)) continue;
 
     const cierre = leerHoraDeCierre(centro.horarioOficial);
-    return cierre !== null && cierre < 22 * 60;
-  });
+    if (cierre === null) continue;
+
+    for (const jornada of JORNADAS) {
+      if ((centro.cuposPorJornada[jornada] ?? 0) === 0) continue;
+      if (cierre >= enMinutos(HORARIOS[jornada].fin)) continue;
+
+      conflictos.push(
+        `   ${centro.nombre} — jornada ${jornada} (${HORARIOS[jornada].etiqueta}), cierra ${centro.horarioOficial}`,
+      );
+    }
+  }
 
   if (conflictos.length === 0) return;
 
-  console.warn(
-    `\n⚠ La jornada noche (${HORARIOS.NOCHE.etiqueta}) se pasa del cierre en ${conflictos.length} punto(s):`,
-  );
-  for (const centro of conflictos) {
-    console.warn(`   ${centro.nombre} — cierra ${centro.horarioOficial}`);
-  }
+  console.warn(`\n⚠ ${conflictos.length} turno(s) terminan después del cierre del punto:`);
+  for (const linea of conflictos) console.warn(linea);
   console.warn("   Los cupos siguen abiertos: alinear horarios antes de publicar la web.");
+}
+
+/** `"17:00"` → minutes past midnight, to compare against the closing time. */
+function enMinutos(hora: string): number {
+  const [horas = "0", minutos = "0"] = hora.split(":");
+  return Number(horas) * 60 + Number(minutos);
 }
 
 /** Reads the closing time out of "8:00 a.m. - 9:00 p.m." as minutes past midnight. */

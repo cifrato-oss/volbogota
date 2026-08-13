@@ -43,7 +43,6 @@ export const filaCentroSchema = z.object({
   horarioOficial: textoOpcional,
   cuposAm: cuposSchema,
   cuposPm: cuposSchema,
-  cuposNoche: cuposSchema,
   /** Comma-separated in the sheet: "Empaque, Clasificación, Carga y descarga". */
   actividades: textoOpcional,
   linkMaps: textoOpcional,

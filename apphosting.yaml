@@ -46,16 +46,18 @@ env:
   # que esta tiene que estar disponible en BUILD y no solo en RUNTIME: cambiarla
   # después no afecta al JavaScript ya compilado, hay que volver a construir.
   #
-  # `volbogota.org` mientras `centrosdeacopiobogota.org` termina de emitir su
-  # certificado; cuando sirva, se cambia acá y se vuelve a desplegar.
+  # El dominio oficial. `volbogota.org` sigue registrado en el backend y sirviendo
+  # lo mismo, así que funciona como alias.
   #
-  # Ponerla antes de que el dominio resuelva no rompe nada: los clientes de
-  # `src/lib` solo consultan esta variable cuando `window` es undefined, y hoy
-  # todo el consumo de `src/queries` sale de componentes cliente — no hay
-  # prefetch en servidor. En el navegador la base es `window.location.origin`, así
-  # que la app responde igual por el dominio de App Hosting y por el propio.
+  # Cambiar esto exige un despliegue nuevo, no solo editar el valor: Next.js
+  # incrusta las `NEXT_PUBLIC_*` en el bundle durante `next build`.
+  #
+  # Que además la app responda por cualquiera de los dos dominios no depende de
+  # esta variable: los clientes de `src/lib` solo la consultan cuando `window` es
+  # undefined, y todo el consumo de `src/queries` sale de componentes cliente, que
+  # resuelven la base con `window.location.origin`.
   - variable: NEXT_PUBLIC_APP_URL
-    value: https://volbogota.org
+    value: https://centrosdeacopiobogota.org
     availability:
       - BUILD
       - RUNTIME

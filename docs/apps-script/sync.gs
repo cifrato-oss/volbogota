@@ -46,7 +46,17 @@ var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 
 /**
- * Único disparador automático: marcar un punto como Activo = Sí en `Centros`.
+ * Columnas de `Centros` que, al editarse, sincronizan solas.
+ *
+ * Son las tres que cambian lo que la web ofrece: si el punto sigue autorizado y
+ * cuántos cupos tiene en cada jornada. Dirección, localidad u observaciones no
+ * están acá a propósito — corregir una tilde no tiene por qué reenviar el
+ * catálogo entero; para eso está el menú.
+ */
+var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM"];
+
+/**
+ * Único disparador automático: editar una de esas columnas en `Centros`.
  *
  * Antes salía en cualquier edición, incluidas las que hace el propio backend al
  * escribir en `Reservas` — eso devolvía esas filas al backend y las marcaba como
@@ -60,25 +70,36 @@ function alEditar(e) {
   if (hoja.getName() !== HOJA_CENTROS) return;
 
   var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
-  var colActivo = mapa.columna("Activo");
-  if (!colActivo) return;
 
-  // Un pegado abarca varias celdas: basta con que el rango toque la columna.
+  // Un pegado abarca varias celdas: basta con que el rango toque una columna.
   var primera = e.range.getColumn();
   var ultima = primera + e.range.getNumColumns() - 1;
-  if (colActivo < primera || colActivo > ultima) return;
+
+  if (!tocaAlgunaColumna(mapa, primera, ultima)) return;
+
+  var colNombre = mapa.columna("Punto de acopio") || mapa.columna("Centro");
+  if (!colNombre) return;
 
   var desde = e.range.getRow();
   var hasta = desde + e.range.getNumRows() - 1;
 
-  // Sí y No disparan por igual: retirar un punto tiene que llegar al backend
-  // tan rápido como autorizarlo, o la web seguiría ofreciendo cupos cerrados.
+  // Vaciar una celda dispara igual que llenarla; lo que se exige es que la fila
+  // sea un punto, porque debajo de la tabla viven las notas al pie.
   for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
-    if (normalizar(hoja.getRange(fila, colActivo).getValue()) !== "") {
+    if (normalizar(hoja.getRange(fila, colNombre).getValue()) !== "") {
       sincronizarCentros();
       return;
     }
   }
+}
+
+function tocaAlgunaColumna(mapa, primera, ultima) {
+  for (var i = 0; i < COLUMNAS_QUE_SINCRONIZAN.length; i++) {
+    var columna = mapa.columna(COLUMNAS_QUE_SINCRONIZAN[i]);
+    if (columna && columna >= primera && columna <= ultima) return true;
+  }
+
+  return false;
 }
 
 /** Menú manual, para reenviar todo sin esperar a una edición. */
@@ -110,7 +131,6 @@ function sincronizarCentros() {
       horarioOficial: leer(hoja, fila, mapa.columna("Horario oficial del punto")),
       cuposAm: leer(hoja, fila, mapa.columna("Cupos AM")),
       cuposPm: leer(hoja, fila, mapa.columna("Cupos PM")),
-      cuposNoche: leer(hoja, fila, mapa.columna("Cupos Noche")),
       actividades: leer(hoja, fila, mapa.columna("Actividades habilitadas")),
       linkMaps: leer(hoja, fila, mapa.columna("Link Google Maps")),
       activo: leer(hoja, fila, mapa.columna("Activo")),

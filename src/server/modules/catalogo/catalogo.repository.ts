@@ -32,7 +32,7 @@ import {
  */
 function parseValidos<TOut>(
   coleccion: string,
-  docs: FirebaseFirestore.QueryDocumentSnapshot[],
+  docs: FirebaseFirestore.DocumentSnapshot[],
   schema: z.ZodType<TOut>,
   extras: Record<string, unknown> = {},
 ): TOut[] {
@@ -120,11 +120,15 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
   const doc = await getDb().collection(COLLECTIONS.turnos).doc(id).get();
   if (!doc.exists) return null;
 
-  return turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() });
+  // A shift left over from an older catalogue — a `NOCHE` one — is a shift that
+  // no longer exists: 404 like any unknown id, not a 500 nobody can act on.
+  const [turno] = parseValidos(COLLECTIONS.turnos, [doc], turnoSchema, { centroActivo: true });
+
+  return turno ?? null;
 }
 
 function jornadaOrder(jornada: Jornada): number {
-  return { AM: 0, PM: 1, NOCHE: 2 }[jornada];
+  return { AM: 0, PM: 1 }[jornada];
 }
 
 export type CatalogoGuardado = { centros: number; turnos: number };

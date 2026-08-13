@@ -31,7 +31,7 @@ describe("slugify", () => {
 
 describe("buildTurnoId", () => {
   it("is derivable from centre, date and shift", () => {
-    expect(buildTurnoId("vive-claro", "2026-08-13", "NOCHE")).toBe("vive-claro_2026-08-13_noche");
+    expect(buildTurnoId("vive-claro", "2026-08-13", "PM")).toBe("vive-claro_2026-08-13_pm");
   });
 });
 
