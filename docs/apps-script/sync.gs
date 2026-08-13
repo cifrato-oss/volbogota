@@ -11,8 +11,11 @@
  *
  *   API_URL2    https://xxxxx.lhr.life                (sin barra final)
  *
- * Mientras exista, todo va a esa; bórrala para volver a producción. El menú
- * «¿A dónde estoy sincronizando?» dice cuál está activa.
+ * Con las dos puestas se manda a las dos, y son independientes: que una esté
+ * caída no impide que la otra reciba. La que escribe en la hoja es API_URL,
+ * porque cada backend genera su propio código de reserva y en la celda solo
+ * cabe uno. Bórrala para dejar de mandar al local; el menú «¿A dónde estoy
+ * sincronizando?» dice cuáles están activas.
  *
  * Y en Activadores (el reloj de la izquierda) → Añadir activador:
  *   función  alEditar · desde hoja de cálculo · Al editar
@@ -397,63 +400,114 @@ function leer(hoja, fila, columna) {
 }
 
 /**
- * A dónde se sincroniza.
+ * Los backends a los que se sincroniza.
  *
- * `API_URL2` le gana a `API_URL` cuando existe: es el desvío para probar contra
- * un backend local (por un túnel) sin tocar la de producción. Se quita borrando
- * la propiedad, y `dondeEstoySincronizando()` en el menú dice cuál está
- * mandando — dejarla puesta sin darse cuenta es el error fácil de cometer.
+ * `API_URL` es el de siempre; `API_URL2` es un segundo destino para probar
+ * contra un backend local por un túnel. Cuando existen los dos se les manda a
+ * ambos, y ninguno depende del otro: cada uno lleva su propio try/catch, así
+ * que el local caído no impide que producción reciba, ni al revés.
+ *
+ * El primero de la lista es el que manda. Eso importa porque cada backend
+ * genera su propio código de reserva, y en la celda solo cabe uno: escribir el
+ * de un backend de pruebas dejaría a la hoja apuntando a una reserva que
+ * producción no conoce. El secundario recibe los datos, y su respuesta se
+ * registra en el log sin tocar la hoja.
  */
-function baseUrl() {
+function destinos() {
   var props = PropertiesService.getScriptProperties();
-  return props.getProperty("API_URL2") || props.getProperty("API_URL");
-}
+  var lista = [];
 
-/** Menú: confirma a qué backend está apuntando la hoja ahora mismo. */
-function dondeEstoySincronizando() {
-  var props = PropertiesService.getScriptProperties();
+  var principal = props.getProperty("API_URL");
   var prueba = props.getProperty("API_URL2");
 
-  var mensaje = prueba
-    ? "PRUEBA — API_URL2:\n" +
-      prueba +
-      "\n\nProducción (en pausa):\n" +
-      (props.getProperty("API_URL") || "sin definir") +
-      "\n\nBorra API_URL2 para volver a producción."
-    : "Producción — API_URL:\n" + (props.getProperty("API_URL") || "sin definir");
+  if (principal) lista.push({ nombre: "API_URL", url: principal });
+  if (prueba) lista.push({ nombre: "API_URL2", url: prueba });
+
+  return lista;
+}
+
+/** Menú: dice a qué backends está mandando la hoja y cuál manda. */
+function dondeEstoySincronizando() {
+  var lista = destinos();
+
+  if (lista.length === 0) {
+    SpreadsheetApp.getUi().alert(
+      "Sincronizando contra",
+      "Ninguno: falta API_URL en las propiedades del script.",
+      SpreadsheetApp.getUi().ButtonSet.OK,
+    );
+    return;
+  }
+
+  var lineas = [];
+  for (var i = 0; i < lista.length; i++) {
+    lineas.push(
+      lista[i].nombre +
+        (i === 0 ? "  (manda: su respuesta es la que se escribe en la hoja)" : "  (solo recibe)") +
+        "\n" +
+        lista[i].url,
+    );
+  }
 
   SpreadsheetApp.getUi().alert(
     "Sincronizando contra",
-    mensaje,
+    lineas.join("\n\n"),
     SpreadsheetApp.getUi().ButtonSet.OK,
   );
 }
 
+/**
+ * Manda a todos los destinos y devuelve la respuesta del primero.
+ *
+ * Un destino que falla no interrumpe a los demás: se registra y se sigue. Si el
+ * que manda es el que falló, devuelve null y quien llama marca las filas como
+ * pendientes.
+ */
 function llamar(ruta, cuerpo) {
-  var props = PropertiesService.getScriptProperties();
-  var url = baseUrl();
-  var token = props.getProperty("HOOK_TOKEN");
+  var lista = destinos();
+  var token = PropertiesService.getScriptProperties().getProperty("HOOK_TOKEN");
 
-  if (!url || !token) {
+  if (lista.length === 0 || !token) {
     throw new Error("Faltan API_URL (o API_URL2) o HOOK_TOKEN en las propiedades del script.");
   }
 
-  var respuesta = UrlFetchApp.fetch(url + ruta, {
-    method: "post",
-    contentType: "application/json",
-    headers: { "x-sheets-token": token },
-    payload: JSON.stringify(cuerpo),
-    // Sin esto, un 4xx lanza una excepción y perdemos el mensaje de error, que
-    // es justamente lo que hay que mostrarle al coordinador.
-    muteHttpExceptions: true,
-  });
+  var respuestaPrincipal = null;
 
-  var texto = respuesta.getContentText();
-  var datos = JSON.parse(texto);
-
-  if (!datos.success) {
-    Logger.log("Error del backend: " + texto);
+  for (var i = 0; i < lista.length; i++) {
+    var datos = enviarA(lista[i], ruta, cuerpo);
+    if (i === 0) respuestaPrincipal = datos;
   }
 
-  return datos;
+  return respuestaPrincipal;
+}
+
+/** Una petición a un destino. Nunca lanza: devuelve null si no se pudo. */
+function enviarA(destino, ruta, cuerpo) {
+  try {
+    var respuesta = UrlFetchApp.fetch(destino.url + ruta, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "x-sheets-token": PropertiesService.getScriptProperties().getProperty("HOOK_TOKEN"),
+      },
+      payload: JSON.stringify(cuerpo),
+      // Sin esto, un 4xx lanza una excepción y perdemos el mensaje de error, que
+      // es justamente lo que hay que mostrarle al coordinador.
+      muteHttpExceptions: true,
+    });
+
+    var texto = respuesta.getContentText();
+    var datos = JSON.parse(texto);
+
+    if (!datos.success) {
+      Logger.log("Error de " + destino.nombre + ": " + texto);
+    }
+
+    return datos;
+  } catch (error) {
+    // Red caída, túnel muerto o una respuesta que no es JSON. El otro destino
+    // sigue su camino.
+    Logger.log("No se pudo llamar a " + destino.nombre + " (" + destino.url + "): " + error);
+    return null;
+  }
 }
