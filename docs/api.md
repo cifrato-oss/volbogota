@@ -54,38 +54,42 @@ En un 422, `details` viene listo para pintar el error bajo cada input:
 | Concepto    | Qué es                                                               |
 | ----------- | -------------------------------------------------------------------- |
 | **Punto**   | Punto de acopio autorizado. 6 en total. `id` es un slug: `cruz-roja` |
-| **Jornada** | `AM` · `PM` · `NOCHE` — siempre en mayúsculas                        |
-| **Turno**   | Un punto + una fecha + una jornada. 72 en total (6 × 4 días × 3)     |
+| **Jornada** | `AM` · `PM` — siempre en mayúsculas. La jornada noche se eliminó     |
+| **Turno**   | Un punto + una fecha + una jornada. 48 en total (6 × 4 días × 2)     |
 | **Reserva** | La inscripción de un voluntario a un turno                           |
 
 El `turnoId` es predecible — `{puntoId}_{YYYY-MM-DD}_{jornada en minúscula}`, o
 sea `cruz-roja_2026-08-13_am`. Aun así, **no lo armes a mano**: úsalo como viene
 en las respuestas.
 
-Programa: **13 al 16 de agosto de 2026**, 6 puntos, **11.400 cupos**.
+Programa: **13 al 16 de agosto de 2026**, 6 puntos, **8.400 cupos**.
+
+Dos jornadas por día: `AM` de 8:00 a.m. a 2:00 p.m. y `PM` de 1:00 p.m. a
+5:00 p.m. Se solapan una hora — es lo que dice la hoja maestra, no un error de
+transcripción.
 
 > **Fechas**: van como strings `YYYY-MM-DD`, sin hora ni zona horaria. No las
 > pases por `new Date()` sin fijar la zona o te puede correr un día.
 
 ### Los seis puntos
 
-| Punto                   | Localidad      | Horario oficial       | Noche  |
-| ----------------------- | -------------- | --------------------- | ------ |
-| U. Jorge Tadeo Lozano   | Santa Fe       | 8:00 a.m. - 9:00 p.m. | sí     |
-| Punto Usaquén           | Usaquén        | 8:00 a.m. - 9:00 p.m. | sí     |
-| CC Unicentro            | Usaquén        | 9:00 a.m. - 5:00 p.m. | **no** |
-| Cruz Roja               | Barrios Unidos | 24 horas              | sí     |
-| Palacio de los Deportes | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | **no** |
-| Estadio El Campín       | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | sí     |
+| Punto                   | Localidad      | Horario oficial       | Cupos AM/PM |
+| ----------------------- | -------------- | --------------------- | ----------- |
+| U. Jorge Tadeo Lozano   | Santa Fe       | 8:00 a.m. - 9:00 p.m. | 150 / 150   |
+| Punto Usaquén           | Usaquén        | 8:00 a.m. - 9:00 p.m. | 150 / 150   |
+| CC Unicentro            | Usaquén        | 9:00 a.m. - 5:00 p.m. | 150 / 150   |
+| Cruz Roja               | Barrios Unidos | 24 horas              | 150 / 150   |
+| Palacio de los Deportes | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | 150 / 150   |
+| Estadio El Campín       | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | 300 / 300   |
 
 ⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el sismo
 de Bogotá. Viene dicho en su campo `observaciones` — vale la pena mostrarlo
 distinto en la UI para que nadie done al destino equivocado.
 
-⚠️ **La jornada noche (7–10 p.m.) se pasa del cierre en 3 de los 6 puntos.** El
-`horario` del turno es el horario nominal de la jornada; el `horarioOficial` del
-punto es cuando la puerta está realmente abierta. Hasta que los alineen,
-**muestra el horario oficial del punto** o mandarás gente a un sitio cerrado.
+⚠️ El `horario` del turno es el horario nominal de la jornada; el
+`horarioOficial` del punto es cuando la puerta está realmente abierta, y no
+siempre coinciden — Unicentro abre a las 9:00 a.m., no a las 8:00.
+**Muestra el horario oficial del punto** o mandarás gente a un sitio cerrado.
 
 ---
 
@@ -133,9 +137,9 @@ Los puntos activos, ordenados por nombre.
     "localidad": "Barrios Unidos",
     "linkMaps": "https://maps.app.goo.gl/KSYQ52viibBuktq48",
     "horarioOficial": "24 horas",
-    "observaciones": "Sede administrativa. Opera 24 horas: es el único punto donde caben las 3 jornadas completas.",
+    "observaciones": "Sede administrativa. Opera 24 horas.",
     "actividades": ["Empaque", "Clasificación", "Carga y descarga"],
-    "cuposPorJornada": { "AM": 150, "PM": 150, "NOCHE": 150 },
+    "cuposPorJornada": { "AM": 150, "PM": 150 },
     "activo": true
   }
 ]
@@ -162,12 +166,12 @@ Turnos con su ocupación en vivo. Alimenta el selector de cupos.
 
 **Query params** (todos opcionales, combinables):
 
-| Param         | Valores           | Efecto                               |
-| ------------- | ----------------- | ------------------------------------ |
-| `centro`      | id de punto       | Solo ese punto                       |
-| `fecha`       | `YYYY-MM-DD`      | Solo ese día                         |
-| `jornada`     | `AM` `PM` `NOCHE` | Solo esa jornada                     |
-| `disponibles` | `true` `false`    | Con `true` esconde llenos y cerrados |
+| Param         | Valores        | Efecto                               |
+| ------------- | -------------- | ------------------------------------ |
+| `centro`      | id de punto    | Solo ese punto                       |
+| `fecha`       | `YYYY-MM-DD`   | Solo ese día                         |
+| `jornada`     | `AM` `PM`      | Solo esa jornada                     |
+| `disponibles` | `true` `false` | Con `true` esconde llenos y cerrados |
 
 ```json
 [
@@ -197,11 +201,12 @@ Campos derivados, ya calculados — no los recalcules:
 - **`disponibles`** = `cuposTotales − reservados`, nunca negativo
 - **`ocupacion`** = fracción de 0 a 1
 - **`agotado`** = `disponibles === 0`
-- **`estado`** = `ABIERTO` o `CERRADO`. Los 8 turnos de Unicentro-noche y
-  Palacio-noche vienen `CERRADO` con `cuposTotales: 0`
+- **`estado`** = `ABIERTO` o `CERRADO`. Un punto con `0` cupos en una jornada
+  trae ese turno `CERRADO` con `cuposTotales: 0`
 
 **Un turno es inscribible si `estado === "ABIERTO" && !agotado`.** Eso es
-exactamente lo que filtra `disponibles=true` — 64 de los 72.
+exactamente lo que filtra `disponibles=true`. Hoy los 48 tienen cupo, pero eso
+cambia en cuanto un punto ponga una jornada en `0`.
 
 `horarioOficialCentro` está denormalizado acá para que no tengas que pedir el
 punto solo para saber a qué hora abre.
@@ -273,8 +278,8 @@ sin `O`/`0` ni `I`/`1`/`L`, para que nadie lo transcriba mal al dictarlo en la
 portería. Es único — lo garantiza Firestore — y es la llave con la que el
 check-in va a buscar la reserva. La confirmación trae **dirección y
 horario oficial** para que la pantalla de «listo, quedaste inscrito» le diga a
-dónde ir sin otra petición. `jornada` viene como etiqueta lista para mostrar
-(`"Noche"`, no `"NOCHE"`).
+dónde ir sin otra petición. `jornada` viene como etiqueta lista para mostrar,
+no como el valor del enum.
 
 ### Errores que tienes que manejar
 
@@ -332,7 +337,7 @@ FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Voluntar
 FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
 ```
 
-Queda con los 6 puntos, 72 turnos y 11.400 cupos reales, sin tocar producción.
+Queda con los 6 puntos, 48 turnos y 8.400 cupos reales, sin tocar producción.
 
 ---
 
@@ -361,7 +366,7 @@ o bien `Authorization: Bearer <token>`. Sin token o con token inválido → `401
 | `turno`   | `turnoId`                  | Solo ese turno                      |
 | `centro`  | id de punto                | Solo ese punto                      |
 | `fecha`   | `YYYY-MM-DD`               | Solo ese día                        |
-| `jornada` | `AM` `PM` `NOCHE`          | Solo esa jornada                    |
+| `jornada` | `AM` `PM`                  | Solo esa jornada                    |
 | `estado`  | ver estados abajo          | Solo ese estado                     |
 | `q`       | texto (2–60)               | Busca en nombre, apellido y celular |
 | `limite`  | 1–500 (default 100)        | Tamaño de página                    |

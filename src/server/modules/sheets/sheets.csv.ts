@@ -124,7 +124,6 @@ async function leerCentros(): Promise<Record<string, string>[]> {
     horarioOficial: indiceDe(encabezado, "Horario oficial"),
     cuposAm: indiceDe(encabezado, "Cupos AM"),
     cuposPm: indiceDe(encabezado, "Cupos PM"),
-    cuposNoche: indiceDe(encabezado, "Cupos Noche"),
     actividades: indiceDe(encabezado, "Actividades"),
     linkMaps: indiceDe(encabezado, "Link"),
     activo: indiceDe(encabezado, "Activo"),

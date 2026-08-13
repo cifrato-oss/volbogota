@@ -40,7 +40,6 @@ function filaCentro(overrides: Record<string, unknown> = {}) {
     horarioOficial: "8:00 a.m. - 9:00 p.m.",
     cuposAm: "150",
     cuposPm: "150",
-    cuposNoche: "150",
     actividades: "Empaque, Clasificación, Carga y descarga",
     linkMaps: "https://maps.app.goo.gl/ShUjA6o1j2WcVUPp9",
     activo: "Sí",
@@ -80,12 +79,12 @@ describe("sincronizarCentrosDesdeSheet", () => {
     });
 
     expect(resultado.centros).toBe(1);
-    expect(resultado.turnos).toBe(6); // 1 punto × 2 fechas × 3 jornadas
+    expect(resultado.turnos).toBe(4); // 1 punto × 2 fechas × 2 jornadas
 
     expect(db.peek("centros/punto-usaquen")).toMatchObject({
       nombre: "Punto Usaquén",
       localidad: "Usaquén",
-      cuposPorJornada: { AM: 150, PM: 150, NOCHE: 150 },
+      cuposPorJornada: { AM: 150, PM: 150 },
       activo: true,
     });
 
@@ -98,14 +97,13 @@ describe("sincronizarCentrosDesdeSheet", () => {
   });
 
   it("closes the shift when the sheet sets that slot's capacity to zero", async () => {
-    // This is how the file says "this point does not open in that shift" —
-    // Unicentro and Palacio close before the evening.
+    // This is how the file says "this point does not open in that shift".
     await sincronizarCentros({
-      filas: [filaCentro({ puntoDeAcopio: "CC Unicentro", cuposNoche: "0" })],
+      filas: [filaCentro({ puntoDeAcopio: "CC Unicentro", cuposPm: "0" })],
       fechas: FECHAS,
     });
 
-    expect(db.peek("turnos/cc-unicentro_2026-08-13_noche")).toMatchObject({
+    expect(db.peek("turnos/cc-unicentro_2026-08-13_pm")).toMatchObject({
       cuposTotales: 0,
       estado: "CERRADO",
     });
@@ -199,7 +197,7 @@ describe("sincronizarCentrosDesdeSheet", () => {
     // Requiring every column would reject the batch on a row we then discard.
     const resultado = await sincronizarCentros({
       filas: [
-        { puntoDeAcopio: "Cruz Roja", cuposAm: "150", cuposPm: "150", cuposNoche: "150" },
+        { puntoDeAcopio: "Cruz Roja", cuposAm: "150", cuposPm: "150" },
         { puntoDeAcopio: "TOTAL", cuposAm: "1,050" },
       ],
       fechas: FECHAS,

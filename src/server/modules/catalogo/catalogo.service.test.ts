@@ -24,7 +24,7 @@ const centro: Centro = {
   horarioOficial: "8:00 a.m. - 9:00 p.m.",
   observaciones: null,
   actividades: ["Empaque", "Clasificación", "Carga y descarga"],
-  cuposPorJornada: { AM: 300, PM: 300, NOCHE: 300 },
+  cuposPorJornada: { AM: 300, PM: 300 },
   activo: true,
   coordinador: { nombre: "Ana Ramírez", celular: "3001112233" },
 };
