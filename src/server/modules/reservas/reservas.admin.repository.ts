@@ -26,9 +26,13 @@ export async function listarReservas(filtros: ListarReservasInput): Promise<Pagi
   const db = getDb();
   let query = db.collection(COLLECTIONS.reservas) as FirebaseFirestore.Query;
 
-  // Equality filters only, and a single orderBy on the cursor field. Firestore
-  // serves that from automatic single-field indexes; adding a range or a second
-  // sort would demand a composite index per filter combination.
+  // Equality filters only, and a single orderBy on the cursor field. Every
+  // filtered variant needs its own composite index — an automatic single-field
+  // index only serves a query that filters and sorts on the same field, and here
+  // the sort is always `creadoEn`. They are declared in `firestore.indexes.json`
+  // and published by `pnpm run firebase:rules`; without that, a filtered request
+  // fails with FAILED_PRECONDITION. A combination nobody declared fails the same
+  // way, and the error carries a console link that creates the exact index.
   if (filtros.turno) query = query.where("turnoId", "==", filtros.turno);
   if (filtros.centro) query = query.where("centroId", "==", filtros.centro);
   if (filtros.fecha) query = query.where("fecha", "==", filtros.fecha);

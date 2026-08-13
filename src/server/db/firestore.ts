@@ -1,7 +1,8 @@
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
-import { env } from "@/server/config/env";
+import { env, isProduction } from "@/server/config/env";
+import { serviceUnavailable } from "@/server/http/errors";
 
 import { singleton } from "./client";
 
@@ -34,10 +35,16 @@ function createApp(): App {
   }
 
   if (!env.firebase.configured) {
-    throw new Error(
-      "Firestore no está configurado. Define FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y " +
-        "FIREBASE_PRIVATE_KEY en .env.local (ver .env.example), o levanta el emulador con " +
-        "FIRESTORE_EMULATOR_HOST=localhost:8080.",
+    // A missing configuration is not an unexpected failure, and reporting it as
+    // one costs real time: a generic 500 sends whoever is debugging looking for
+    // a bug in the request. Saying what is missing, in development, turns "the
+    // backend does not respond" into a one-line fix.
+    throw serviceUnavailable(
+      isProduction
+        ? "El servicio no está disponible en este momento."
+        : "Firestore no está configurado. Completa FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y " +
+            "FIREBASE_PRIVATE_KEY en .env (ver .env.example), o levanta el emulador con " +
+            "FIRESTORE_EMULATOR_HOST=localhost:8080.",
     );
   }
 
