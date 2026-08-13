@@ -47,8 +47,15 @@ var HOJA_RESERVAS = "Reservas";
 
 /** Se dispara con cada edición. Solo actúa sobre las dos hojas que sincronizamos. */
 function alEditar(e) {
-  var hoja = e.range.getSheet();
-  var nombre = hoja.getName();
+  // Ejecutado a mano desde el editor no hay evento: sincroniza todo en vez de
+  // reventar en `e.range`, que es lo que parece un trigger roto y no lo es.
+  if (!e || !e.range) {
+    sincronizarCentros();
+    sincronizarTodasLasReservas();
+    return;
+  }
+
+  var nombre = e.range.getSheet().getName();
 
   if (nombre === HOJA_CENTROS) {
     sincronizarCentros();
