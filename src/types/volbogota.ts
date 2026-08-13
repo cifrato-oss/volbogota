@@ -112,45 +112,6 @@ export interface TurnosQuery {
   disponibles?: boolean;
 }
 
-// --- GET /api/disponibilidad ---------------------------------------------
-
-export interface DisponibilidadJornada {
-  jornada: Jornada;
-  turnoId: string;
-  cuposTotales: number;
-  disponibles: number;
-  agotado: boolean;
-  estado: EstadoTurno;
-}
-
-export interface DisponibilidadDia {
-  /** ISO date (YYYY-MM-DD). */
-  fecha: string;
-  /** Ordered AM → PM → NOCHE. */
-  jornadas: DisponibilidadJornada[];
-}
-
-export interface DisponibilidadCentro {
-  id: string;
-  nombre: string;
-  localidad: string;
-  /** One entry per date in `Disponibilidad.fechas`, same order. */
-  dias: DisponibilidadDia[];
-}
-
-export interface DisponibilidadTotales {
-  cupos: number;
-  reservados: number;
-  disponibles: number;
-}
-
-export interface Disponibilidad {
-  /** ISO dates (YYYY-MM-DD). */
-  fechas: string[];
-  centros: DisponibilidadCentro[];
-  totales: DisponibilidadTotales;
-}
-
 // --- POST /api/reservas ---------------------------------------------------
 
 export interface CreateReservaInput {

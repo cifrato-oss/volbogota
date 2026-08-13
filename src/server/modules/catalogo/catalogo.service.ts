@@ -14,7 +14,6 @@ import {
   JORNADAS,
   toTurnoPublico,
   type Centro,
-  type Jornada,
   type TurnoPublico,
 } from "./catalogo.schema";
 
@@ -61,74 +60,6 @@ export async function obtenerTurno(id: string): Promise<TurnoPublico> {
   }
 
   return toTurnoPublico(turno);
-}
-
-export type Disponibilidad = {
-  fechas: string[];
-  centros: Array<{
-    id: string;
-    nombre: string;
-    localidad: string | null;
-    dias: Array<{
-      fecha: string;
-      jornadas: Array<{
-        jornada: Jornada;
-        turnoId: string;
-        cuposTotales: number;
-        disponibles: number;
-        agotado: boolean;
-        estado: TurnoPublico["estado"];
-      }>;
-    }>;
-  }>;
-  totales: {
-    cupos: number;
-    reservados: number;
-    disponibles: number;
-  };
-};
-
-/**
- * The whole centre × date × shift grid in one response, so the booking calendar
- * renders without firing a request per cell.
- */
-export async function obtenerDisponibilidad(): Promise<Disponibilidad> {
-  const [centros, turnos] = await Promise.all([listarCentros(), listarTurnos()]);
-
-  const fechas = [...new Set(turnos.map((turno) => turno.fecha))].sort();
-
-  const centrosConDias = centros.map((centro) => {
-    const delCentro = turnos.filter((turno) => turno.centroId === centro.id);
-
-    return {
-      id: centro.id,
-      nombre: centro.nombre,
-      localidad: centro.localidad,
-      dias: fechas.map((fecha) => ({
-        fecha,
-        jornadas: delCentro
-          .filter((turno) => turno.fecha === fecha)
-          .map((turno) => ({
-            jornada: turno.jornada,
-            turnoId: turno.id,
-            cuposTotales: turno.cuposTotales,
-            disponibles: turno.disponibles,
-            agotado: turno.agotado,
-            estado: turno.estado,
-          })),
-      })),
-    };
-  });
-
-  return {
-    fechas,
-    centros: centrosConDias,
-    totales: {
-      cupos: turnos.reduce((total, turno) => total + turno.cuposTotales, 0),
-      reservados: turnos.reduce((total, turno) => total + turno.reservados, 0),
-      disponibles: turnos.reduce((total, turno) => total + turno.disponibles, 0),
-    },
-  };
 }
 
 /** Everything the booking form needs to populate its selects. */

@@ -214,46 +214,6 @@ Un turno, mismo objeto. `404` si no existe.
 
 ---
 
-## `GET /api/disponibilidad`
-
-La grilla completa **punto × fecha × jornada** en una respuesta, para pintar el
-calendario sin una petición por celda.
-
-```json
-{
-  "fechas": ["2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16"],
-  "centros": [
-    {
-      "id": "cruz-roja",
-      "nombre": "Cruz Roja",
-      "localidad": "Barrios Unidos",
-      "dias": [
-        {
-          "fecha": "2026-08-13",
-          "jornadas": [
-            {
-              "jornada": "AM",
-              "turnoId": "cruz-roja_2026-08-13_am",
-              "cuposTotales": 150,
-              "disponibles": 149,
-              "agotado": false,
-              "estado": "ABIERTO"
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  "totales": { "cupos": 11400, "reservados": 0, "disponibles": 11400 }
-}
-```
-
-`centros[].dias` trae **una entrada por cada fecha de `fechas`**, en el mismo
-orden. `jornadas` viene ordenado AM → PM → Noche. `totales` sirve directo para un
-contador tipo «quedan 11.398 cupos».
-
----
-
 ## `POST /api/reservas`
 
 Inscribe a un voluntario. **Cinco campos y el turno, nada más.**
@@ -345,7 +305,7 @@ una inscripción por celular **por turno**.
 **Los cupos cambian mientras el usuario mira la pantalla.** Estos endpoints son
 REST: dan una foto del momento. Dos caminos para que el número baje solo:
 
-1. **Polling** — re-pedir `/api/disponibilidad` cada 15–30 s. Simple y suficiente.
+1. **Polling** — re-pedir `/api/turnos` cada 15–30 s. Simple y suficiente.
 2. **Firestore en vivo** — suscribirse a la colección `turnos` con el SDK cliente
    y `onSnapshot`. Las reglas ya están puestas: `turnos` y `centros` de lectura
    pública, `reservas` cerrada. Falta montar la config del SDK cliente — pídemela.
