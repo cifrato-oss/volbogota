@@ -57,43 +57,49 @@ function cellNumber(row: ExcelJS.Row, column: number): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-/** `Centros` sheet: header on row 3, data from row 4 until the TOTAL row. */
+/**
+ * `Centros` sheet. Header is on row 4, data from row 5 until the `TOTAL` row
+ * (free-form notes follow it). Columns:
+ *
+ *   1 nombre · 2 dirección · 3 localidad · 4 horario oficial ·
+ *   5 cupos AM · 6 cupos PM · 7 cupos Noche · 8 cupos/día · 9 cupos 4 días ·
+ *   10 actividades · 11 link maps · 12 activo · 13 observaciones
+ *
+ * The sheet has no coordinator columns, so `coordinador` is always null here.
+ */
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   const sheet = workbook.getWorksheet("Centros");
   if (!sheet) throw new Error("El archivo no tiene la hoja 'Centros'.");
 
   const centros: Centro[] = [];
 
-  for (let rowNumber = 4; rowNumber <= sheet.rowCount; rowNumber += 1) {
+  for (let rowNumber = 5; rowNumber <= sheet.rowCount; rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     const nombre = cellText(row, 1);
 
-    if (!nombre || nombre.toUpperCase() === "TOTAL") continue;
-    if (nombre.startsWith("Nota:")) break;
+    if (!nombre) continue;
+    // The TOTAL row closes the data; everything below it is free-form notes.
+    if (nombre.toUpperCase() === "TOTAL") break;
 
-    const actividades = (cellText(row, 11) ?? "")
+    const actividades = (cellText(row, 10) ?? "")
       .split(",")
       .map((actividad) => actividad.trim())
       .filter(Boolean) as Centro["actividades"];
-
-    const coordinadorNombre = cellText(row, 4);
 
     centros.push({
       id: slugify(nombre),
       nombre,
       direccion: cellText(row, 2),
       localidad: cellText(row, 3),
-      linkMaps: cellText(row, 12),
+      linkMaps: cellText(row, 11),
       actividades,
       cuposPorJornada: {
-        AM: cellNumber(row, 6),
-        PM: cellNumber(row, 7),
-        NOCHE: cellNumber(row, 8),
+        AM: cellNumber(row, 5),
+        PM: cellNumber(row, 6),
+        NOCHE: cellNumber(row, 7),
       },
-      activo: (cellText(row, 13) ?? "Sí").toLowerCase().startsWith("s"),
-      coordinador: coordinadorNombre
-        ? { nombre: coordinadorNombre, celular: cellText(row, 5) }
-        : null,
+      activo: (cellText(row, 12) ?? "Sí").toLowerCase().startsWith("s"),
+      coordinador: null,
     });
   }
 
