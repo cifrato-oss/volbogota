@@ -6,6 +6,10 @@
  *
  *   API_URL     https://tu-despliegue.vercel.app     (sin barra final)
  *   HOOK_TOKEN  el valor de SHEETS_HOOK_TOKEN del .env
+ *   SHEET_ID    el id de esta hoja, el trozo de su URL entre /d/ y /edit
+ *
+ * SHEET_ID no es opcional si quieres que el backend escriba acá: dentro de un
+ * doPost no existe la "hoja activa" y sin el id no hay a qué libro abrir.
  *
  * Opcional, para probar contra un backend local expuesto por un túnel:
  *
@@ -99,7 +103,7 @@ function sincronizarCentros() {
 
 /** Las fechas salen de la hoja Listas; si no están, el backend usa las ya cargadas. */
 function fechasDelPrograma() {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Listas");
+  var hoja = libro().getSheetByName("Listas");
   if (!hoja) return undefined;
 
   var fechas = [];
@@ -237,7 +241,7 @@ function doGet() {
     data: {
       servicio: "VolBogotá — sync de la hoja",
       escribeReservas: true,
-      hoja: SpreadsheetApp.getActiveSpreadsheet().getName(),
+      hoja: libro().getName(),
     },
   });
 }
@@ -353,8 +357,31 @@ function respuesta(datos) {
 
 // --- Utilidades -----------------------------------------------------------
 
+/**
+ * El libro sobre el que trabajamos.
+ *
+ * `getActiveSpreadsheet()` devuelve null dentro de un `doPost` o un `doGet`: la
+ * "hoja activa" solo existe cuando el script corre desde su contenedor — un
+ * menú o un activador —, no en una petición HTTP. Usarlo ahí hacía que la
+ * escritura desde el backend fallara antes de tocar una celda.
+ *
+ * `SHEET_ID` sale de la URL de la hoja, entre `/d/` y `/edit`.
+ */
+function libro() {
+  var id = PropertiesService.getScriptProperties().getProperty("SHEET_ID");
+  if (id) return SpreadsheetApp.openById(id);
+
+  var activa = SpreadsheetApp.getActiveSpreadsheet();
+  if (activa) return activa;
+
+  throw new Error(
+    "Falta SHEET_ID en las propiedades del script. Sin él, el backend no puede " +
+      "escribir en la hoja: una petición web no tiene hoja activa.",
+  );
+}
+
 function hojaPorNombre(nombre) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
+  var hoja = libro().getSheetByName(nombre);
   if (!hoja) throw new Error("No encontré la hoja '" + nombre + "'.");
   return hoja;
 }
