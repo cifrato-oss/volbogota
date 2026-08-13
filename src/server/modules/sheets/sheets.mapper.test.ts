@@ -43,17 +43,20 @@ describe("jornadas", () => {
 
   it("ignores case and accents", () => {
     expect(jornadaDesdeSheet("noche")).toBe("NOCHE");
-    expect(jornadaDesdeSheet(" am ")).toBe("AM");
+    expect(jornadaDesdeSheet(" manana ")).toBe("MANANA");
+    expect(jornadaDesdeSheet("Mañana")).toBe("MANANA");
   });
 
-  it("rejects anything outside the three slots", () => {
+  it("rejects anything outside the two slots", () => {
     expect(() => jornadaDesdeSheet("Madrugada")).toThrowError(/no es válida/i);
   });
 });
 
 describe("turnoId", () => {
   it("translates the sheet's piped id into the Firestore one", () => {
-    expect(turnoIdDesdeSheet("Punto Usaquén|2026-08-13|AM")).toBe("punto-usaquen_2026-08-13_am");
+    expect(turnoIdDesdeSheet("Punto Usaquén|2026-08-13|Mañana")).toBe(
+      "punto-usaquen_2026-08-13_manana",
+    );
   });
 
   it("slugs accents and punctuation out of the point's name", () => {
@@ -63,8 +66,8 @@ describe("turnoId", () => {
   });
 
   it("builds the same id from the separate columns", () => {
-    expect(turnoIdDesdeColumnas("Punto Usaquén", "13/08/2026", "AM")).toBe(
-      "punto-usaquen_2026-08-13_am",
+    expect(turnoIdDesdeColumnas("Punto Usaquén", "13/08/2026", "Mañana")).toBe(
+      "punto-usaquen_2026-08-13_manana",
     );
   });
 

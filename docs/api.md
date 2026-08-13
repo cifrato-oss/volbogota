@@ -1,10 +1,12 @@
-# API VolBogotá — contrato para el front
+# API Centros de Acopio Bogotá — contrato para el front
 
 Base URL local: `http://localhost:3000`
 
-Todos los endpoints viven bajo `/api`. No hay autenticación en esta tanda: los
-seis `GET` son públicos y el `POST` de inscripción también (lo protege la
-validación, no un token).
+Todos los endpoints viven bajo `/api`. Los que alimentan "Quiero ser
+voluntario" y "Quiero donar" son públicos — los `GET` por definición, y el
+`POST` de inscripción también (lo protege la validación, no un token). Los que
+cambian datos operativos — el semáforo de donaciones, las reservas — exigen
+token; ver [Endpoints de coordinación](#endpoints-de-coordinación-apiadmin).
 
 ---
 
@@ -33,7 +35,7 @@ validación, no un token).
 
 | HTTP | `code`                  | Cuándo pasa                                           |
 | ---- | ----------------------- | ----------------------------------------------------- |
-| 404  | `NOT_FOUND`             | El punto o el turno no existe                         |
+| 404  | `NOT_FOUND`             | El punto, el turno o el elemento no existe            |
 | 409  | `CONFLICT`              | Turno lleno, no disponible, o celular ya inscrito ahí |
 | 422  | `UNPROCESSABLE_ENTITY`  | No pasó validación — trae `details` por campo         |
 | 500  | `INTERNAL_SERVER_ERROR` | Error inesperado. El mensaje es genérico a propósito  |
@@ -51,47 +53,57 @@ En un 422, `details` viene listo para pintar el error bajo cada input:
 
 ## Vocabulario
 
-| Concepto    | Qué es                                                               |
-| ----------- | -------------------------------------------------------------------- |
-| **Punto**   | Punto de acopio autorizado. 6 en total. `id` es un slug: `cruz-roja` |
-| **Jornada** | `AM` · `PM` · `NOCHE` — siempre en mayúsculas                        |
-| **Turno**   | Un punto + una fecha + una jornada. 72 en total (6 × 4 días × 3)     |
-| **Reserva** | La inscripción de un voluntario a un turno                           |
+| Concepto     | Qué es                                                                                |
+| ------------ | -------------------------------------------------------------------------------------- |
+| **Punto**    | Punto de acopio autorizado. `id` es un slug: `cruz-roja`                              |
+| **Jornada**  | `MANANA` · `NOCHE` — siempre en mayúsculas, sin tilde                                 |
+| **Turno**    | Un punto + una fecha + una jornada                                                     |
+| **Reserva**  | La inscripción de un voluntario a un turno                                            |
+| **Categoría**| Una de las 5 categorías de donación (ver abajo)                                       |
+| **Necesidad**| El estado de un elemento del catálogo en un punto: `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA` |
 
 El `turnoId` es predecible — `{puntoId}_{YYYY-MM-DD}_{jornada en minúscula}`, o
-sea `cruz-roja_2026-08-13_am`. Aun así, **no lo armes a mano**: úsalo como viene
-en las respuestas.
+sea `cruz-roja_2026-08-13_manana`. Aun así, **no lo armes a mano**: úsalo como
+viene en las respuestas.
 
-Programa: **13 al 16 de agosto de 2026**, 6 puntos, **11.400 cupos**.
+Programa: **13 al 16 de agosto de 2026**, puntos oficiales de la Alcaldía Mayor
+de Bogotá y la Cruz Roja.
 
 > **Fechas**: van como strings `YYYY-MM-DD`, sin hora ni zona horaria. No las
 > pases por `new Date()` sin fijar la zona o te puede correr un día.
 
-### Los seis puntos
+### Las dos jornadas
 
-| Punto                   | Localidad      | Horario oficial       | Noche  |
-| ----------------------- | -------------- | --------------------- | ------ |
-| U. Jorge Tadeo Lozano   | Santa Fe       | 8:00 a.m. - 9:00 p.m. | sí     |
-| Punto Usaquén           | Usaquén        | 8:00 a.m. - 9:00 p.m. | sí     |
-| CC Unicentro            | Usaquén        | 9:00 a.m. - 5:00 p.m. | **no** |
-| Cruz Roja               | Barrios Unidos | 24 horas              | sí     |
-| Palacio de los Deportes | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | **no** |
-| Estadio El Campín       | Teusaquillo    | 8:00 a.m. - 8:00 p.m. | sí     |
+Ya no son tres jornadas fijas (`AM`/`PM`/`NOCHE`): son dos, y su horario
+depende de cada punto, no de una tabla global.
 
-⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el sismo
-de Bogotá. Viene dicho en su campo `observaciones` — vale la pena mostrarlo
-distinto en la UI para que nadie done al destino equivocado.
+| Jornada  | Regla                                        |
+| -------- | --------------------------------------------- |
+| `MANANA` | Desde la apertura del punto hasta el mediodía |
+| `NOCHE`  | Desde la 1:00 p.m. hasta el cierre del punto  |
 
-⚠️ **La jornada noche (7–10 p.m.) se pasa del cierre en 3 de los 6 puntos.** El
-`horario` del turno es el horario nominal de la jornada; el `horarioOficial` del
-punto es cuando la puerta está realmente abierta. Hasta que los alineen,
-**muestra el horario oficial del punto** o mandarás gente a un sitio cerrado.
+El horario real de cada turno sale calculado en `turno.horario` (ver
+`/api/turnos`) a partir de `apertura`/`cierre` del punto (ver `/api/centros`).
+Si un punto aún no ha confirmado su horario, `turno.horario.etiqueta` viene
+como `"Horario por confirmar"` en vez de una hora — eso **no** bloquea la
+reserva, solo avisa que falta el dato.
+
+⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el
+sismo de Bogotá. Viene dicho en su campo `observaciones` — vale la pena
+mostrarlo distinto en la UI para que nadie done al destino equivocado.
+
+### Las cinco categorías de donación
+
+`Alimentos` · `Elementos de aseo` · `Elementos de cocina` ·
+`Elementos para el hogar` · `Materiales de construcción` — un conjunto
+cerrado, igual que las jornadas.
 
 ---
 
 ## `GET /api/catalogos`
 
-Todo lo que necesitan los selects del formulario, en una sola llamada. **Empieza por acá.**
+Todo lo que necesitan los selects del formulario de voluntariado, en una sola
+llamada. **Empieza por acá para "Quiero ser voluntario".**
 
 ```json
 {
@@ -105,15 +117,23 @@ Todo lo que necesitan los selects del formulario, en una sola llamada. **Empieza
   ],
   "jornadas": [
     {
-      "valor": "AM",
-      "etiqueta": "AM",
-      "horario": { "inicio": "08:00", "fin": "14:00", "etiqueta": "8:00 a.m. - 2:00 p.m." }
+      "valor": "MANANA",
+      "etiqueta": "Mañana",
+      "descripcion": "Desde la apertura del punto hasta el mediodía."
+    },
+    {
+      "valor": "NOCHE",
+      "etiqueta": "Noche",
+      "descripcion": "Desde la 1:00 p.m. hasta el cierre del punto."
     }
   ],
   "actividades": ["Empaque", "Clasificación", "Carga y descarga"],
   "fechas": ["2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16"]
 }
 ```
+
+`jornadas[].descripcion` explica la regla, no un horario fijo: la hora real de
+cada punto sale en `/api/turnos` y en `/api/centros`, no acá.
 
 `actividades` es **informativo** — qué se hace en cada punto. Ya no es un campo
 del formulario; el `POST` no lo recibe.
@@ -133,17 +153,24 @@ Los puntos activos, ordenados por nombre.
     "localidad": "Barrios Unidos",
     "linkMaps": "https://maps.app.goo.gl/KSYQ52viibBuktq48",
     "horarioOficial": "24 horas",
-    "observaciones": "Sede administrativa. Opera 24 horas: es el único punto donde caben las 3 jornadas completas.",
+    "apertura": "08:00",
+    "cierre": "20:00",
+    "observaciones": "Sede administrativa. Opera 24 horas: es el único punto que recibe donaciones sin parar.",
     "actividades": ["Empaque", "Clasificación", "Carga y descarga"],
-    "cuposPorJornada": { "AM": 150, "PM": 150, "NOCHE": 150 },
+    "cuposPorJornada": { "MANANA": 150, "NOCHE": 150 },
     "activo": true
   }
 ]
 ```
 
-- **`horarioOficial`** — cuándo abre el punto de verdad. Puede ser `"24 horas"`.
-- **`observaciones`** — texto libre del equipo coordinador. Puede ser `null`. Es
-  donde aparece lo del Chocó y las advertencias de cierre. Muéstralo.
+- **`horarioOficial`** — cuándo abre el punto de verdad, como texto libre.
+  Puede ser `"24 horas"`. Es para mostrar, no para calcular.
+- **`apertura`/`cierre`** — `HH:MM`, 24 horas. De ahí se calculan las dos
+  jornadas: Mañana corre de `apertura` a las 12:00 m., Noche de la 1:00 p.m. a
+  `cierre`. Pueden venir `null` si el punto no ha confirmado su horario todavía
+  — el turno lo muestra como "Horario por confirmar".
+- **`observaciones`** — texto libre del equipo coordinador. Puede ser `null`.
+  Es donde aparece lo del Chocó y cualquier advertencia operativa. Muéstralo.
 - **`cuposPorJornada`** — un `0` significa que el punto **no opera** en esa
   jornada, y su turno viene `CERRADO`.
 
@@ -162,23 +189,23 @@ Turnos con su ocupación en vivo. Alimenta el selector de cupos.
 
 **Query params** (todos opcionales, combinables):
 
-| Param         | Valores           | Efecto                               |
+| Param         | Valores          | Efecto                               |
 | ------------- | ----------------- | ------------------------------------ |
 | `centro`      | id de punto       | Solo ese punto                       |
 | `fecha`       | `YYYY-MM-DD`      | Solo ese día                         |
-| `jornada`     | `AM` `PM` `NOCHE` | Solo esa jornada                     |
+| `jornada`     | `MANANA` `NOCHE`  | Solo esa jornada                     |
 | `disponibles` | `true` `false`    | Con `true` esconde llenos y cerrados |
 
 ```json
 [
   {
-    "id": "cruz-roja_2026-08-13_am",
+    "id": "cruz-roja_2026-08-13_manana",
     "centroId": "cruz-roja",
     "centroNombre": "Cruz Roja",
     "fecha": "2026-08-13",
     "diaSemana": "Jueves",
-    "jornada": "AM",
-    "horario": { "inicio": "08:00", "fin": "14:00", "etiqueta": "8:00 a.m. - 2:00 p.m." },
+    "jornada": "MANANA",
+    "horario": { "inicio": "08:00", "fin": "12:00", "etiqueta": "8:00 a.m. - 12:00 m." },
     "horarioOficialCentro": "24 horas",
     "centroActivo": true,
     "cuposTotales": 150,
@@ -197,11 +224,11 @@ Campos derivados, ya calculados — no los recalcules:
 - **`disponibles`** = `cuposTotales − reservados`, nunca negativo
 - **`ocupacion`** = fracción de 0 a 1
 - **`agotado`** = `disponibles === 0`
-- **`estado`** = `ABIERTO` o `CERRADO`. Los 8 turnos de Unicentro-noche y
-  Palacio-noche vienen `CERRADO` con `cuposTotales: 0`
+- **`estado`** = `ABIERTO` o `CERRADO`. Un turno con `cuposTotales: 0` viene
+  `CERRADO` — así dice la hoja que ese punto no opera en esa jornada.
 
-**Un turno es inscribible si `estado === "ABIERTO" && !agotado`.** Eso es
-exactamente lo que filtra `disponibles=true` — 64 de los 72.
+**Un turno es inscribible si `estado === "ABIERTO" && !agotado"`.** Eso es
+exactamente lo que filtra `disponibles=true`.
 
 `horarioOficialCentro` está denormalizado acá para que no tengas que pedir el
 punto solo para saber a qué hora abre.
@@ -226,7 +253,7 @@ Inscribe a un voluntario. **Cinco campos y el turno, nada más.**
   "apellido": "Ramírez Gómez",
   "celular": "3001234567",
   "edad": 30,
-  "turnoId": "cruz-roja_2026-08-13_am",
+  "turnoId": "cruz-roja_2026-08-13_manana",
   "autorizoDatos": true
 }
 ```
@@ -257,11 +284,11 @@ Cualquier campo extra que mandes se ignora en silencio.
   "estado": "RESERVADO",
   "nombre": "Ana María Ramírez Gómez",
   "turno": {
-    "id": "cruz-roja_2026-08-13_am",
+    "id": "cruz-roja_2026-08-13_manana",
     "centroNombre": "Cruz Roja",
     "fecha": "2026-08-13",
-    "jornada": "AM",
-    "horario": "8:00 a.m. - 2:00 p.m.",
+    "jornada": "Mañana",
+    "horario": "8:00 a.m. - 12:00 m.",
     "direccion": "Carrera 24 # 73-38",
     "horarioOficial": "24 horas"
   }
@@ -300,15 +327,90 @@ una inscripción por celular **por turno**.
 
 ---
 
+## Donaciones — "Quiero donar"
+
+Un solo endpoint, para después de elegir el punto de acopio: **sabe qué
+categorías tienen algo pendiente**, y para cada una, **cuáles elementos**. No
+hace falta un catálogo aparte.
+
+### `GET /api/donaciones/necesidades`
+
+**Query params:**
+
+| Param       | Valores      | Req. | Efecto                                       |
+| ----------- | ------------- | ---- | --------------------------------------------- |
+| `centro`    | id de punto    | sí   | Obligatorio                                    |
+| `categoria` | una de las 5   | no   | Si la mandas, `categorias` trae solo esa una  |
+
+```jsonc
+// GET /api/donaciones/necesidades?centro=cruz-roja
+{
+  "centroId": "cruz-roja",
+  "centroNombre": "Cruz Roja",
+  "categorias": [
+    {
+      "categoria": "Alimentos",
+      "mensaje": "Recuerda: revisa siempre las fechas de vencimiento.",
+      "necesita": true,
+      "elementos": [
+        {
+          "id": "cruz-roja_alimentos-arroz-blanco",
+          "elementoId": "alimentos-arroz-blanco",
+          "elemento": "Arroz blanco",
+          "estado": "SE_NECESITA",
+          "semaforo": "ROJO",
+          "actualizadoEn": "2026-08-13T08:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "categoria": "Elementos de aseo",
+      "mensaje": null,
+      "necesita": false,
+      "elementos": [/* … */]
+    }
+  ]
+}
+```
+
+- **`categorias`** trae **siempre las 5**, en el mismo orden, aunque una no
+  tenga nada pendiente — así la grilla de categorías no tiene que esperar una
+  segunda llamada para saber qué mostrar.
+- **`necesita`** — `true` si al menos un elemento de esa categoría está en
+  `SE_NECESITA`. Es lo que responde "¿cuáles categorías necesitan algo?" sin
+  que el front tenga que recorrer `elementos`.
+- **`mensaje`** es una nota **de categoría**, no de ítem — la de vencimientos
+  en Alimentos, "También puedes donar para recuperar espacios familiares" en
+  Hogar, "Reconstruir también es acompañar" en Materiales de construcción.
+  Muéstrala una vez por categoría.
+- **`estado`** por elemento — `SE_NECESITA` (🔴) · `SUFICIENTE` (🟢) ·
+  `NO_APLICA` (⚪ ese punto no maneja este ítem — el caso de Palacio de los
+  Deportes, que no recoge para el mismo destino que el resto).
+- **`semaforo`** — el color ya resuelto (`ROJO`/`VERDE`/`GRIS`), para no
+  reimplementar el mapeo estado → color en el front.
+- **`actualizadoEn`** viene `null` cuando el punto nunca ha tocado ese ítem —
+  el semáforo por defecto es `SE_NECESITA`.
+- `categoria=X` en la query reduce `categorias` a un solo elemento — útil si
+  ya sabes cuál eligió la persona y quieres un payload más chico.
+- `404` si el punto no existe o está inactivo. Omitir `centro` es `422`.
+
+Cambiar un estado es cosa del panel de coordinación:
+[`PATCH /api/admin/necesidades/{id}`](#patch-apiadminnecesidadesid).
+
+---
+
 ## Notas para el front
 
-**Los cupos cambian mientras el usuario mira la pantalla.** Estos endpoints son
-REST: dan una foto del momento. Dos caminos para que el número baje solo:
+**Los cupos y el semáforo cambian mientras el usuario mira la pantalla.**
+Estos endpoints son REST: dan una foto del momento. Dos caminos para que el
+número o el color bajen solos:
 
-1. **Polling** — re-pedir `/api/turnos` cada 15–30 s. Simple y suficiente.
-2. **Firestore en vivo** — suscribirse a la colección `turnos` con el SDK cliente
-   y `onSnapshot`. Las reglas ya están puestas: `turnos` y `centros` de lectura
-   pública, `reservas` cerrada. Falta montar la config del SDK cliente — pídemela.
+1. **Polling** — re-pedir `/api/turnos` o `/api/donaciones/necesidades` cada
+   15–30 s. Simple y suficiente.
+2. **Firestore en vivo** — suscribirse a las colecciones `turnos`, `centros`,
+   `catalogoDonaciones` o `necesidades` con el SDK cliente y `onSnapshot`. Las
+   reglas ya están puestas: las cuatro son de lectura pública, `reservas`
+   cerrada. Falta montar la config del SDK cliente — pídemela.
 
 **Cero datos de otros voluntarios.** Ningún endpoint público expone nombres,
 celulares ni edades. Solo contadores agregados. Ley 1581 de 2012.
@@ -325,21 +427,24 @@ npm run emulator
 ```
 
 ```bash
-FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Voluntariado_Bogota_Centros_Acopio_2.xlsx
+FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Centros_de_Acopio_Bogota.xlsx
 ```
 
 ```bash
 FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
 ```
 
-Queda con los 6 puntos, 72 turnos y 11.400 cupos reales, sin tocar producción.
+Queda con los puntos, turnos, catálogo de donaciones y semáforo reales del
+Excel, sin tocar producción.
 
 ---
 
 # Endpoints de coordinación (`/api/admin`)
 
-**Todos exigen autenticación.** Devuelven nombres, celulares y edades de
-voluntarios: sin el token esto sería una fuga de datos personales.
+**Todos exigen autenticación.** Los de reservas devuelven nombres, celulares y
+edades de voluntarios: sin el token esto sería una fuga de datos personales.
+Los de donaciones no llevan datos personales, pero cambian lo que ve todo el
+mundo en la web, así que también van detrás del token.
 
 ```
 x-admin-token: <token>
@@ -357,11 +462,11 @@ o bien `Authorization: Bearer <token>`. Sin token o con token inválido → `401
 ## `GET /api/admin/reservas`
 
 | Param     | Valores                    | Efecto                              |
-| --------- | -------------------------- | ----------------------------------- |
+| --------- | -------------------------- | ------------------------------------ |
 | `turno`   | `turnoId`                  | Solo ese turno                      |
 | `centro`  | id de punto                | Solo ese punto                      |
 | `fecha`   | `YYYY-MM-DD`               | Solo ese día                        |
-| `jornada` | `AM` `PM` `NOCHE`          | Solo esa jornada                    |
+| `jornada` | `MANANA` `NOCHE`           | Solo esa jornada                    |
 | `estado`  | ver estados abajo          | Solo ese estado                     |
 | `q`       | texto (2–60)               | Busca en nombre, apellido y celular |
 | `limite`  | 1–500 (default 100)        | Tamaño de página                    |
@@ -421,6 +526,24 @@ normal en la portería. Formato `HH:MM` en 24 horas.
 - El **check-out calcula `horas`**, que alimentan los certificados de voluntariado.
 - Check-out sin check-in previo → `409`.
 - Salida anterior o igual a la entrada → `409`, en vez de guardar un negativo.
+
+## `PATCH /api/admin/necesidades/{id}`
+
+Cambia el semáforo de un ítem en un punto — lo que el panel de coordinación
+usa para actualizar en tiempo real qué se necesita en cada punto. `{id}` es
+`{centroId}_{elementoId}`, tal como viene en `necesidades[].id` de
+`GET /api/donaciones/necesidades`.
+
+```json
+{ "estado": "SUFICIENTE" }
+```
+
+`estado` acepta `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA`. Responde con el
+mismo objeto de forma pública, incluido el `semaforo` ya resuelto y el
+`actualizadoEn` puesto a la hora del cambio.
+
+No hace falta que el par centro × ítem exista de antes: si nunca se ha tocado,
+este `PATCH` lo crea. `404` si el centro o el elemento no existen.
 
 ## `GET /api/admin/resumen`
 

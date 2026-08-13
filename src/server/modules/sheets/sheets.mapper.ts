@@ -46,21 +46,20 @@ export function fechaHaciaSheet(iso: string): string {
   return `${dia}/${mes}/${anio}`;
 }
 
-/** The sheet writes `Noche`; the domain uses `NOCHE`. */
+/** The sheet writes `Mañana`/`Noche`; the domain uses `MANANA`/`NOCHE`. */
 export function jornadaDesdeSheet(valor: string): Jornada {
   const normalizada = normalizar(valor).toUpperCase();
   const jornada = JORNADAS.find((candidata) => candidata === normalizada);
 
   if (!jornada) {
-    throw badRequest(`La jornada "${valor}" no es válida. Usa AM, PM o Noche.`);
+    throw badRequest(`La jornada "${valor}" no es válida. Usa Mañana o Noche.`);
   }
 
   return jornada;
 }
 
 const ETIQUETA_JORNADA_SHEET: Record<Jornada, string> = {
-  AM: "AM",
-  PM: "PM",
+  MANANA: "Mañana",
   NOCHE: "Noche",
 };
 

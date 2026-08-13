@@ -26,6 +26,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // El semáforo de donaciones también se lee en vivo desde el navegador.
+    // El admin lo cambia por la API (Admin SDK), no desde el cliente.
+    match /catalogoDonaciones/{elementoId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /necesidades/{necesidadId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Datos personales: nunca desde el cliente.
     match /reservas/{reservaId} {
       allow read, write: if false;

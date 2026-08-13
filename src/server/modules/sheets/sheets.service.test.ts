@@ -38,8 +38,9 @@ function filaCentro(overrides: Record<string, unknown> = {}) {
     direccion: "Calle 161A # 7F-55",
     localidad: "Usaquén",
     horarioOficial: "8:00 a.m. - 9:00 p.m.",
-    cuposAm: "150",
-    cuposPm: "150",
+    apertura: "8:00",
+    cierre: "21:00",
+    cuposManana: "150",
     cuposNoche: "150",
     actividades: "Empaque, Clasificación, Carga y descarga",
     linkMaps: "https://maps.app.goo.gl/ShUjA6o1j2WcVUPp9",
@@ -56,7 +57,7 @@ function filaReserva(overrides: Record<string, unknown> = {}) {
     nombreCompleto: "Fulanita Pérez Gómez",
     celular: "3001234567",
     edad: null,
-    idTurno: "Punto Usaquén|2026-08-13|AM",
+    idTurno: "Punto Usaquén|2026-08-13|Mañana",
     puntoDeAcopio: null,
     fechaJornada: null,
     jornada: null,
@@ -80,16 +81,16 @@ describe("sincronizarCentrosDesdeSheet", () => {
     });
 
     expect(resultado.centros).toBe(1);
-    expect(resultado.turnos).toBe(6); // 1 punto × 2 fechas × 3 jornadas
+    expect(resultado.turnos).toBe(4); // 1 punto × 2 fechas × 2 jornadas
 
     expect(db.peek("centros/punto-usaquen")).toMatchObject({
       nombre: "Punto Usaquén",
       localidad: "Usaquén",
-      cuposPorJornada: { AM: 150, PM: 150, NOCHE: 150 },
+      cuposPorJornada: { MANANA: 150, NOCHE: 150 },
       activo: true,
     });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({
       cuposTotales: 150,
       reservados: 0,
       estado: "ABIERTO",
@@ -114,17 +115,17 @@ describe("sincronizarCentrosDesdeSheet", () => {
   it("never wipes bookings already taken when capacity is edited", async () => {
     await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
 
-    db.seed("turnos/punto-usaquen_2026-08-13_am", {
-      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
+    db.seed("turnos/punto-usaquen_2026-08-13_manana", {
+      ...db.peek("turnos/punto-usaquen_2026-08-13_manana"),
       reservados: 40,
     });
 
     await sincronizarCentros({
-      filas: [filaCentro({ cuposAm: "200" })],
+      filas: [filaCentro({ cuposManana: "200" })],
       fechas: FECHAS,
     });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({
       cuposTotales: 200,
       reservados: 40,
     });
@@ -134,17 +135,17 @@ describe("sincronizarCentrosDesdeSheet", () => {
     // The sheet is the authority on capacity. Refusing the edit would hide a
     // real decision; dropping volunteers to fit would be worse.
     await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
-    db.seed("turnos/punto-usaquen_2026-08-13_am", {
-      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
+    db.seed("turnos/punto-usaquen_2026-08-13_manana", {
+      ...db.peek("turnos/punto-usaquen_2026-08-13_manana"),
       reservados: 100,
     });
 
     await sincronizarCentros({
-      filas: [filaCentro({ cuposAm: "10" })],
+      filas: [filaCentro({ cuposManana: "10" })],
       fechas: FECHAS,
     });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({
       cuposTotales: 10,
       reservados: 100,
     });
@@ -154,7 +155,7 @@ describe("sincronizarCentrosDesdeSheet", () => {
     const resultado = await sincronizarCentros({
       filas: [
         filaCentro(),
-        filaCentro({ puntoDeAcopio: "TOTAL", cuposAm: "1,050" }),
+        filaCentro({ puntoDeAcopio: "TOTAL", cuposManana: "1,050" }),
         filaCentro({ puntoDeAcopio: "SUPUESTO: los cupos por jornada los puse yo" }),
         filaCentro({ puntoDeAcopio: "Un cupo en 0 desactiva ese turno" }),
       ],
@@ -188,7 +189,7 @@ describe("sincronizarCentrosDesdeSheet", () => {
     expect(resultado.desactivados).toEqual(["cruz-roja"]);
     // Kept, not deleted: reservations still point at its shifts.
     expect(db.peek("centros/cruz-roja")).toMatchObject({ activo: false });
-    expect(db.peek("turnos/cruz-roja_2026-08-13_am")).toMatchObject({
+    expect(db.peek("turnos/cruz-roja_2026-08-13_manana")).toMatchObject({
       centroActivo: false,
       estado: "CERRADO",
     });
@@ -199,8 +200,8 @@ describe("sincronizarCentrosDesdeSheet", () => {
     // Requiring every column would reject the batch on a row we then discard.
     const resultado = await sincronizarCentros({
       filas: [
-        { puntoDeAcopio: "Cruz Roja", cuposAm: "150", cuposPm: "150", cuposNoche: "150" },
-        { puntoDeAcopio: "TOTAL", cuposAm: "1,050" },
+        { puntoDeAcopio: "Cruz Roja", cuposManana: "150", cuposNoche: "150" },
+        { puntoDeAcopio: "TOTAL", cuposManana: "1,050" },
       ],
       fechas: FECHAS,
     });
@@ -225,10 +226,10 @@ describe("sincronizarCentrosDesdeSheet", () => {
   it("reuses the dates already loaded when the batch does not restate them", async () => {
     await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
 
-    const resultado = await sincronizarCentros({ filas: [filaCentro({ cuposAm: "80" })] });
+    const resultado = await sincronizarCentros({ filas: [filaCentro({ cuposManana: "80" })] });
 
     expect(resultado.fechas).toEqual(FECHAS);
-    expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 80 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-14_manana")).toMatchObject({ cuposTotales: 80 });
   });
 });
 
@@ -252,7 +253,7 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(resultados[0]?.codigo).toMatch(/^VB-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{8}$/);
 
     // It went through the booking transaction, so the seat is actually taken.
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 1 });
   });
 
   it("defaults the age to the legal minimum, which the sheet does not carry", async () => {
@@ -264,7 +265,7 @@ describe("sincronizarReservasDesdeSheet", () => {
           fila: 2,
           nombreCompleto: "Fulanita Pérez Gómez",
           celular: "3001234567",
-          idTurno: "Punto Usaquén|2026-08-13|AM",
+          idTurno: "Punto Usaquén|2026-08-13|Mañana",
           autorizoDatos: "Sí",
         },
       ],
@@ -293,7 +294,7 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(creadas).toBe(0);
     // The message itself, not a serialised issue object: this lands in a cell.
     expect(resultados[0]?.validacion).toBe("Debes autorizar el tratamiento de datos personales.");
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 0 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 0 });
   });
 
   it("recovers the code when a row comes back without one, instead of bouncing off the lock", async () => {
@@ -311,7 +312,7 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(actualizadas).toBe(1);
     expect(resultados[0]?.validacion).toBe("OK");
     expect(resultados[0]?.codigo).toBe(codigo);
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 1 });
   });
 
   it("keeps converging however many times the same row is resent", async () => {
@@ -321,12 +322,12 @@ describe("sincronizarReservasDesdeSheet", () => {
 
     expect(resultados[0]?.validacion).toBe("OK");
     expect(db.pathsIn("reservas")).toHaveLength(1);
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 1 });
   });
 
   it("rejects a row for a full shift without taking down the rest of the batch", async () => {
-    db.seed("turnos/punto-usaquen_2026-08-13_am", {
-      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
+    db.seed("turnos/punto-usaquen_2026-08-13_manana", {
+      ...db.peek("turnos/punto-usaquen_2026-08-13_manana"),
       cuposTotales: 1,
     });
 
@@ -338,7 +339,7 @@ describe("sincronizarReservasDesdeSheet", () => {
         filaReserva({
           fila: 4,
           celular: "3003333333",
-          idTurno: "Punto Usaquén|2026-08-13|PM",
+          idTurno: "Punto Usaquén|2026-08-13|Noche",
         }),
       ],
     });
@@ -351,7 +352,7 @@ describe("sincronizarReservasDesdeSheet", () => {
 
   it("marks a row whose shift does not exist", async () => {
     const { resultados } = await sincronizarReservas({
-      filas: [filaReserva({ idTurno: "Punto Inventado|2026-08-13|AM" })],
+      filas: [filaReserva({ idTurno: "Punto Inventado|2026-08-13|Mañana" })],
     });
 
     expect(resultados[0]?.validacion).toBe("El turno no existe.");
@@ -364,13 +365,13 @@ describe("sincronizarReservasDesdeSheet", () => {
           idTurno: null,
           puntoDeAcopio: "Punto Usaquén",
           fechaJornada: "13/08/2026",
-          jornada: "AM",
+          jornada: "Mañana",
         }),
       ],
     });
 
     expect(resultados[0]?.validacion).toBe("OK");
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 1 });
   });
 
   it("updates the state of a reservation it already knows, instead of creating another", async () => {
@@ -414,11 +415,11 @@ describe("sincronizarReservasDesdeSheet", () => {
     const primera = await sincronizarReservas({ filas: [filaReserva()] });
     const codigo = primera.resultados[0]?.codigo ?? "";
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 1 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 1 });
 
     await sincronizarReservas({ filas: [filaReserva({ codigo, estado: "Cancelado" })] });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ reservados: 0 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_manana")).toMatchObject({ reservados: 0 });
   });
 
   it("reports an illegal state change instead of forcing it", async () => {

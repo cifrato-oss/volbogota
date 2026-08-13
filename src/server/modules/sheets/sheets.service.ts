@@ -83,11 +83,12 @@ function aCentro(fila: FilaCentro): Centro {
     localidad: fila.localidad,
     linkMaps: fila.linkMaps,
     horarioOficial: fila.horarioOficial,
+    apertura: fila.apertura,
+    cierre: fila.cierre,
     observaciones: fila.observaciones,
     actividades: parsearActividades(fila.actividades),
     cuposPorJornada: {
-      AM: fila.cuposAm,
-      PM: fila.cuposPm,
+      MANANA: fila.cuposManana,
       NOCHE: fila.cuposNoche,
     },
     // An empty cell means the point is in operation: the column exists to

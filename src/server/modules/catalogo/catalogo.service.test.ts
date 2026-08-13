@@ -22,22 +22,24 @@ const centro: Centro = {
   localidad: "Teusaquillo",
   linkMaps: null,
   horarioOficial: "8:00 a.m. - 9:00 p.m.",
+  apertura: "08:00",
+  cierre: "20:00",
   observaciones: null,
   actividades: ["Empaque", "Clasificación", "Carga y descarga"],
-  cuposPorJornada: { AM: 300, PM: 300, NOCHE: 300 },
+  cuposPorJornada: { MANANA: 300, NOCHE: 300 },
   activo: true,
   coordinador: { nombre: "Ana Ramírez", celular: "3001112233" },
 };
 
 function turno(overrides: Partial<Turno> = {}): Turno {
   return {
-    id: "vive-claro_2026-08-13_am",
+    id: "vive-claro_2026-08-13_manana",
     centroId: "vive-claro",
     centroNombre: "Vive Claro",
     fecha: "2026-08-13",
     diaSemana: "Jueves",
-    jornada: "AM",
-    horario: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
+    jornada: "MANANA",
+    horario: { inicio: "08:00", fin: "12:00", etiqueta: "8:00 a.m. - 12:00 m." },
     horarioOficialCentro: "8:00 a.m. - 9:00 p.m.",
     centroActivo: true,
     cuposTotales: 300,

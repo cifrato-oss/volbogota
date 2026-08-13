@@ -29,6 +29,10 @@ export const COLLECTIONS = {
   catalogos: "catalogos",
   /** Subcollection of `turnos`, one doc per phone number already booked. */
   inscritos: "inscritos",
+  /** The donation catalogue: which items exist, in which category. */
+  catalogoDonaciones: "catalogoDonaciones",
+  /** Need state per centre × item, the "Quiero donar" semaphore. */
+  necesidades: "necesidades",
 } as const;
 
 /**

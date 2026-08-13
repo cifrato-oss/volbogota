@@ -35,14 +35,25 @@ const textoOpcional = z
     return texto === "" ? null : texto;
   });
 
+/** Opening/closing time cells: `"8:00"`, `"08:00"`, or empty until confirmed. */
+const horaOpcionalSchema = z
+  .union([z.string(), z.number(), z.null()])
+  .optional()
+  .transform((valor) => {
+    if (valor === null || valor === undefined) return null;
+    const match = /^(\d{1,2}):(\d{2})/.exec(String(valor).trim());
+    return match ? `${match[1]?.padStart(2, "0")}:${match[2]}` : null;
+  });
+
 /** A row of the `Centros` sheet. */
 export const filaCentroSchema = z.object({
   puntoDeAcopio: z.string().trim().min(1, "El punto de acopio es obligatorio."),
   direccion: textoOpcional,
   localidad: textoOpcional,
   horarioOficial: textoOpcional,
-  cuposAm: cuposSchema,
-  cuposPm: cuposSchema,
+  apertura: horaOpcionalSchema,
+  cierre: horaOpcionalSchema,
+  cuposManana: cuposSchema,
   cuposNoche: cuposSchema,
   /** Comma-separated in the sheet: "Empaque, Clasificación, Carga y descarga". */
   actividades: textoOpcional,

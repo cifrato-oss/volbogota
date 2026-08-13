@@ -6,8 +6,8 @@
  * literal unions for closed sets, `| null` for nullable fields.
  */
 
-/** Shift period. Always uppercase. */
-export type Jornada = "AM" | "PM" | "NOCHE";
+/** Shift period. Always uppercase. Mañana = apertura–12:00, Noche = 13:00–cierre. */
+export type Jornada = "MANANA" | "NOCHE";
 
 /** Volunteer activity. Closed set enforced by the API on POST. */
 export type Actividad = "Empaque" | "Clasificación" | "Carga y descarga";
@@ -17,6 +17,20 @@ export type EstadoTurno = "ABIERTO" | "CERRADO";
 
 /** Reservation lifecycle state. */
 export type EstadoReserva = "RESERVADO";
+
+/** Donation category. Closed set — the five categories the programme collects. */
+export type CategoriaDonacion =
+  | "Alimentos"
+  | "Elementos de aseo"
+  | "Elementos de cocina"
+  | "Elementos para el hogar"
+  | "Materiales de construcción";
+
+/** Need state for one item at one collection point. */
+export type EstadoNecesidad = "SE_NECESITA" | "SUFICIENTE" | "NO_APLICA";
+
+/** Traffic-light view of `EstadoNecesidad`, ready to color a badge. */
+export type Semaforo = "ROJO" | "VERDE" | "GRIS";
 
 /** Human-readable schedule for a shift period. */
 export interface Horario {
@@ -37,7 +51,11 @@ export interface CatalogoCentro {
 export interface CatalogoJornada {
   valor: Jornada;
   etiqueta: string;
-  horario: Horario;
+  /**
+   * The rule, not a fixed schedule: the actual hours depend on each centre's
+   * opening/closing time. Read `Turno.horario` or `Centro` for the real hours.
+   */
+  descripcion: string;
 }
 
 export interface Catalogos {
@@ -63,6 +81,13 @@ export interface Centro {
    */
   horarioOficial: string | null;
   /**
+   * `HH:MM`, 24h. When and where the shift schedule is computed from: Mañana
+   * runs `apertura`–12:00, Noche runs 13:00–`cierre`. `null` when the point
+   * has not confirmed its hours yet.
+   */
+  apertura: string | null;
+  cierre: string | null;
+  /**
    * Free-form operational notes from the coordinators. This is where the file
    * says Palacio de los Deportes collects for Chocó rather than for the Bogotá
    * earthquake, so it is worth surfacing.
@@ -73,6 +98,41 @@ export interface Centro {
   /** A `0` means the point does not operate in that shift. */
   cuposPorJornada: Record<Jornada, number>;
   activo: boolean;
+}
+
+// --- GET /api/donaciones/necesidades ---------------------------------------
+
+/** One item within a category, already resolved for the chosen centre. */
+export interface NecesidadElemento {
+  /** `${centroId}_${elementoId}`. */
+  id: string;
+  elementoId: string;
+  elemento: string;
+  estado: EstadoNecesidad;
+  semaforo: Semaforo;
+  /** ISO datetime. `null` when the point has never touched this item — treated as `SE_NECESITA`. */
+  actualizadoEn: string | null;
+}
+
+export interface NecesidadesCategoria {
+  categoria: CategoriaDonacion;
+  /** Category-level note, e.g. "Revisa siempre las fechas de vencimiento." */
+  mensaje: string | null;
+  /** `true` when at least one item in this category is `SE_NECESITA`. */
+  necesita: boolean;
+  elementos: NecesidadElemento[];
+}
+
+export interface NecesidadesDeCentro {
+  centroId: string;
+  centroNombre: string;
+  categorias: NecesidadesCategoria[];
+}
+
+/** Query filters for `GET /api/donaciones/necesidades`. */
+export interface NecesidadesQuery {
+  centro: string;
+  categoria?: CategoriaDonacion;
 }
 
 // --- GET /api/turnos[, /:id] ---------------------------------------------

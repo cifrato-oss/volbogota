@@ -11,8 +11,8 @@ import {
 } from "./catalogo.repository";
 import {
   ACTIVIDADES,
+  DESCRIPCION_JORNADA,
   ETIQUETA_JORNADA,
-  HORARIOS,
   JORNADAS,
   construirTurnos,
   toTurnoPublico,
@@ -122,7 +122,7 @@ export async function obtenerCatalogos() {
     jornadas: JORNADAS.map((jornada) => ({
       valor: jornada,
       etiqueta: ETIQUETA_JORNADA[jornada],
-      horario: HORARIOS[jornada],
+      descripcion: DESCRIPCION_JORNADA[jornada],
     })),
     actividades: [...ACTIVIDADES],
     fechas: [...new Set(turnos.map((turno) => turno.fecha))].sort(),

@@ -1,4 +1,4 @@
-# VolBogotá
+# Centros de Acopio Bogotá
 
 Monolito en **Next.js 16 (App Router) + TypeScript**: el front y la API viven en
 el mismo repo y el mismo deploy, pero separados por capas.
