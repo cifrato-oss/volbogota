@@ -81,3 +81,78 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
 function jornadaOrder(jornada: Jornada): number {
   return { AM: 0, PM: 1, NOCHE: 2 }[jornada];
 }
+
+export type CatalogoGuardado = { centros: number; turnos: number };
+
+/**
+ * Writes the catalogue, carrying live booking counters over.
+ *
+ * `reservados` belongs to the booking transaction, never to the spreadsheet:
+ * re-reading it and writing it back is what keeps a capacity edit from wiping
+ * bookings already taken. Everything else on the shift is rebuilt from the
+ * centre, because the sheet is the authority on the catalogue.
+ */
+export async function guardarCatalogo(
+  centros: Centro[],
+  turnos: Turno[],
+): Promise<CatalogoGuardado> {
+  const db = getDb();
+
+  const existentes = await db.collection(COLLECTIONS.turnos).get();
+  const reservadosPrevios = new Map(
+    existentes.docs.map((doc) => [doc.id, Number(doc.data().reservados) || 0]),
+  );
+
+  const batch = db.batch();
+
+  for (const centro of centros) {
+    const { id, ...data } = centro;
+    batch.set(db.collection(COLLECTIONS.centros).doc(id), data, { merge: true });
+  }
+
+  for (const turno of turnos) {
+    const { id, ...data } = turno;
+    batch.set(
+      db.collection(COLLECTIONS.turnos).doc(id),
+      { ...data, reservados: reservadosPrevios.get(id) ?? 0 },
+      { merge: true },
+    );
+  }
+
+  await batch.commit();
+
+  return { centros: centros.length, turnos: turnos.length };
+}
+
+/**
+ * Retires points that no longer appear in the sheet.
+ *
+ * They are deactivated rather than deleted: a reservation still references its
+ * shift, and deleting the centre would leave that history dangling. `findTurnos`
+ * already drops shifts of inactive points from every public listing.
+ */
+export async function desactivarCentrosAusentes(idsVigentes: string[]): Promise<string[]> {
+  const db = getDb();
+  const vigentes = new Set(idsVigentes);
+  const todos = await findCentros(false);
+  const ausentes = todos.filter((centro) => centro.activo && !vigentes.has(centro.id));
+
+  if (ausentes.length === 0) return [];
+
+  const batch = db.batch();
+
+  for (const centro of ausentes) {
+    batch.update(db.collection(COLLECTIONS.centros).doc(centro.id), { activo: false });
+
+    for (const turno of await findTurnos({ centroId: centro.id })) {
+      batch.update(db.collection(COLLECTIONS.turnos).doc(turno.id), {
+        centroActivo: false,
+        estado: "CERRADO",
+      });
+    }
+  }
+
+  await batch.commit();
+
+  return ausentes.map((centro) => centro.id);
+}

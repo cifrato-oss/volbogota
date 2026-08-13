@@ -14,6 +14,11 @@ const serverSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
+  // Where the data lives. `memory` runs the whole app with no credentials at
+  // all — useful for a demo or a first run — at the cost of losing everything
+  // on restart and not surviving more than one instance.
+  DB_DRIVER: z.enum(["firestore", "memory"]).default("firestore"),
+
   // Firebase service account. Required in production; optional elsewhere so the
   // web app and the test suite run without credentials. `getDb()` fails with a
   // precise message if something actually reaches Firestore without them.
@@ -34,6 +39,19 @@ const serverSchema = z.object({
   // volunteer names, phones and ages, so the token is what stands between that
   // data and the open internet.
   ADMIN_API_TOKEN: z
+    .string()
+    .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
+    .optional(),
+
+  // Shared secret the spreadsheet's Apps Script presents to /api/hooks/sheets.
+  // Those endpoints write the catalogue and create reservations, so this is what
+  // separates them from anyone who finds the URL. Kept separate from the admin
+  // token because the sheet is shared with more people than the panel is, and
+  // revoking one should not force rotating the other.
+  //
+  // Not required in production on purpose: the hooks fail closed without it, so
+  // a deploy that happens before the script is installed is safe, not broken.
+  SHEETS_HOOK_TOKEN: z
     .string()
     .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
     .optional(),
@@ -92,11 +110,13 @@ const parsed = serverSchema
   .safeParse({
     NODE_ENV: process.env.NODE_ENV,
     LOG_LEVEL: process.env.LOG_LEVEL,
+    DB_DRIVER: process.env.DB_DRIVER,
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
     CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
     ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
+    SHEETS_HOOK_TOKEN: process.env.SHEETS_HOOK_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -124,9 +144,11 @@ const firebaseConfigured = Boolean(
 export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   logLevel: parsed.data.LOG_LEVEL,
+  dbDriver: parsed.data.DB_DRIVER,
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL,
   celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
   adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
+  sheetsHookToken: parsed.data.SHEETS_HOOK_TOKEN ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

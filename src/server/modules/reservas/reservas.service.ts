@@ -3,8 +3,14 @@ import { logger } from "@/server/lib/logger";
 import { findCentroById } from "@/server/modules/catalogo/catalogo.repository";
 import { ETIQUETA_JORNADA, HORARIOS } from "@/server/modules/catalogo/catalogo.schema";
 
-import { crearReservaEnTransaccion } from "./reservas.repository";
-import type { ConfirmacionReserva, CrearReservaInput } from "./reservas.schema";
+import { buscarReservaPorCodigo, cambiarEstado, registrarHora } from "./reservas.admin.repository";
+import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
+import type {
+  ConfirmacionReserva,
+  CrearReservaInput,
+  EstadoReserva,
+  Reserva,
+} from "./reservas.schema";
 
 /**
  * Registers a volunteer for a shift.
@@ -51,4 +57,45 @@ export async function obtenerCentroDeReserva(centroId: string) {
   const centro = await findCentroById(centroId);
   if (!centro) throw notFound("El centro de acopio no existe.");
   return centro;
+}
+
+/**
+ * Public entry points for callers outside this module — today the spreadsheet
+ * sync. They wrap the admin repository so a neighbouring module never has to
+ * reach into it directly.
+ */
+
+/** Null rather than throwing: the sync uses it to decide create vs. update. */
+export async function encontrarReserva(codigo: string): Promise<Reserva | null> {
+  return buscarReservaPorCodigo(codigo);
+}
+
+/**
+ * Finds an existing booking by the pair that identifies a volunteer in a shift.
+ *
+ * Lets a re-sync recognise a row it already booked even when the row lost its
+ * code — the sheet keeps working while Firestore is unavailable, so the two
+ * sides have to be able to meet again afterwards.
+ */
+export async function encontrarReservaDeCelular(
+  turnoId: string,
+  celular: string,
+): Promise<Reserva | null> {
+  const codigo = await buscarReservaDeCelularEnTurno(turnoId, celular);
+  return codigo ? buscarReservaPorCodigo(codigo) : null;
+}
+
+export async function actualizarEstadoReserva(
+  codigo: string,
+  estado: EstadoReserva,
+): Promise<Reserva> {
+  return cambiarEstado(codigo, estado);
+}
+
+export async function registrarHoraReserva(
+  codigo: string,
+  campo: "checkIn" | "checkOut",
+  hora: string,
+): Promise<Reserva> {
+  return registrarHora(codigo, campo, hora);
 }

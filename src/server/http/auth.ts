@@ -30,21 +30,47 @@ export function requireAdmin(request: NextRequest): void {
     );
   }
 
-  const recibido = leerToken(request);
+  const recibido = leerToken(request, "x-admin-token");
 
   if (!recibido || !sonIguales(recibido, esperado)) {
     throw unauthorized("Token de administración inválido.");
   }
 }
 
-/** Accepts `Authorization: Bearer <token>` or `x-admin-token: <token>`. */
-function leerToken(request: NextRequest): string | null {
+/**
+ * Gate for the spreadsheet sync hooks.
+ *
+ * A separate secret from the admin token, not the same one reused: the master
+ * sheet is shared with more people than the coordinator panel, and its script
+ * carries the token in a place anyone with edit access can read. Keeping them
+ * apart means rotating one does not lock the other out.
+ */
+export function requireSheetsHook(request: NextRequest): void {
+  const esperado = env.sheetsHookToken;
+
+  if (!esperado) {
+    throw forbidden(
+      isProduction
+        ? "La sincronización con la hoja no está disponible."
+        : "Falta SHEETS_HOOK_TOKEN en .env.local para usar /api/hooks/sheets.",
+    );
+  }
+
+  const recibido = leerToken(request, "x-sheets-token");
+
+  if (!recibido || !sonIguales(recibido, esperado)) {
+    throw unauthorized("Token de sincronización inválido.");
+  }
+}
+
+/** Accepts `Authorization: Bearer <token>` or the caller's own header. */
+function leerToken(request: NextRequest, header: string): string | null {
   const bearer = request.headers.get("authorization");
   if (bearer?.toLowerCase().startsWith("bearer ")) {
     return bearer.slice(7).trim() || null;
   }
 
-  return request.headers.get("x-admin-token")?.trim() || null;
+  return request.headers.get(header)?.trim() || null;
 }
 
 /**
