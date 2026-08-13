@@ -19,14 +19,14 @@ const OPCIONES: Opcion[] = [
     titulo: "Quiero donar",
     descripcion:
       "Consulta qué necesita cada centro de acopio y lleva tu donación al punto correcto.",
-    accent: "border-t-blue-600 hover:border-blue-300",
+    accent: "border-t-sky-400 hover:border-sky-300",
   },
   {
     href: "/voluntario",
     emoji: "🤝",
     titulo: "Quiero ser voluntario",
     descripcion: "Elige un centro y una jornada, y reserva tu cupo para ayudar en persona.",
-    accent: "border-t-emerald-600 hover:border-emerald-300",
+    accent: "border-t-primary hover:border-primary/40",
   },
 ];
 

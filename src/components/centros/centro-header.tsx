@@ -24,7 +24,7 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
         {backLabel}
       </Link>
 
-      <div className="rounded-2xl bg-blue-800 p-6 text-white">
+      <div className="border-primary/15 bg-primary/5 rounded-2xl border p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1.5">
             <h1 className="font-heading flex items-center gap-2 text-2xl font-bold tracking-tight">
@@ -32,13 +32,13 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
               <span className="min-w-0 break-words">{centro.nombre}</span>
             </h1>
             {ubicacion ? (
-              <p className="flex items-center gap-1.5 text-sm text-blue-100">
+              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
                 <span aria-hidden>📍</span>
                 <span>{ubicacion}</span>
               </p>
             ) : null}
             {centro.horarioOficial ? (
-              <p className="flex items-center gap-1.5 text-sm text-blue-100">
+              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
                 <span aria-hidden>🕒</span>
                 <span>{centro.horarioOficial}</span>
               </p>
@@ -51,7 +51,7 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
               target="_blank"
               rel="noopener noreferrer"
               aria-label="Ver en Google Maps"
-              className="shrink-0 rounded-full bg-white/15 p-3 text-xl transition-colors hover:bg-white/25"
+              className="bg-primary/10 text-primary hover:bg-primary/20 shrink-0 rounded-full p-3 text-xl transition-colors"
             >
               <span aria-hidden>🗺️</span>
             </a>

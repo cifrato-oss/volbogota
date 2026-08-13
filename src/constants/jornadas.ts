@@ -42,8 +42,8 @@ export const JORNADA_STYLE: Record<Jornada, JornadaStyle> = {
   },
   NOCHE: {
     emoji: "🌙",
-    topBorder: "border-t-indigo-500",
-    ring: "ring-indigo-500",
-    selectedRow: "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30",
+    topBorder: "border-t-indigo-400",
+    ring: "ring-indigo-400",
+    selectedRow: "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30",
   },
 };
