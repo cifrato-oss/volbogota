@@ -52,7 +52,14 @@ const ETIQUETA_ESTADO: Record<EstadoReserva, string> = {
 
 export type ExportFiltros = { fecha?: string; centro?: string };
 
-export async function exportarReservasCsv(filtros: ExportFiltros = {}): Promise<string> {
+/**
+ * The rows both formats share.
+ *
+ * Kept apart so the CSV and the workbook can never drift into showing different
+ * columns for the same reservation — the kind of difference nobody notices until
+ * a coordinator compares two files at a door.
+ */
+export async function construirFilas(filtros: ExportFiltros = {}): Promise<string[][]> {
   const db = getDb();
   let query = db.collection(COLLECTIONS.reservas) as FirebaseFirestore.Query;
 
@@ -61,7 +68,7 @@ export async function exportarReservasCsv(filtros: ExportFiltros = {}): Promise<
 
   const snapshot = await query.orderBy("creadoEn", "asc").get();
 
-  const filas = snapshot.docs.map((doc) => {
+  return snapshot.docs.map((doc) => {
     const reserva = reservaSchema.parse({ id: doc.id, ...doc.data() });
 
     return [
@@ -81,6 +88,12 @@ export async function exportarReservasCsv(filtros: ExportFiltros = {}): Promise<
       reserva.horas === null ? "" : String(reserva.horas).replace(".", ","),
     ];
   });
+}
+
+export { ENCABEZADOS };
+
+export async function exportarReservasCsv(filtros: ExportFiltros = {}): Promise<string> {
+  const filas = await construirFilas(filtros);
 
   return BOM + [ENCABEZADOS, ...filas].map(escaparFila).join("\r\n");
 }
