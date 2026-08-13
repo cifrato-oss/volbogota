@@ -162,3 +162,66 @@ filtrar detalles internos.
 
 `.github/workflows/ci.yml` corre formato, lint, tipos, tests y build en cada PR.
 Localmente es lo mismo que `pnpm run verify`.
+
+## Producción: crear el proyecto de Firebase
+
+Estos pasos van una sola vez, en orden. El paso 4 no es opcional.
+
+**1. Crear el proyecto** en [console.firebase.google.com](https://console.firebase.google.com)
+y habilitar **Firestore Database**. Región `nam5` o `us-central1`.
+
+> Al crear Firestore, la consola ofrece «modo de prueba». Ese modo deja la base
+> **abierta a lectura y escritura para cualquiera** durante 30 días. Acá se
+> guardan nombres, celulares y edades de voluntarios: elige **modo bloqueado** y
+> deja que el paso 4 ponga las reglas reales.
+
+**2. Generar la clave de servicio**: Configuración del proyecto → Cuentas de
+servicio → _Generar nueva clave privada_. Descarga el JSON.
+
+**3. Escribir `.env.local`** a partir de ese JSON:
+
+```bash
+cp .env.example .env.local
+```
+
+- `FIREBASE_PROJECT_ID` → `project_id` del JSON
+- `FIREBASE_CLIENT_EMAIL` → `client_email`
+- `FIREBASE_PRIVATE_KEY` → `private_key`, **entre comillas y con los `\n` tal
+  como vienen** en el archivo
+- `CELULAR_HASH_SALT` → generar con `openssl rand -base64 48`
+
+El JSON descargado **no se commitea**. `.gitignore` ya cubre `.env*`.
+
+**4. Publicar las reglas de seguridad.** Sin esto la base queda con las reglas
+por defecto del proyecto, no con las de este repo:
+
+```bash
+npx firebase login
+```
+
+```bash
+npx firebase use --add
+```
+
+```bash
+pnpm run firebase:rules
+```
+
+**5. Sembrar el catálogo** desde el Excel maestro:
+
+```bash
+pnpm run import:excel -- --file ./Voluntariado_Bogota_Centros_Acopio_2.xlsx
+```
+
+**6. Comprobar** que la app ve lo que debe:
+
+```bash
+pnpm run verify:firestore
+```
+
+### La sal no se rota
+
+`CELULAR_HASH_SALT` entra en el digest que deduplica inscripciones por turno.
+Cambiarla después de que existan inscripciones reales invalida todos los
+digests guardados y rompe la deduplicación en silencio. Se define una vez, antes
+de abrir la web, y se guarda donde se guardan los secretos del deploy.
