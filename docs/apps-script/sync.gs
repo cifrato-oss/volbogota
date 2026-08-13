@@ -533,13 +533,27 @@ function llamar(ruta, cuerpo) {
   }
 
   var respuestaPrincipal = null;
+  var alguienRespondio = false;
 
   for (var i = 0; i < lista.length; i++) {
     var datos = enviarA(lista[i], ruta, cuerpo);
+    if (datos) alguienRespondio = true;
     if (i === 0) respuestaPrincipal = datos;
   }
 
+  // Que ningún destino conteste no puede pasar por "Completed": es el síntoma
+  // de una URL caída, y en silencio parece que la sincronización funcionó.
+  if (!alguienRespondio) {
+    throw new Error("Ningún backend respondió. Revisa API_URL / API_URL2: " + urlsDe(lista));
+  }
+
   return respuestaPrincipal;
+}
+
+function urlsDe(lista) {
+  var urls = [];
+  for (var i = 0; i < lista.length; i++) urls.push(lista[i].nombre + "=" + lista[i].url);
+  return urls.join(", ");
 }
 
 /** Una petición a un destino. Nunca lanza: devuelve null si no se pudo. */
