@@ -1,0 +1,115 @@
+import { COLLECTIONS, getDb } from "@/server/db/firestore";
+import { ETIQUETA_JORNADA } from "@/server/modules/catalogo/catalogo.schema";
+import { reservaSchema, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
+
+/**
+ * Exports the reservations back to the spreadsheet.
+ *
+ * CSV rather than a generated .xlsx, and deliberately so: the `Reservas` sheet
+ * exists to be pasted into — its own instructions say "aquí pegas o digitas
+ * cada persona que se inscribe en la página web" — so matching its columns and
+ * order is worth more than producing a second workbook nobody asked for. It
+ * also keeps a heavy spreadsheet library out of the serverless bundle.
+ *
+ * Two details make the difference between a file that opens clean and one that
+ * shows `Ana MarÃ­a` in mangled columns: a UTF-8 BOM, and semicolons — which is
+ * what Excel expects under a Spanish locale.
+ */
+
+const SEPARADOR = ";";
+const BOM = "\uFEFF";
+
+/** Column order of the `Reservas` sheet, so a paste lands in the right cells. */
+const ENCABEZADOS = [
+  "ID",
+  "Fecha/hora registro",
+  "Nombre completo",
+  "Celular",
+  "Edad",
+  "Punto de acopio",
+  "Fecha jornada",
+  "Jornada",
+  "ID_Turno",
+  "Autorizó datos",
+  "Estado",
+  "Check-in",
+  "Check-out",
+  "Horas",
+] as const;
+
+const ETIQUETA_ESTADO: Record<EstadoReserva, string> = {
+  RESERVADO: "Reservado",
+  CONFIRMADO: "Confirmado",
+  ASISTIO: "Asistió",
+  NO_ASISTIO: "No asistió",
+  CANCELADO: "Cancelado",
+};
+
+export type ExportFiltros = { fecha?: string; centro?: string };
+
+export async function exportarReservasCsv(filtros: ExportFiltros = {}): Promise<string> {
+  const db = getDb();
+  let query = db.collection(COLLECTIONS.reservas) as FirebaseFirestore.Query;
+
+  if (filtros.fecha) query = query.where("fecha", "==", filtros.fecha);
+  if (filtros.centro) query = query.where("centroId", "==", filtros.centro);
+
+  const snapshot = await query.orderBy("creadoEn", "asc").get();
+
+  const filas = snapshot.docs.map((doc) => {
+    const reserva = reservaSchema.parse({ id: doc.id, ...doc.data() });
+
+    return [
+      reserva.codigo,
+      formatearFechaHora(reserva.creadoEn),
+      `${reserva.nombre} ${reserva.apellido}`,
+      reserva.celular,
+      String(reserva.edad),
+      reserva.centroNombre,
+      reserva.fecha,
+      ETIQUETA_JORNADA[reserva.jornada],
+      reserva.turnoId,
+      reserva.autorizoDatos ? "Sí" : "No",
+      ETIQUETA_ESTADO[reserva.estado],
+      reserva.checkIn ?? "",
+      reserva.checkOut ?? "",
+      reserva.horas === null ? "" : String(reserva.horas).replace(".", ","),
+    ];
+  });
+
+  return BOM + [ENCABEZADOS, ...filas].map(escaparFila).join("\r\n");
+}
+
+function escaparFila(fila: readonly string[]): string {
+  return fila.map(escaparCelda).join(SEPARADOR);
+}
+
+/**
+ * A phone number is digits, but a name can carry a semicolon, a quote or a
+ * newline. Anything that could break the row gets quoted, with inner quotes
+ * doubled — the CSV convention Excel reads.
+ */
+function escaparCelda(valor: string): string {
+  if (!/[";\r\n]/.test(valor)) return valor;
+  return `"${valor.replace(/"/g, '""')}"`;
+}
+
+/** `2026-08-13T14:05:00.000Z` → `2026-08-13 09:05` in Bogotá time. */
+function formatearFechaHora(iso: string): string {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return iso;
+
+  const partes = new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(fecha);
+
+  const buscar = (tipo: string) => partes.find((parte) => parte.type === tipo)?.value ?? "";
+
+  return `${buscar("year")}-${buscar("month")}-${buscar("day")} ${buscar("hour")}:${buscar("minute")}`;
+}

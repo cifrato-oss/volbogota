@@ -20,6 +20,23 @@ const serverSchema = z.object({
   FIREBASE_PROJECT_ID: z.string().optional(),
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   FIREBASE_PRIVATE_KEY: z.string().optional(),
+
+  // Secret key for the per-shift deduplication digest of a phone number.
+  // A plain hash would not protect anything: Colombian mobiles span about
+  // 3e9 values, so the whole dictionary precomputes in seconds and every
+  // digest reverses. The secret is what makes it irreversible.
+  CELULAR_HASH_SALT: z
+    .string()
+    .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
+    .optional(),
+
+  // Shared secret for the coordinator endpoints under /api/admin. Those return
+  // volunteer names, phones and ages, so the token is what stands between that
+  // data and the open internet.
+  ADMIN_API_TOKEN: z
+    .string()
+    .min(32, "Debe tener al menos 32 caracteres para ser un secreto útil.")
+    .optional(),
 });
 
 const clientSchema = z.object({
@@ -44,6 +61,8 @@ const parsed = serverSchema
       "FIREBASE_PROJECT_ID",
       "FIREBASE_CLIENT_EMAIL",
       "FIREBASE_PRIVATE_KEY",
+      "CELULAR_HASH_SALT",
+      "ADMIN_API_TOKEN",
     ] as const) {
       if (!value[key]) {
         ctx.addIssue({ code: "custom", path: [key], message: "Requerida en producción." });
@@ -56,6 +75,8 @@ const parsed = serverSchema
     FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
     FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
     FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY,
+    CELULAR_HASH_SALT: process.env.CELULAR_HASH_SALT,
+    ADMIN_API_TOKEN: process.env.ADMIN_API_TOKEN,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   });
 
@@ -67,6 +88,13 @@ if (!parsed.success) {
   throw new Error(`Invalid environment variables:\n${detail}`);
 }
 
+/**
+ * Development and test only. Real data never touches this value: production
+ * refuses to boot without its own secret, so a digest built here can never end
+ * up in a live database.
+ */
+const SAL_DE_DESARROLLO = "volbogota-desarrollo-sal-no-usar-en-produccion";
+
 const firebaseConfigured = Boolean(
   parsed.data.FIREBASE_PROJECT_ID &&
   parsed.data.FIREBASE_CLIENT_EMAIL &&
@@ -77,6 +105,8 @@ export const env = {
   nodeEnv: parsed.data.NODE_ENV,
   logLevel: parsed.data.LOG_LEVEL,
   appUrl: parsed.data.NEXT_PUBLIC_APP_URL,
+  celularHashSalt: parsed.data.CELULAR_HASH_SALT ?? SAL_DE_DESARROLLO,
+  adminApiToken: parsed.data.ADMIN_API_TOKEN ?? null,
   firebase: {
     configured: firebaseConfigured,
     projectId: parsed.data.FIREBASE_PROJECT_ID ?? "",

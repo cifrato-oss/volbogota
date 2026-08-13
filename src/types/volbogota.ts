@@ -53,11 +53,24 @@ export interface Catalogos {
 export interface Centro {
   id: string;
   nombre: string;
-  /** Only some centers have a street address. */
   direccion: string | null;
-  localidad: string;
+  localidad: string | null;
   linkMaps: string | null;
+  /**
+   * When the point is actually open, e.g. "8:00 a.m. - 9:00 p.m." or
+   * "24 horas". NOT the same as the shift schedule: the evening shift runs to
+   * 10 p.m. but three of the six points close earlier. Show this one.
+   */
+  horarioOficial: string | null;
+  /**
+   * Free-form operational notes from the coordinators. This is where the file
+   * says Palacio de los Deportes collects for Chocó rather than for the Bogotá
+   * earthquake, so it is worth surfacing.
+   */
+  observaciones: string | null;
+  /** Informational — what happens at the point. Not a form field. */
   actividades: Actividad[];
+  /** A `0` means the point does not operate in that shift. */
   cuposPorJornada: Record<Jornada, number>;
   activo: boolean;
 }
@@ -72,7 +85,11 @@ export interface Turno {
   fecha: string;
   diaSemana: string;
   jornada: Jornada;
+  /** Nominal schedule of the shift. */
   horario: Horario;
+  /** The point's real opening hours, denormalized. Prefer this when showing times. */
+  horarioOficialCentro: string | null;
+  centroActivo: boolean;
   cuposTotales: number;
   reservados: number;
   estado: EstadoTurno;
@@ -136,28 +153,19 @@ export interface Disponibilidad {
 
 // --- POST /api/reservas ---------------------------------------------------
 
-export interface ContactoEmergencia {
-  nombre: string;
-  celular: string;
-}
-
 export interface CreateReservaInput {
-  /** 3–120 chars; trimmed by the API. */
+  /** 2–60 chars; trimmed by the API. */
   nombre: string;
+  /** 2–60 chars; trimmed by the API. */
+  apellido: string;
   /** Colombian format: 10 digits starting with 3. Separators are normalized. */
   celular: string;
+  /** Integer, 18 or more. The API also accepts a numeric string. */
+  edad: number;
   /** Use a `Turno.id` from `GET /api/turnos`. */
   turnoId: string;
-  actividad: Actividad;
-  /** Must be `true`. */
+  /** Must be `true`, or the API answers 422. */
   autorizoDatos: boolean;
-  /** Must be `true`. */
-  mayorDeEdad: boolean;
-  contactoEmergencia?: ContactoEmergencia;
-  /** Max 80 chars. */
-  eps?: string;
-  /** Max 500 chars. */
-  notas?: string;
 }
 
 export interface ReservaTurnoResumen {
@@ -165,23 +173,30 @@ export interface ReservaTurnoResumen {
   centroNombre: string;
   /** ISO date (YYYY-MM-DD). */
   fecha: string;
-  jornada: Jornada;
+  /** Display label, e.g. "Noche" — not the `NOCHE` enum value. */
+  jornada: string;
   /** Already-formatted schedule label, e.g. "8:00 a.m. - 2:00 p.m.". */
   horario: string;
+  /** So the confirmation screen can say where to go without another request. */
+  direccion: string | null;
+  horarioOficial: string | null;
 }
 
 export interface Reserva {
-  /** Confirmation code shown to the volunteer, e.g. "VB-GDRHOR". */
+  /**
+   * Confirmation code shown to the volunteer, e.g. "VB-K7M2QX9D". Eight symbols
+   * with no O/0 or I/1/L so it survives being dictated at a collection point.
+   */
   codigo: string;
   estado: EstadoReserva;
+  /** Name and surname already joined. */
   nombre: string;
   turno: ReservaTurnoResumen;
-  actividad: Actividad;
 }
 
 /** Shape of each item in `ApiFailure.error.details` on a 422 response. */
 export interface ValidationErrorDetail {
-  /** Field path; nested fields use dot notation, e.g. `contactoEmergencia.celular`. */
+  /** Field name, e.g. `celular` or `edad`. */
   field: string;
   message: string;
 }

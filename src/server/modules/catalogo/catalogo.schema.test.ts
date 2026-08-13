@@ -11,6 +11,8 @@ function turno(overrides: Partial<Turno> = {}): Turno {
     diaSemana: "Jueves",
     jornada: "AM",
     horario: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
+    horarioOficialCentro: "8:00 a.m. - 9:00 p.m.",
+    centroActivo: true,
     cuposTotales: 300,
     reservados: 0,
     estado: "ABIERTO",
