@@ -71,16 +71,14 @@ function alEditar(e) {
   var desde = e.range.getRow();
   var hasta = desde + e.range.getNumRows() - 1;
 
+  // Sí y No disparan por igual: retirar un punto tiene que llegar al backend
+  // tan rápido como autorizarlo, o la web seguiría ofreciendo cupos cerrados.
   for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
-    if (esSi(hoja.getRange(fila, colActivo).getValue())) {
+    if (normalizar(hoja.getRange(fila, colActivo).getValue()) !== "") {
       sincronizarCentros();
       return;
     }
   }
-}
-
-function esSi(valor) {
-  return normalizar(valor).indexOf("s") === 0;
 }
 
 /** Menú manual, para reenviar todo sin esperar a una edición. */
