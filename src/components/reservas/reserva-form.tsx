@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
@@ -157,7 +158,17 @@ export function ReservaForm({ turno, onSuccess }: ReservaFormProps) {
                 aria-describedby={errors.autorizoDatos ? "autorizoDatos-error" : undefined}
               />
               <Label htmlFor="autorizoDatos" className="text-sm leading-snug font-normal">
-                Autorizo el tratamiento de mis datos personales para la gestión del voluntariado.
+                Autorizo el{" "}
+                <Link
+                  href="/tratamiento-datos"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => event.stopPropagation()}
+                  className="text-foreground underline underline-offset-2 hover:opacity-80"
+                >
+                  tratamiento de mis datos personales
+                </Link>{" "}
+                para la gestión del voluntariado.
               </Label>
             </div>
           )}
