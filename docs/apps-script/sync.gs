@@ -6,6 +6,20 @@
  *
  *   API_URL     https://tu-despliegue.vercel.app     (sin barra final)
  *   HOOK_TOKEN  el valor de SHEETS_HOOK_TOKEN del .env
+ *   SHEET_ID    el id de esta hoja, el trozo de su URL entre /d/ y /edit
+ *
+ * SHEET_ID no es opcional si quieres que el backend escriba acá: dentro de un
+ * doPost no existe la "hoja activa" y sin el id no hay a qué libro abrir.
+ *
+ * Opcional, para probar contra un backend local expuesto por un túnel:
+ *
+ *   API_URL2    https://xxxxx.lhr.life                (sin barra final)
+ *
+ * Con las dos puestas se manda a las dos, y son independientes: que una esté
+ * caída no impide que la otra reciba. La que escribe en la hoja es API_URL,
+ * porque cada backend genera su propio código de reserva y en la celda solo
+ * cabe uno. Bórrala para dejar de mandar al local; el menú «¿A dónde estoy
+ * sincronizando?» dice cuáles están activas.
  *
  * Y en Activadores (el reloj de la izquierda) → Añadir activador:
  *   función  alEditar · desde hoja de cálculo · Al editar
@@ -31,15 +45,39 @@
 var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 
-/** Se dispara con cada edición. Solo actúa sobre las dos hojas que sincronizamos. */
+/**
+ * Único disparador automático: marcar un punto como Activo = Sí en `Centros`.
+ *
+ * Antes salía en cualquier edición, incluidas las que hace el propio backend al
+ * escribir en `Reservas` — eso devolvía esas filas al backend y las marcaba como
+ * pendientes, un ida y vuelta que no llevaba a ninguna parte. Ahora hace falta
+ * un gesto deliberado, y `Reservas` solo se envía desde el menú.
+ */
 function alEditar(e) {
-  var hoja = e.range.getSheet();
-  var nombre = hoja.getName();
+  if (!e || !e.range) return;
 
-  if (nombre === HOJA_CENTROS) {
-    sincronizarCentros();
-  } else if (nombre === HOJA_RESERVAS) {
-    sincronizarReservas(e.range.getRow());
+  var hoja = e.range.getSheet();
+  if (hoja.getName() !== HOJA_CENTROS) return;
+
+  var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
+  var colActivo = mapa.columna("Activo");
+  if (!colActivo) return;
+
+  // Un pegado abarca varias celdas: basta con que el rango toque la columna.
+  var primera = e.range.getColumn();
+  var ultima = primera + e.range.getNumColumns() - 1;
+  if (colActivo < primera || colActivo > ultima) return;
+
+  var desde = e.range.getRow();
+  var hasta = desde + e.range.getNumRows() - 1;
+
+  // Sí y No disparan por igual: retirar un punto tiene que llegar al backend
+  // tan rápido como autorizarlo, o la web seguiría ofreciendo cupos cerrados.
+  for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
+    if (normalizar(hoja.getRange(fila, colActivo).getValue()) !== "") {
+      sincronizarCentros();
+      return;
+    }
   }
 }
 
@@ -49,6 +87,8 @@ function onOpen() {
     .createMenu("VolBogotá")
     .addItem("Sincronizar centros", "sincronizarCentros")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
+    .addSeparator()
+    .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
     .addToUi();
 }
 
@@ -87,7 +127,7 @@ function sincronizarCentros() {
 
 /** Las fechas salen de la hoja Listas; si no están, el backend usa las ya cargadas. */
 function fechasDelPrograma() {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Listas");
+  var hoja = libro().getSheetByName("Listas");
   if (!hoja) return undefined;
 
   var fechas = [];
@@ -153,26 +193,14 @@ function enviarReservas(hoja, mapa, numerosDeFila) {
 
   var respuesta = llamar("/api/hooks/sheets/reservas", { filas: filas });
 
-  // El backend caído no puede costarle el registro a nadie: la hoja sigue
-  // siendo operativa por sí sola. Se marcan las filas como pendientes y
-  // "Sincronizar todas las reservas" las reconcilia cuando vuelva.
+  // Un backend inalcanzable se registra y ya: pisar la celda de Validación con
+  // un aviso nuestro borraba lo que la hoja calcula ahí por su cuenta.
   if (!respuesta || !respuesta.success) {
-    marcarPendientes(hoja, mapa, filas);
+    Logger.log("El backend no respondió; no se escribe nada en la hoja.");
     return;
   }
 
   escribirResultados(hoja, mapa, respuesta.data.resultados);
-}
-
-var PENDIENTE = "Pendiente de sincronizar";
-
-function marcarPendientes(hoja, mapa, filas) {
-  var colValidacion = mapa.columna("Validación");
-  if (!colValidacion) return;
-
-  for (var i = 0; i < filas.length; i++) {
-    hoja.getRange(filas[i].fila, colValidacion).setValue(PENDIENTE);
-  }
 }
 
 /**
@@ -210,6 +238,26 @@ function escribirResultados(hoja, mapa, resultados) {
  * una persona, no a escrituras hechas por un script, así que lo que se escriba
  * acá no vuelve a disparar `alEditar`.
  */
+/**
+ * Diagnóstico: abre la URL del despliegue en el navegador.
+ *
+ * Existe para responder la pregunta que más cuesta: si la URL sirve la versión
+ * con este código o una anterior. Apps Script sirve la versión *desplegada*, no
+ * la guardada, así que pegar el archivo y guardar no basta — hay que crear una
+ * versión nueva. Si acá ves JSON, el despliegue está al día; si ves HTML de
+ * Google, no lo está.
+ */
+function doGet() {
+  return respuesta({
+    success: true,
+    data: {
+      servicio: "VolBogotá — sync de la hoja",
+      escribeReservas: true,
+      hoja: libro().getName(),
+    },
+  });
+}
+
 function doPost(e) {
   try {
     var cuerpo = JSON.parse(e.postData.contents);
@@ -321,8 +369,31 @@ function respuesta(datos) {
 
 // --- Utilidades -----------------------------------------------------------
 
+/**
+ * El libro sobre el que trabajamos.
+ *
+ * `getActiveSpreadsheet()` devuelve null dentro de un `doPost` o un `doGet`: la
+ * "hoja activa" solo existe cuando el script corre desde su contenedor — un
+ * menú o un activador —, no en una petición HTTP. Usarlo ahí hacía que la
+ * escritura desde el backend fallara antes de tocar una celda.
+ *
+ * `SHEET_ID` sale de la URL de la hoja, entre `/d/` y `/edit`.
+ */
+function libro() {
+  var id = PropertiesService.getScriptProperties().getProperty("SHEET_ID");
+  if (id) return SpreadsheetApp.openById(id);
+
+  var activa = SpreadsheetApp.getActiveSpreadsheet();
+  if (activa) return activa;
+
+  throw new Error(
+    "Falta SHEET_ID en las propiedades del script. Sin él, el backend no puede " +
+      "escribir en la hoja: una petición web no tiene hoja activa.",
+  );
+}
+
 function hojaPorNombre(nombre) {
-  var hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(nombre);
+  var hoja = libro().getSheetByName(nombre);
   if (!hoja) throw new Error("No encontré la hoja '" + nombre + "'.");
   return hoja;
 }
@@ -387,31 +458,129 @@ function leer(hoja, fila, columna) {
   return String(valor).trim();
 }
 
-function llamar(ruta, cuerpo) {
+/**
+ * Los backends a los que se sincroniza.
+ *
+ * `API_URL` es el de siempre; `API_URL2` es un segundo destino para probar
+ * contra un backend local por un túnel. Cuando existen los dos se les manda a
+ * ambos, y ninguno depende del otro: cada uno lleva su propio try/catch, así
+ * que el local caído no impide que producción reciba, ni al revés.
+ *
+ * El primero de la lista es el que manda. Eso importa porque cada backend
+ * genera su propio código de reserva, y en la celda solo cabe uno: escribir el
+ * de un backend de pruebas dejaría a la hoja apuntando a una reserva que
+ * producción no conoce. El secundario recibe los datos, y su respuesta se
+ * registra en el log sin tocar la hoja.
+ */
+function destinos() {
   var props = PropertiesService.getScriptProperties();
-  var url = props.getProperty("API_URL");
-  var token = props.getProperty("HOOK_TOKEN");
+  var lista = [];
 
-  if (!url || !token) {
-    throw new Error("Faltan API_URL o HOOK_TOKEN en las propiedades del script.");
+  var principal = props.getProperty("API_URL");
+  var prueba = props.getProperty("API_URL2");
+
+  if (principal) lista.push({ nombre: "API_URL", url: principal });
+  if (prueba) lista.push({ nombre: "API_URL2", url: prueba });
+
+  return lista;
+}
+
+/** Menú: dice a qué backends está mandando la hoja y cuál manda. */
+function dondeEstoySincronizando() {
+  var lista = destinos();
+
+  if (lista.length === 0) {
+    SpreadsheetApp.getUi().alert(
+      "Sincronizando contra",
+      "Ninguno: falta API_URL en las propiedades del script.",
+      SpreadsheetApp.getUi().ButtonSet.OK,
+    );
+    return;
   }
 
-  var respuesta = UrlFetchApp.fetch(url + ruta, {
-    method: "post",
-    contentType: "application/json",
-    headers: { "x-sheets-token": token },
-    payload: JSON.stringify(cuerpo),
-    // Sin esto, un 4xx lanza una excepción y perdemos el mensaje de error, que
-    // es justamente lo que hay que mostrarle al coordinador.
-    muteHttpExceptions: true,
-  });
-
-  var texto = respuesta.getContentText();
-  var datos = JSON.parse(texto);
-
-  if (!datos.success) {
-    Logger.log("Error del backend: " + texto);
+  var lineas = [];
+  for (var i = 0; i < lista.length; i++) {
+    lineas.push(
+      lista[i].nombre +
+        (i === 0 ? "  (manda: su respuesta es la que se escribe en la hoja)" : "  (solo recibe)") +
+        "\n" +
+        lista[i].url,
+    );
   }
 
-  return datos;
+  SpreadsheetApp.getUi().alert(
+    "Sincronizando contra",
+    lineas.join("\n\n"),
+    SpreadsheetApp.getUi().ButtonSet.OK,
+  );
+}
+
+/**
+ * Manda a todos los destinos y devuelve la respuesta del primero.
+ *
+ * Un destino que falla no interrumpe a los demás: se registra y se sigue. Si el
+ * que manda es el que falló, devuelve null y quien llama marca las filas como
+ * pendientes.
+ */
+function llamar(ruta, cuerpo) {
+  var lista = destinos();
+  var token = PropertiesService.getScriptProperties().getProperty("HOOK_TOKEN");
+
+  if (lista.length === 0 || !token) {
+    throw new Error("Faltan API_URL (o API_URL2) o HOOK_TOKEN en las propiedades del script.");
+  }
+
+  var respuestaPrincipal = null;
+  var alguienRespondio = false;
+
+  for (var i = 0; i < lista.length; i++) {
+    var datos = enviarA(lista[i], ruta, cuerpo);
+    if (datos) alguienRespondio = true;
+    if (i === 0) respuestaPrincipal = datos;
+  }
+
+  // Que ningún destino conteste no puede pasar por "Completed": es el síntoma
+  // de una URL caída, y en silencio parece que la sincronización funcionó.
+  if (!alguienRespondio) {
+    throw new Error("Ningún backend respondió. Revisa API_URL / API_URL2: " + urlsDe(lista));
+  }
+
+  return respuestaPrincipal;
+}
+
+function urlsDe(lista) {
+  var urls = [];
+  for (var i = 0; i < lista.length; i++) urls.push(lista[i].nombre + "=" + lista[i].url);
+  return urls.join(", ");
+}
+
+/** Una petición a un destino. Nunca lanza: devuelve null si no se pudo. */
+function enviarA(destino, ruta, cuerpo) {
+  try {
+    var respuesta = UrlFetchApp.fetch(destino.url + ruta, {
+      method: "post",
+      contentType: "application/json",
+      headers: {
+        "x-sheets-token": PropertiesService.getScriptProperties().getProperty("HOOK_TOKEN"),
+      },
+      payload: JSON.stringify(cuerpo),
+      // Sin esto, un 4xx lanza una excepción y perdemos el mensaje de error, que
+      // es justamente lo que hay que mostrarle al coordinador.
+      muteHttpExceptions: true,
+    });
+
+    var texto = respuesta.getContentText();
+    var datos = JSON.parse(texto);
+
+    if (!datos.success) {
+      Logger.log("Error de " + destino.nombre + ": " + texto);
+    }
+
+    return datos;
+  } catch (error) {
+    // Red caída, túnel muerto o una respuesta que no es JSON. El otro destino
+    // sigue su camino.
+    Logger.log("No se pudo llamar a " + destino.nombre + " (" + destino.url + "): " + error);
+    return null;
+  }
 }
