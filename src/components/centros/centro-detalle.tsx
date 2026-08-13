@@ -3,6 +3,7 @@
 import { ArrowLeft, Clock, MapPin } from "lucide-react";
 import Link from "next/link";
 
+import { CentroMapa } from "@/components/centros/centro-mapa";
 import { ReservaFlow } from "@/components/reservas/reserva-flow";
 import { ErrorState } from "@/components/shared/error-state";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,8 @@ export function CentroDetalle({ centroId }: { centroId: string }) {
               </p>
             ) : null}
           </header>
+
+          <CentroMapa centro={centro} />
 
           {centro.activo ? (
             <ReservaFlow centroId={centro.id} />
