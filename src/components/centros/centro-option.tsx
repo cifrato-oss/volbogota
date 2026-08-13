@@ -1,62 +1,44 @@
-import { Check, MapPin } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { JORNADA_ORDER } from "@/constants/jornadas";
 import { formatNumero } from "@/lib/format-numero";
-import { cn } from "@/lib/utils";
 import type { Centro } from "@/types/volbogota";
 
 type CentroOptionProps = {
   centro: Centro;
-  selected: boolean;
-  onSelect: (id: string) => void;
+  /** Where tapping this center goes, e.g. `/centros/vive-claro`. */
+  href: string;
 };
 
-/**
- * Selectable center in the "choose a center" flow. Rendered as a full-width,
- * tappable card — the primary target on mobile.
- */
-export function CentroOption({ centro, selected, onSelect }: CentroOptionProps) {
+/** A center in the picker. Tapping it navigates straight to the center page. */
+export function CentroOption({ centro, href }: CentroOptionProps) {
   const totalCupos = JORNADA_ORDER.reduce(
     (sum, jornada) => sum + (centro.cuposPorJornada[jornada] ?? 0),
     0,
   );
+  const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(centro.id)}
-      aria-pressed={selected}
-      className={cn(
-        "bg-card flex h-full w-full flex-col rounded-xl border p-4 text-left transition-colors",
-        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-        selected
-          ? "border-primary ring-primary/40 ring-2"
-          : "border-border hover:border-foreground/25",
-      )}
+    <Link
+      href={href}
+      className="group bg-card border-border hover:border-foreground/25 focus-visible:ring-ring flex h-full flex-col rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h3 className="leading-snug font-medium">{centro.nombre}</h3>
-          <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
-            <MapPin className="size-3.5 shrink-0" aria-hidden />
-            <span className="truncate">
-              {centro.localidad}
-              {centro.direccion ? ` · ${centro.direccion}` : ""}
-            </span>
-          </p>
-        </div>
-
-        <span
+        <h3 className="min-w-0 leading-snug font-medium">{centro.nombre}</h3>
+        <ArrowRight
+          className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
           aria-hidden
-          className={cn(
-            "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border",
-            selected ? "border-primary bg-primary text-primary-foreground" : "border-border",
-          )}
-        >
-          {selected ? <Check className="size-3.5" /> : null}
-        </span>
+        />
       </div>
+
+      {ubicacion ? (
+        <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
+          <MapPin className="size-3.5 shrink-0" aria-hidden />
+          <span className="truncate">{ubicacion}</span>
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-wrap gap-1.5">
         {centro.actividades.map((actividad) => (
@@ -69,6 +51,6 @@ export function CentroOption({ centro, selected, onSelect }: CentroOptionProps) 
       <p className="text-muted-foreground mt-3 pt-1 text-xs md:mt-auto">
         {formatNumero(totalCupos)} cupos por día
       </p>
-    </button>
+    </Link>
   );
 }

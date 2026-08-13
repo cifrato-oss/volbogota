@@ -12,7 +12,6 @@ export default function VoluntarioPage() {
       titulo="Elige un centro y reserva tu cupo"
       descripcion="Selecciona la fecha y hora que mejor se ajuste a tu disponibilidad."
       hrefBase="/centros"
-      ctaLabel="Reservar cupo"
     />
   );
 }
