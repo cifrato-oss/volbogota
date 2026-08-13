@@ -57,16 +57,36 @@ const parsed = serverSchema
   .superRefine((value, ctx) => {
     if (value.NODE_ENV !== "production" || buildingForProduction) return;
 
-    for (const key of [
-      "FIREBASE_PROJECT_ID",
-      "FIREBASE_CLIENT_EMAIL",
-      "FIREBASE_PRIVATE_KEY",
-      "CELULAR_HASH_SALT",
-      "ADMIN_API_TOKEN",
-    ] as const) {
+    for (const key of ["FIREBASE_PROJECT_ID", "CELULAR_HASH_SALT", "ADMIN_API_TOKEN"] as const) {
       if (!value[key]) {
         ctx.addIssue({ code: "custom", path: [key], message: "Requerida en producción." });
       }
+    }
+
+    /**
+     * The service-account pair is deliberately not required.
+     *
+     * Downloadable keys do not always exist: an organisation can forbid issuing
+     * them with `constraints/iam.disableServiceAccountKeyCreation`, and this
+     * project runs under one that does. Demanding the key here would refuse to
+     * boot on precisely the deployments that need no key — Cloud Run and Firebase
+     * App Hosting attach the service account to the service itself — and the ADC
+     * fallback in `db/firestore.ts` would never be reached.
+     *
+     * Half a pair, on the other hand, is always a mistake worth catching at boot
+     * rather than on the first request.
+     */
+    const email = Boolean(value.FIREBASE_CLIENT_EMAIL);
+    const key = Boolean(value.FIREBASE_PRIVATE_KEY);
+
+    if (email !== key) {
+      ctx.addIssue({
+        code: "custom",
+        path: [email ? "FIREBASE_PRIVATE_KEY" : "FIREBASE_CLIENT_EMAIL"],
+        message:
+          "Van las dos o ninguna: con una sola no se puede firmar, y sin ninguna se usan las " +
+          "credenciales por defecto del entorno (ADC).",
+      });
     }
   })
   .safeParse({
