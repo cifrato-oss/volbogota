@@ -3,7 +3,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { env } from "@/server/config/env";
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
-import { conflict, notFound, serviceUnavailable, unprocessable } from "@/server/http/errors";
+import { conflict, notFound, serviceUnavailable } from "@/server/http/errors";
 import { turnoSchema, type Turno } from "@/server/modules/catalogo/catalogo.schema";
 
 import type { CrearReservaInput, Reserva } from "./reservas.schema";
@@ -29,9 +29,9 @@ export function hashCelular(celular: string): string {
 }
 
 /**
- * Alphabet for the volunteer-facing code: no `O`/`0`, no `I`/`1`/`L`, so a
- * code read over the phone or off a screen at a noisy collection centre cannot
- * be transcribed into a different one.
+ * Alphabet for the volunteer-facing code: no `O`/`0`, no `I`/`1`/`L`, so a code
+ * read over the phone or off a screen at a noisy collection point cannot be
+ * transcribed into a different one.
  */
 const ALFABETO_CODIGO = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const LONGITUD_CODIGO = 8;
@@ -84,14 +84,12 @@ export type ReservaCreada = { reserva: Reserva; turno: Turno };
  * the counter can never oversell.
  *
  * Firestore sustains roughly one write per second on a single document. That is
- * per shift here, and there are 84 of them, so ordinary traffic spreads out. If
- * one popular shift ever becomes a hotspot, the fix is to shard this counter
- * across N documents and sum them on read — the call sites do not change.
+ * per shift here, and there are 72 of them, so ordinary traffic spreads out. A
+ * launch burst against a single shift is a different story and is not solved
+ * here — see the backoff below, and the pending redesign toward one document
+ * per seat.
  */
-export async function crearReservaEnTransaccion(
-  input: CrearReservaInput,
-  actividadesPorCentro: (centroId: string) => Promise<string[]>,
-): Promise<ReservaCreada> {
+export async function crearReservaEnTransaccion(input: CrearReservaInput): Promise<ReservaCreada> {
   const db = getDb();
   const turnoRef = db.collection(COLLECTIONS.turnos).doc(input.turnoId);
   const inscritoRef = turnoRef.collection(COLLECTIONS.inscritos).doc(hashCelular(input.celular));
@@ -100,33 +98,29 @@ export async function crearReservaEnTransaccion(
   const reservaRef = db.collection(COLLECTIONS.reservas).doc(generarCodigo());
 
   // Read outside the transaction. This is a load shedder, not the source of
-  // truth: a full shift rejects thousands of requests, and letting each one
-  // open a transaction just to lose makes them all queue on the same document
-  // until Firestore gives up with a lock timeout. The authoritative checks are
-  // still inside the transaction below — this only spares the hopeless ones the
-  // trip. A stale read here is harmless: the worst case is a request that
-  // proceeds and gets rejected a few milliseconds later, which is the normal path.
+  // truth: a full shift rejects every later request, and letting each one open
+  // a transaction just to lose makes them all queue on the same document until
+  // Firestore gives up with a lock timeout. The authoritative checks are still
+  // inside the transaction below — this only spares the hopeless ones the trip.
+  // A stale read here is harmless: the worst case is a request that proceeds and
+  // gets rejected a few milliseconds later, which is the normal path.
   const turnoPrevio = await turnoRef.get();
   if (!turnoPrevio.exists) {
     throw notFound("El turno no existe.");
   }
 
-  const turnoLeido = turnoSchema.parse({ id: turnoPrevio.id, ...turnoPrevio.data() });
+  const turnoLeido = turnoSchema.parse({
+    centroActivo: true,
+    id: turnoPrevio.id,
+    ...turnoPrevio.data(),
+  });
 
   if (turnoLeido.estado !== "ABIERTO") {
-    throw conflict("El turno está cerrado.");
+    throw conflict("El turno no está disponible para inscripción.");
   }
 
   if (turnoLeido.reservados >= turnoLeido.cuposTotales) {
     throw conflict("El turno ya no tiene cupos disponibles.");
-  }
-
-  const actividades = await actividadesPorCentro(turnoLeido.centroId);
-
-  if (!actividades.includes(input.actividad)) {
-    throw unprocessable("La actividad no está habilitada en este centro.", [
-      { field: "actividad", message: `Opciones válidas: ${actividades.join(", ")}.` },
-    ]);
   }
 
   return ejecutarReserva();
@@ -136,7 +130,7 @@ export async function crearReservaEnTransaccion(
    *
    * Bookings for one shift all serialize on one document, so a launch burst has
    * far more callers than the document can absorb per second. Firestore's own
-   * retries give up quickly and in lockstep, which leaves seats unsold while
+   * retries give up quickly and in lockstep, which leaves seats unassigned while
    * everyone receives an error. Backing off by an exponentially growing random
    * delay spreads the callers out in time so the queue actually drains.
    *
@@ -181,10 +175,14 @@ export async function crearReservaEnTransaccion(
         throw conflict("No pudimos generar tu código de confirmación. Intenta de nuevo.");
       }
 
-      const turno = turnoSchema.parse({ id: turnoSnap.id, ...turnoSnap.data() });
+      const turno = turnoSchema.parse({
+        centroActivo: true,
+        id: turnoSnap.id,
+        ...turnoSnap.data(),
+      });
 
       if (turno.estado !== "ABIERTO") {
-        throw conflict("El turno está cerrado.");
+        throw conflict("El turno no está disponible para inscripción.");
       }
 
       if (inscritoSnap.exists) {
@@ -206,14 +204,11 @@ export async function crearReservaEnTransaccion(
         fecha: turno.fecha,
         jornada: turno.jornada,
         nombre: input.nombre,
+        apellido: input.apellido,
         celular: input.celular,
-        actividad: input.actividad,
+        edad: input.edad,
         autorizoDatos: input.autorizoDatos,
-        mayorDeEdad: input.mayorDeEdad,
         estado: "RESERVADO",
-        contactoEmergencia: input.contactoEmergencia ?? null,
-        eps: input.eps ?? null,
-        notas: input.notas ?? null,
         creadoEn,
         checkIn: null,
         checkOut: null,

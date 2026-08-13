@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { actividadSchema, jornadaSchema } from "@/server/modules/catalogo/catalogo.schema";
+import { jornadaSchema } from "@/server/modules/catalogo/catalogo.schema";
 
 export const ESTADOS_RESERVA = [
   "RESERVADO",
@@ -19,36 +19,41 @@ const celularSchema = z
   .transform((value) => value.replace(/\D/g, ""))
   .pipe(z.string().regex(/^3\d{9}$/, "El celular debe tener 10 dígitos y empezar por 3."));
 
+/** Minimum age to volunteer at a collection point. */
+export const EDAD_MINIMA = 18;
+
 /**
  * Booking request.
  *
- * The consent flags are `literal(true)` rather than booleans: the spreadsheet
- * treats "Sin autorización" and "Verificar edad" as blocking, so a `false`
- * must be rejected at the edge instead of stored and filtered later.
+ * Deliberately short: name, surname, phone, age and consent. Every field here
+ * is personal data about someone volunteering during an emergency, so the form
+ * asks for what the operation actually needs and nothing else.
+ *
+ * Consent is `literal(true)` rather than a boolean: the spreadsheet treats
+ * "Sin autorización" as blocking, so a `false` is rejected at the edge instead
+ * of being stored and filtered later.
  */
 export const crearReservaSchema = z.object({
   nombre: z
     .string()
     .trim()
-    .min(3, "El nombre completo es obligatorio.")
-    .max(120, "El nombre es demasiado largo."),
+    .min(2, "El nombre es obligatorio.")
+    .max(60, "El nombre es demasiado largo."),
+  apellido: z
+    .string()
+    .trim()
+    .min(2, "El apellido es obligatorio.")
+    .max(60, "El apellido es demasiado largo."),
   celular: celularSchema,
+  edad: z.coerce
+    .number({ error: "La edad debe ser un número." })
+    .int("La edad debe ser un número entero.")
+    .min(EDAD_MINIMA, `Debes tener al menos ${EDAD_MINIMA} años para inscribirte.`)
+    .max(110, "Revisa la edad."),
   turnoId: z.string().min(1, "Debes seleccionar un turno."),
-  actividad: actividadSchema,
   autorizoDatos: z.literal(true, {
     error: "Debes autorizar el tratamiento de datos personales.",
   }),
-  mayorDeEdad: z.literal(true, {
-    error: "Debes ser mayor de edad para inscribirte.",
-  }),
-  contactoEmergencia: z
-    .object({
-      nombre: z.string().trim().min(3, "El nombre del contacto es obligatorio."),
-      celular: celularSchema,
-    })
-    .optional(),
-  eps: z.string().trim().max(80).optional(),
-  notas: z.string().trim().max(500).optional(),
 });
 export type CrearReservaInput = z.infer<typeof crearReservaSchema>;
 
@@ -61,14 +66,11 @@ export const reservaSchema = z.object({
   fecha: z.string(),
   jornada: jornadaSchema,
   nombre: z.string(),
+  apellido: z.string(),
   celular: z.string(),
-  actividad: actividadSchema,
+  edad: z.number().int(),
   autorizoDatos: z.boolean(),
-  mayorDeEdad: z.boolean(),
   estado: estadoReservaSchema,
-  contactoEmergencia: z.object({ nombre: z.string(), celular: z.string() }).nullable(),
-  eps: z.string().nullable(),
-  notas: z.string().nullable(),
   creadoEn: z.string(),
   checkIn: z.string().nullable(),
   checkOut: z.string().nullable(),
@@ -90,6 +92,7 @@ export type ConfirmacionReserva = {
     fecha: string;
     jornada: string;
     horario: string;
+    direccion: string | null;
+    horarioOficial: string | null;
   };
-  actividad: string;
 };

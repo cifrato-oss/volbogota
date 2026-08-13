@@ -21,14 +21,21 @@ export type TurnoFilters = {
 
 export async function findCentros(soloActivos = true): Promise<Centro[]> {
   const db = getDb();
-  let query = db.collection(COLLECTIONS.centros).orderBy("nombre");
+  let query = db.collection(COLLECTIONS.centros) as FirebaseFirestore.Query;
 
   if (soloActivos) {
     query = query.where("activo", "==", true);
   }
 
   const snapshot = await query.get();
-  return snapshot.docs.map((doc) => centroSchema.parse({ id: doc.id, ...doc.data() }));
+
+  // Sorted in memory on purpose. Combining `where("activo")` with
+  // `orderBy("nombre")` would oblige Firestore to have a composite index, and
+  // the emulator does not enforce that — the query passes locally and fails on
+  // the first real request. There are six points; the sort is free.
+  return snapshot.docs
+    .map((doc) => centroSchema.parse({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
 export async function findCentroById(id: string): Promise<Centro | null> {
@@ -47,7 +54,12 @@ export async function findTurnos(filters: TurnoFilters = {}): Promise<Turno[]> {
   if (filters.jornada) query = query.where("jornada", "==", filters.jornada);
 
   const snapshot = await query.get();
-  const turnos = snapshot.docs.map((doc) => turnoSchema.parse({ id: doc.id, ...doc.data() }));
+  const turnos = snapshot.docs
+    .map((doc) => turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() }))
+    // Shifts of retired points stay in Firestore for history but never surface:
+    // listing them would advertise a point the city no longer authorises, and
+    // counting them would inflate the published capacity.
+    .filter((turno) => turno.centroActivo);
 
   // Sorted in memory: ordering by three fields in Firestore would need a
   // composite index per filter combination, and 84 shifts fit comfortably here.
@@ -63,7 +75,7 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
   const doc = await getDb().collection(COLLECTIONS.turnos).doc(id).get();
   if (!doc.exists) return null;
 
-  return turnoSchema.parse({ id: doc.id, ...doc.data() });
+  return turnoSchema.parse({ centroActivo: true, id: doc.id, ...doc.data() });
 }
 
 function jornadaOrder(jornada: Jornada): number {

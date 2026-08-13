@@ -53,6 +53,18 @@ export const centroSchema = z.object({
   direccion: z.string().nullable(),
   localidad: z.string().nullable(),
   linkMaps: z.string().nullable(),
+  /**
+   * When the point is actually open, as published by the city — e.g.
+   * "8:00 a.m. - 9:00 p.m." or "24 horas". This is not the same as the shift
+   * schedule: several points close before the evening shift's nominal end.
+   */
+  horarioOficial: z.string().nullable(),
+  /**
+   * Operational notes straight from the spreadsheet, verbatim. Kept as prose
+   * because that is what it is: parsing it into flags would invent structure
+   * the source does not have and break the next time someone rewords a cell.
+   */
+  observaciones: z.string().nullable(),
   actividades: z.array(actividadSchema),
   cuposPorJornada: z.record(jornadaSchema, z.number().int().nonnegative()),
   activo: z.boolean(),
@@ -72,6 +84,17 @@ export const turnoSchema = z.object({
     fin: z.string(),
     etiqueta: z.string(),
   }),
+  /**
+   * The point's published opening hours, copied here so a caller listing shifts
+   * does not have to fetch the centre to know when the door is actually open.
+   */
+  horarioOficialCentro: z.string().nullable(),
+  /**
+   * Whether the point is still authorised. A point dropped from the spreadsheet
+   * keeps its shifts for history — a reservation may reference them — but they
+   * must stop being listed and stop counting toward public totals.
+   */
+  centroActivo: z.boolean(),
   cuposTotales: z.number().int().nonnegative(),
   /**
    * Live counter kept by the booking transaction. Never derived by counting
