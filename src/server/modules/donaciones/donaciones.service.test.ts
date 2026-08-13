@@ -19,9 +19,8 @@ vi.mock("./donaciones.repository", () => ({
   guardarNecesidad: (necesidad: Necesidad) => guardarNecesidad(necesidad),
 }));
 
-const { actualizarEstadoNecesidad, listarNecesidadesDeCentro } = await import(
-  "./donaciones.service"
-);
+const { actualizarEstadoNecesidad, listarNecesidadesDeCentro } =
+  await import("./donaciones.service");
 
 const centro: Centro = {
   id: "cruz-roja",
@@ -59,7 +58,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   findCentroById.mockResolvedValue(centro);
   findElementos.mockImplementation(async (categoria?: string) =>
-    categoria ? [arroz, jabon].filter((elemento) => elemento.categoria === categoria) : [arroz, jabon],
+    categoria
+      ? [arroz, jabon].filter((elemento) => elemento.categoria === categoria)
+      : [arroz, jabon],
   );
   findNecesidadesPorCentro.mockResolvedValue([]);
 });
@@ -89,10 +90,17 @@ describe("listarNecesidadesDeCentro", () => {
       necesita: true,
     });
     expect(alimentos?.elementos).toMatchObject([
-      { elementoId: "alimentos-arroz-blanco", estado: "SE_NECESITA", semaforo: "ROJO", actualizadoEn: null },
+      {
+        elementoId: "alimentos-arroz-blanco",
+        estado: "SE_NECESITA",
+        semaforo: "ROJO",
+        actualizadoEn: null,
+      },
     ]);
 
-    const construccion = resultado.categorias.find((c) => c.categoria === "Materiales de construcción");
+    const construccion = resultado.categorias.find(
+      (c) => c.categoria === "Materiales de construcción",
+    );
     expect(construccion).toMatchObject({ necesita: false, elementos: [] });
   });
 

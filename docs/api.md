@@ -53,14 +53,14 @@ En un 422, `details` viene listo para pintar el error bajo cada input:
 
 ## Vocabulario
 
-| Concepto     | Qué es                                                                                |
-| ------------ | -------------------------------------------------------------------------------------- |
-| **Punto**    | Punto de acopio autorizado. `id` es un slug: `cruz-roja`                              |
-| **Jornada**  | `MANANA` · `NOCHE` — siempre en mayúsculas, sin tilde                                 |
-| **Turno**    | Un punto + una fecha + una jornada                                                     |
-| **Reserva**  | La inscripción de un voluntario a un turno                                            |
-| **Categoría**| Una de las 5 categorías de donación (ver abajo)                                       |
-| **Necesidad**| El estado de un elemento del catálogo en un punto: `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA` |
+| Concepto      | Qué es                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| **Punto**     | Punto de acopio autorizado. `id` es un slug: `cruz-roja`                                      |
+| **Jornada**   | `MANANA` · `NOCHE` — siempre en mayúsculas, sin tilde                                         |
+| **Turno**     | Un punto + una fecha + una jornada                                                            |
+| **Reserva**   | La inscripción de un voluntario a un turno                                                    |
+| **Categoría** | Una de las 5 categorías de donación (ver abajo)                                               |
+| **Necesidad** | El estado de un elemento del catálogo en un punto: `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA` |
 
 El `turnoId` es predecible — `{puntoId}_{YYYY-MM-DD}_{jornada en minúscula}`, o
 sea `cruz-roja_2026-08-13_manana`. Aun así, **no lo armes a mano**: úsalo como
@@ -77,7 +77,7 @@ de Bogotá y la Cruz Roja.
 Ya no son tres jornadas fijas (`AM`/`PM`/`NOCHE`): son dos, y su horario
 depende de cada punto, no de una tabla global.
 
-| Jornada  | Regla                                        |
+| Jornada  | Regla                                         |
 | -------- | --------------------------------------------- |
 | `MANANA` | Desde la apertura del punto hasta el mediodía |
 | `NOCHE`  | Desde la 1:00 p.m. hasta el cierre del punto  |
@@ -190,11 +190,11 @@ Turnos con su ocupación en vivo. Alimenta el selector de cupos.
 **Query params** (todos opcionales, combinables):
 
 | Param         | Valores          | Efecto                               |
-| ------------- | ----------------- | ------------------------------------ |
-| `centro`      | id de punto       | Solo ese punto                       |
-| `fecha`       | `YYYY-MM-DD`      | Solo ese día                         |
-| `jornada`     | `MANANA` `NOCHE`  | Solo esa jornada                     |
-| `disponibles` | `true` `false`    | Con `true` esconde llenos y cerrados |
+| ------------- | ---------------- | ------------------------------------ |
+| `centro`      | id de punto      | Solo ese punto                       |
+| `fecha`       | `YYYY-MM-DD`     | Solo ese día                         |
+| `jornada`     | `MANANA` `NOCHE` | Solo esa jornada                     |
+| `disponibles` | `true` `false`   | Con `true` esconde llenos y cerrados |
 
 ```json
 [
@@ -338,9 +338,9 @@ hace falta un catálogo aparte.
 **Query params:**
 
 | Param       | Valores      | Req. | Efecto                                       |
-| ----------- | ------------- | ---- | --------------------------------------------- |
-| `centro`    | id de punto    | sí   | Obligatorio                                    |
-| `categoria` | una de las 5   | no   | Si la mandas, `categorias` trae solo esa una  |
+| ----------- | ------------ | ---- | -------------------------------------------- |
+| `centro`    | id de punto  | sí   | Obligatorio                                  |
+| `categoria` | una de las 5 | no   | Si la mandas, `categorias` trae solo esa una |
 
 ```jsonc
 // GET /api/donaciones/necesidades?centro=cruz-roja
@@ -359,17 +359,17 @@ hace falta un catálogo aparte.
           "elemento": "Arroz blanco",
           "estado": "SE_NECESITA",
           "semaforo": "ROJO",
-          "actualizadoEn": "2026-08-13T08:00:00.000Z"
-        }
-      ]
+          "actualizadoEn": "2026-08-13T08:00:00.000Z",
+        },
+      ],
     },
     {
       "categoria": "Elementos de aseo",
       "mensaje": null,
       "necesita": false,
-      "elementos": [/* … */]
-    }
-  ]
+      "elementos": [/* … */],
+    },
+  ],
 }
 ```
 
@@ -462,7 +462,7 @@ o bien `Authorization: Bearer <token>`. Sin token o con token inválido → `401
 ## `GET /api/admin/reservas`
 
 | Param     | Valores                    | Efecto                              |
-| --------- | -------------------------- | ------------------------------------ |
+| --------- | -------------------------- | ----------------------------------- |
 | `turno`   | `turnoId`                  | Solo ese turno                      |
 | `centro`  | id de punto                | Solo ese punto                      |
 | `fecha`   | `YYYY-MM-DD`               | Solo ese día                        |
