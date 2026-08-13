@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * out of the database, which is exactly what that token protects.
  */
 export const POST = withRoute(async (request) => {
-  requireAdmin(request);
+  await requireAdmin(request);
 
   const filtros = parseSearchParams(request, listarReservasSchema);
   const { reservas } = await listarReservas(filtros);

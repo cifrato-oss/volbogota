@@ -3,20 +3,32 @@ import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import { env, isProduction } from "@/server/config/env";
+import { COOKIE_SESION, leerSesion } from "@/server/modules/admin/sesiones";
 
 import { forbidden, unauthorized } from "./errors";
 
 /**
  * Gate for the coordinator endpoints.
  *
- * A shared token, not an identity system. For a four-day operation run by a
- * handful of coordinators on their phones it is the honest trade: no accounts
- * to create, nothing to reset at 2 a.m. The cost is real and worth stating —
- * **there is no audit trail per person**, and revoking access means rotating
- * the token for everyone. If this outlives the event, replace it with Firebase
- * Auth and custom claims.
+ * Two ways in, and the order matters.
+ *
+ * A session cookie is the panel's way: a person logs in with an account from
+ * the `usuarios` collection and every request carries an opaque token that names
+ * them. That is what gives the panel an audit trail and lets one coordinator be
+ * revoked without touching the rest.
+ *
+ * The shared token stays as the second way, for the things a browser is not:
+ * `curl` during an incident, a script, a health check from a machine that has no
+ * session. It has no identity attached, so anything done with it is attributable
+ * only to "someone holding the token".
+ *
+ * Returns who the caller is, so a route that records an action can store the
+ * person rather than the fact that somebody was authorised.
  */
-export function requireAdmin(request: NextRequest): void {
+export async function requireAdmin(request: NextRequest): Promise<QuienLlama> {
+  const sesion = await leerSesion(request.cookies.get(COOKIE_SESION)?.value);
+  if (sesion) return { tipo: "usuario", usuario: sesion.usuario, nombre: sesion.nombre };
+
   const esperado = env.adminApiToken;
 
   if (!esperado) {
@@ -33,9 +45,13 @@ export function requireAdmin(request: NextRequest): void {
   const recibido = leerToken(request, "x-admin-token");
 
   if (!recibido || !sonIguales(recibido, esperado)) {
-    throw unauthorized("Token de administración inválido.");
+    throw unauthorized("Inicia sesión para entrar al panel.");
   }
+
+  return { tipo: "token" };
 }
+
+export type QuienLlama = { tipo: "usuario"; usuario: string; nombre: string } | { tipo: "token" };
 
 /**
  * Gate for the spreadsheet sync hooks.

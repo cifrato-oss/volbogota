@@ -42,5 +42,17 @@ service cloud.firestore {
     match /reservas/{reservaId} {
       allow read, write: if false;
     }
+
+    // Cuentas del panel y sesiones abiertas. Cerradas por completo: aquí viven
+    // los digests de las contraseñas de los coordinadores y los de las sesiones
+    // en curso, y ninguna pantalla los necesita — el login pasa por la API con
+    // el Admin SDK, que se salta estas reglas.
+    match /usuarios/{usuarioId} {
+      allow read, write: if false;
+    }
+
+    match /sesiones/{sesionId} {
+      allow read, write: if false;
+    }
   }
 }
