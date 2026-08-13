@@ -2,15 +2,17 @@
  * Imports the master spreadsheet into Firestore.
  *
  * The spreadsheet administers the programme: coordinators edit centres,
- * capacity, addresses and activities there. This script pushes that catalogue
- * into Firestore, which is what serves traffic during the event.
+ * capacity, addresses and — since the "Quiero donar" flow shipped — the
+ * donation catalogue and its per-centre need states there. This script pushes
+ * all of that into Firestore, which is what serves traffic during the event.
  *
- *   npm run import:excel -- --file ./Voluntariado_Bogota_Centros_Acopio.xlsx
+ *   npm run import:excel -- --file ./Centros_de_Acopio_Bogota.xlsx
  *   npm run import:excel -- --file ./archivo.xlsx --dry
  *
- * Re-running is safe and expected — it is how a capacity change in the
- * spreadsheet reaches production. Live `reservados` counters are read first and
- * carried over, so an import never resets bookings.
+ * Re-running is safe and expected — it is how a capacity change or a
+ * semaphore flip in the spreadsheet reaches production. Live `reservados`
+ * counters are read first and carried over, so an import never resets
+ * bookings.
  */
 
 import ExcelJS from "exceljs";
@@ -26,6 +28,15 @@ import {
   type Jornada,
   type Turno,
 } from "@/server/modules/catalogo/catalogo.schema";
+import {
+  CATEGORIAS_DONACION,
+  buildElementoId,
+  buildNecesidadId,
+  type CategoriaDonacion,
+  type ElementoDonacion,
+  type EstadoNecesidad,
+  type Necesidad,
+} from "@/server/modules/donaciones/donaciones.schema";
 
 const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
@@ -58,20 +69,26 @@ function cellNumber(row: ExcelJS.Row, column: number): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Reads a datetime cell (the `Necesidades` sheet's "Última actualización" row) as ISO. */
+function cellFechaHora(row: ExcelJS.Row, column: number): string | null {
+  const value = row.getCell(column).value;
+  if (value instanceof Date) return value.toISOString();
+  return cellText(row, column);
+}
+
 /**
- * Locates the header row of the `Centros` sheet and maps each column by its
- * title.
+ * Locates a sheet's header row by the set of column titles it must contain,
+ * and returns a lookup from title to column index.
  *
- * The layout is not stable — between the first and second versions of the file the
- * header moved down a row, the coordinator columns disappeared and two new ones
- * appeared, which silently shifted every index. Reading by title means the next
- * reshuffle is a no-op here, and a genuinely missing column fails loudly
- * instead of importing the wrong cell.
+ * The layout is not stable across revisions of the file — headers move rows,
+ * columns get added or renamed. Reading by title means a reshuffle is a no-op
+ * here, and a genuinely missing column fails loudly instead of importing the
+ * wrong cell.
  */
-function mapearColumnas(sheet: ExcelJS.Worksheet): {
-  headerRow: number;
-  columna: (titulo: string) => number | null;
-} {
+function mapearColumnas(
+  sheet: ExcelJS.Worksheet,
+  requeridos: string[],
+): { headerRow: number; columna: (titulo: string) => number | null } {
   for (let rowNumber = 1; rowNumber <= Math.min(12, sheet.rowCount); rowNumber += 1) {
     const row = sheet.getRow(rowNumber);
     const titulos = new Map<string, number>();
@@ -81,27 +98,20 @@ function mapearColumnas(sheet: ExcelJS.Worksheet): {
       if (texto) titulos.set(normalizar(texto), col);
     }
 
-    // The row that names both the point and its capacity is the header. The
-    // capacity columns were renamed between versions — "Cupos AM" became
-    // "Cupos Mañana" — so either spelling identifies the row.
-    // Keys are already normalised, so "Cupos Mañana" is looked up as "cupos manana".
-    if (titulos.has("direccion") && (titulos.has("cupos am") || titulos.has("cupos manana"))) {
-      return {
-        headerRow: rowNumber,
-        columna: (titulo) => titulos.get(normalizar(titulo)) ?? null,
-      };
+    if (requeridos.every((titulo) => titulos.has(titulo))) {
+      return { headerRow: rowNumber, columna: (titulo) => titulos.get(normalizar(titulo)) ?? null };
     }
   }
 
-  throw new Error("No encontré la fila de encabezados en la hoja 'Centros'.");
+  throw new Error(`No encontré la fila de encabezados en la hoja '${sheet.name}'.`);
 }
 
 function normalizar(valor: string): string {
-  return valor
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
+  return valor.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+}
+
+function readOptional(row: ExcelJS.Row, column: number | null): string | null {
+  return column === null ? null : cellText(row, column);
 }
 
 /** A jornada the file does not model is zero cupos, not a broken import. */
@@ -144,23 +154,25 @@ function columnaDeCupos(
   return elegida ? columna(elegida) : null;
 }
 
+// --- Centros ----------------------------------------------------------------
+
 function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   const sheet = workbook.getWorksheet("Centros");
   if (!sheet) throw new Error("El archivo no tiene la hoja 'Centros'.");
 
-  const { headerRow, columna } = mapearColumnas(sheet);
+  const { headerRow, columna } = mapearColumnas(sheet, ["direccion"]);
 
   // The point's name column has been called both "Centro" and "Punto de acopio".
   const colNombre = columna("Punto de acopio") ?? columna("Centro");
+
+  if (!colNombre) {
+    throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
+  }
 
   // A jornada whose column the file omits is read as zero; what fails loudly is
   // a sheet with no capacity column at all.
   const colCuposAm = columnaDeCupos(columna, "AM");
   const colCuposPm = columnaDeCupos(columna, "PM");
-
-  if (!colNombre) {
-    throw new Error("A la hoja 'Centros' le falta la columna del nombre del punto.");
-  }
 
   if (!colCuposAm && !colCuposPm) {
     throw new Error("A la hoja 'Centros' no le encontré ninguna columna de cupos por jornada.");
@@ -183,7 +195,7 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
     if (!nombre) continue;
     if (nombre.toUpperCase() === "TOTAL") continue;
     // Footnotes live below the table and are not points.
-    if (/^(nota|supuesto|un cupo)/i.test(nombre)) break;
+    if (/^(nota|supuesto|un cupo|jornada)/i.test(nombre)) break;
 
     const actividades = (readOptional(row, colActividades) ?? "")
       .split(",")
@@ -212,10 +224,6 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   }
 
   return centros;
-}
-
-function readOptional(row: ExcelJS.Row, column: number | null): string | null {
-  return column === null ? null : cellText(row, column);
 }
 
 /** `Listas` sheet, column C: the dates the programme runs. */
@@ -274,9 +282,8 @@ function buildTurnos(centros: Centro[], fechas: string[]): Turno[] {
           cuposTotales: cupos,
           reservados: 0,
           // Zero capacity is how the spreadsheet says "this point does not open
-          // in this shift" — Unicentro and Palacio close before the evening.
-          // The sheet shows those as "Sin cupos" and the instructions are
-          // explicit that they must not be bookable.
+          // in this shift" — the instructions are explicit that those shifts
+          // must not be bookable.
           estado: centro.activo && cupos > 0 ? "ABIERTO" : "CERRADO",
           coordinador: null,
         });
@@ -285,6 +292,170 @@ function buildTurnos(centros: Centro[], fechas: string[]): Turno[] {
   }
 
   return turnos;
+}
+
+// --- Catálogo de donaciones ---------------------------------------------------
+
+function parsearCategoria(valor: string, contexto: string): CategoriaDonacion {
+  const categoria = CATEGORIAS_DONACION.find((candidata) => candidata === valor.trim());
+
+  if (!categoria) {
+    throw new Error(
+      `${contexto}: la categoría "${valor}" no es una de las 5 válidas (${CATEGORIAS_DONACION.join(", ")}).`,
+    );
+  }
+
+  return categoria;
+}
+
+/** `Catálogo` sheet: the master list of items, few and stable — the donation "vocabulary". */
+function readCatalogoDonaciones(workbook: ExcelJS.Workbook): ElementoDonacion[] {
+  const sheet = workbook.getWorksheet("Catálogo");
+  if (!sheet) throw new Error("El archivo no tiene la hoja 'Catálogo'.");
+
+  const { headerRow, columna } = mapearColumnas(sheet, ["categoria", "orden", "elemento"]);
+
+  const colCategoria = columna("Categoría");
+  const colOrden = columna("Orden");
+  const colElemento = columna("Elemento");
+  const colMensaje = columna("Mensaje que va en la categoría") ?? columna("Mensaje");
+
+  if (!colCategoria || !colOrden || !colElemento) {
+    throw new Error("A la hoja 'Catálogo' le faltan columnas obligatorias.");
+  }
+
+  const elementos: ElementoDonacion[] = [];
+
+  for (let rowNumber = headerRow + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const nombre = cellText(row, colElemento);
+    const categoriaTexto = cellText(row, colCategoria);
+
+    if (!nombre || !categoriaTexto) continue;
+
+    const categoria = parsearCategoria(categoriaTexto, `Fila ${rowNumber} de 'Catálogo'`);
+
+    elementos.push({
+      id: buildElementoId(categoria, nombre),
+      categoria,
+      orden: cellNumber(row, colOrden),
+      nombre,
+      mensaje: readOptional(row, colMensaje),
+    });
+  }
+
+  return elementos;
+}
+
+// --- Necesidades ---------------------------------------------------------------
+
+const ESTADO_DESDE_SHEET: Record<string, EstadoNecesidad> = {
+  "se necesita": "SE_NECESITA",
+  suficiente: "SUFICIENTE",
+  "no aplica": "NO_APLICA",
+};
+
+function parsearEstadoNecesidad(valor: string | null): EstadoNecesidad | null {
+  return valor ? (ESTADO_DESDE_SHEET[normalizar(valor)] ?? null) : null;
+}
+
+/**
+ * `Necesidades` sheet: the semaphore. One row per item, one column per centre,
+ * plus a row above the header with each column's own "last updated" stamp.
+ *
+ * A blank cell means the pair has never been set and is skipped here — the
+ * service layer is what defaults an unset pair to `SE_NECESITA`, not the
+ * import, so a re-import never overwrites a state the sheet has gone quiet on
+ * with a stale default.
+ */
+function readNecesidades(workbook: ExcelJS.Workbook): Necesidad[] {
+  const sheet = workbook.getWorksheet("Necesidades");
+  if (!sheet) throw new Error("El archivo no tiene la hoja 'Necesidades'.");
+
+  const { headerRow, columna } = mapearColumnas(sheet, ["categoria", "elemento"]);
+  const colCategoria = columna("Categoría");
+  const colElemento = columna("Elemento");
+
+  if (!colCategoria || !colElemento) {
+    throw new Error("A la hoja 'Necesidades' le faltan columnas obligatorias.");
+  }
+
+  const filaEncabezado = sheet.getRow(headerRow);
+  const filaActualizacion = sheet.getRow(Math.max(1, headerRow - 1));
+
+  const centros: Array<{
+    columna: number;
+    centroId: string;
+    centroNombre: string;
+    actualizadoEn: string | null;
+  }> = [];
+
+  for (let col = colElemento + 1; col <= sheet.columnCount; col += 1) {
+    const nombre = cellText(filaEncabezado, col);
+    if (!nombre) continue;
+
+    centros.push({
+      columna: col,
+      centroId: slugify(nombre),
+      centroNombre: nombre,
+      actualizadoEn: cellFechaHora(filaActualizacion, col),
+    });
+  }
+
+  if (centros.length === 0) {
+    throw new Error("La hoja 'Necesidades' no tiene columnas de puntos de acopio.");
+  }
+
+  const necesidades: Necesidad[] = [];
+
+  for (let rowNumber = headerRow + 1; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    const elemento = cellText(row, colElemento);
+    const categoriaTexto = cellText(row, colCategoria);
+
+    if (!elemento || !categoriaTexto) continue;
+
+    const categoria = parsearCategoria(categoriaTexto, `Fila ${rowNumber} de 'Necesidades'`);
+    const elementoId = buildElementoId(categoria, elemento);
+
+    for (const centro of centros) {
+      const estado = parsearEstadoNecesidad(cellText(row, centro.columna));
+      if (!estado) continue;
+
+      necesidades.push({
+        id: buildNecesidadId(centro.centroId, elementoId),
+        centroId: centro.centroId,
+        centroNombre: centro.centroNombre,
+        elementoId,
+        categoria,
+        elemento,
+        estado,
+        actualizadoEn: centro.actualizadoEn,
+      });
+    }
+  }
+
+  return necesidades;
+}
+
+/** Firestore's batch write cap is 500 — chunked so the donation tables can grow past it safely. */
+const LIMITE_LOTE = 400;
+
+async function escribirEnLotes(
+  db: FirebaseFirestore.Firestore,
+  coleccion: string,
+  items: Array<{ id: string } & Record<string, unknown>>,
+): Promise<void> {
+  for (let inicio = 0; inicio < items.length; inicio += LIMITE_LOTE) {
+    const lote = db.batch();
+
+    for (const item of items.slice(inicio, inicio + LIMITE_LOTE)) {
+      const { id, ...data } = item;
+      lote.set(db.collection(coleccion).doc(id), data, { merge: true });
+    }
+
+    await lote.commit();
+  }
 }
 
 async function main(): Promise<void> {
@@ -296,13 +467,17 @@ async function main(): Promise<void> {
   const centros = readCentros(workbook);
   const fechas = readFechas(workbook);
   const turnos = buildTurnos(centros, fechas);
+  const elementos = readCatalogoDonaciones(workbook);
+  const necesidades = readNecesidades(workbook);
 
-  console.log(`Centros: ${centros.length}`);
-  console.log(`Fechas:  ${fechas.join(", ")}`);
-  console.log(`Turnos:  ${turnos.length}`);
+  console.log(`Centros:     ${centros.length}`);
+  console.log(`Fechas:      ${fechas.join(", ")}`);
+  console.log(`Turnos:      ${turnos.length}`);
   console.log(
-    `Cupos:   ${turnos.reduce((total, turno) => total + turno.cuposTotales, 0).toLocaleString("es-CO")}`,
+    `Cupos:       ${turnos.reduce((total, turno) => total + turno.cuposTotales, 0).toLocaleString("es-CO")}`,
   );
+  console.log(`Elementos:   ${elementos.length} (catálogo de donaciones)`);
+  console.log(`Necesidades: ${necesidades.length} (elemento × punto con estado declarado)`);
 
   const sinCupos = turnos.filter((turno) => turno.cuposTotales === 0);
   if (sinCupos.length > 0) {
@@ -315,6 +490,7 @@ async function main(): Promise<void> {
   }
 
   reportarHorariosEnConflicto(centros);
+  reportarInconsistenciasDonaciones(centros, elementos, necesidades);
 
   const sinDireccion = centros.filter((centro) => !centro.direccion).map((centro) => centro.nombre);
   if (sinDireccion.length > 0) {
@@ -359,10 +535,13 @@ async function main(): Promise<void> {
       etiqueta: ETIQUETA_JORNADA[jornada],
       horario: HORARIOS[jornada],
     })),
+    categoriasDonacion: [...CATEGORIAS_DONACION],
     actualizadoEn: new Date().toISOString(),
   });
 
   await batch.commit();
+  await escribirEnLotes(db, COLLECTIONS.catalogoDonaciones, elementos);
+  await escribirEnLotes(db, COLLECTIONS.necesidades, necesidades);
 
   const conservados = [...reservadosPrevios.values()].reduce((total, n) => total + n, 0);
   console.log(`\n✓ Importado. Reservas conservadas: ${conservados}`);
@@ -372,10 +551,8 @@ async function main(): Promise<void> {
  * Retires points that dropped out of the spreadsheet.
  *
  * The import merges, so without this a point removed from the file keeps being
- * served: the second version of the file dropped Vive Claro and CC Nuestro
- * Bogotá, and both would have stayed bookable. They are deactivated rather than
- * deleted — a reservation may already point at them, and the coordinators need
- * that history.
+ * served. They are deactivated rather than deleted — a reservation may already
+ * point at them, and the coordinators need that history.
  */
 async function retirarLoQueYaNoEstaAutorizado(
   db: FirebaseFirestore.Firestore,
@@ -457,6 +634,40 @@ function leerHoraDeCierre(horario: string): number | null {
   const esPm = /^p/i.test(match[3]);
 
   return (hora + (esPm ? 12 : 0)) * 60 + minutos;
+}
+
+/**
+ * The three donation sheets are edited by different people at different times
+ * — a coordinator can add a point to `Centros` before the semaphore for it
+ * exists in `Necesidades`, or rename an item in one sheet and not the other.
+ * None of this blocks the import: a point with no needs yet is not a bad
+ * import, just an incomplete one, and the warning is what makes it visible.
+ */
+function reportarInconsistenciasDonaciones(
+  centros: Centro[],
+  elementos: ElementoDonacion[],
+  necesidades: Necesidad[],
+): void {
+  const idsElementos = new Set(elementos.map((elemento) => elemento.id));
+  const idsCentros = new Set(centros.map((centro) => centro.id));
+
+  const huerfanas = necesidades.filter((necesidad) => !idsElementos.has(necesidad.elementoId));
+  if (huerfanas.length > 0) {
+    console.warn(
+      `\n⚠ ${huerfanas.length} fila(s) de 'Necesidades' no coinciden con ningún elemento de 'Catálogo'.`,
+    );
+  }
+
+  const centrosDesconocidos = new Set(
+    necesidades
+      .filter((necesidad) => !idsCentros.has(necesidad.centroId))
+      .map((necesidad) => necesidad.centroNombre),
+  );
+  if (centrosDesconocidos.size > 0) {
+    console.warn(
+      `\n⚠ 'Necesidades' tiene columnas para puntos que no están en 'Centros': ${[...centrosDesconocidos].join(", ")}`,
+    );
+  }
 }
 
 main().catch((error: unknown) => {

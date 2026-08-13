@@ -6,8 +6,8 @@
  * literal unions for closed sets, `| null` for nullable fields.
  */
 
-/** Shift period. Always uppercase. */
-export type Jornada = "AM" | "PM" | "NOCHE";
+/** Shift period. Always uppercase. `AM` 8:00 a.m.–2:00 p.m., `PM` 1:00–5:00 p.m. */
+export type Jornada = "AM" | "PM";
 
 /** Volunteer activity. Closed set enforced by the API on POST. */
 export type Actividad = "Empaque" | "Clasificación" | "Carga y descarga";
@@ -17,6 +17,20 @@ export type EstadoTurno = "ABIERTO" | "CERRADO";
 
 /** Reservation lifecycle state. */
 export type EstadoReserva = "RESERVADO";
+
+/** Donation category. Closed set — the five categories the programme collects. */
+export type CategoriaDonacion =
+  | "Alimentos"
+  | "Elementos de aseo"
+  | "Elementos de cocina"
+  | "Elementos para el hogar"
+  | "Materiales de construcción";
+
+/** Need state for one item at one collection point. */
+export type EstadoNecesidad = "SE_NECESITA" | "SUFICIENTE" | "NO_APLICA";
+
+/** Traffic-light view of `EstadoNecesidad`, ready to color a badge. */
+export type Semaforo = "ROJO" | "VERDE" | "GRIS";
 
 /** Human-readable schedule for a shift period. */
 export interface Horario {
@@ -58,8 +72,8 @@ export interface Centro {
   linkMaps: string | null;
   /**
    * When the point is actually open, e.g. "8:00 a.m. - 9:00 p.m." or
-   * "24 horas". NOT the same as the shift schedule: the evening shift runs to
-   * 10 p.m. but three of the six points close earlier. Show this one.
+   * "24 horas". NOT the same as the shift schedule — CC Unicentro opens at
+   * 9:00 a.m., not 8:00. Show this one.
    */
   horarioOficial: string | null;
   /**
@@ -73,6 +87,41 @@ export interface Centro {
   /** A `0` means the point does not operate in that shift. */
   cuposPorJornada: Record<Jornada, number>;
   activo: boolean;
+}
+
+// --- GET /api/donaciones/necesidades ---------------------------------------
+
+/** One item within a category, already resolved for the chosen centre. */
+export interface NecesidadElemento {
+  /** `${centroId}_${elementoId}`. */
+  id: string;
+  elementoId: string;
+  elemento: string;
+  estado: EstadoNecesidad;
+  semaforo: Semaforo;
+  /** ISO datetime. `null` when the point has never touched this item — treated as `SE_NECESITA`. */
+  actualizadoEn: string | null;
+}
+
+export interface NecesidadesCategoria {
+  categoria: CategoriaDonacion;
+  /** Category-level note, e.g. "Revisa siempre las fechas de vencimiento." */
+  mensaje: string | null;
+  /** `true` when at least one item in this category is `SE_NECESITA`. */
+  necesita: boolean;
+  elementos: NecesidadElemento[];
+}
+
+export interface NecesidadesDeCentro {
+  centroId: string;
+  centroNombre: string;
+  categorias: NecesidadesCategoria[];
+}
+
+/** Query filters for `GET /api/donaciones/necesidades`. */
+export interface NecesidadesQuery {
+  centro: string;
+  categoria?: CategoriaDonacion;
 }
 
 // --- GET /api/turnos[, /:id] ---------------------------------------------
@@ -134,7 +183,7 @@ export interface ReservaTurnoResumen {
   centroNombre: string;
   /** ISO date (YYYY-MM-DD). */
   fecha: string;
-  /** Display label, e.g. "Noche" — not the `NOCHE` enum value. */
+  /** Display label ready to show, e.g. "AM". */
   jornada: string;
   /** Already-formatted schedule label, e.g. "8:00 a.m. - 2:00 p.m.". */
   horario: string;

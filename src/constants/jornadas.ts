@@ -1,28 +1,22 @@
 import type { Jornada } from "@/types/volbogota";
 
-/** Canonical shift order used everywhere shifts are listed: AM → PM → NOCHE. */
-export const JORNADA_ORDER: readonly Jornada[] = ["AM", "PM", "NOCHE"] as const;
+/** Canonical shift order used everywhere shifts are listed: AM → PM. */
+export const JORNADA_ORDER: readonly Jornada[] = ["AM", "PM"] as const;
 
-/**
- * Shifts offered to volunteers: only morning and night — no afternoon.
- * ("Solo necesitamos dos turnos: Mañana y Noche. No se necesita turno de tarde.")
- */
-export const JORNADAS_VOLUNTARIADO: readonly Jornada[] = ["AM", "NOCHE"] as const;
+/** The domain only has these two shifts, so this is just `JORNADA_ORDER`
+ * under the name the volunteer flow reaches for. */
+export const JORNADAS_VOLUNTARIADO: readonly Jornada[] = JORNADA_ORDER;
 
-/** Human-readable label for each shift period (Colombian Spanish). */
+/** Human-readable label for each shift period. */
 export const JORNADA_LABEL: Record<Jornada, string> = {
-  AM: "Mañana",
-  PM: "Tarde",
-  NOCHE: "Noche",
+  AM: "AM",
+  PM: "PM",
 };
 
-/**
- * How each volunteer shift is described to users, per the program's definition
- * (morning: opening → noon; night: 1 p.m. → closing).
- */
-export const JORNADA_HORARIO: Partial<Record<Jornada, string>> = {
-  AM: "Desde la apertura del centro hasta el mediodía",
-  NOCHE: "Desde la 1:00 p.m. hasta el cierre del centro",
+/** Fixed schedule per shift, taken from the spreadsheet. */
+export const JORNADA_HORARIO: Record<Jornada, string> = {
+  AM: "8:00 a.m. - 2:00 p.m.",
+  PM: "1:00 p.m. - 5:00 p.m.",
 };
 
 type JornadaStyle = {
@@ -48,11 +42,5 @@ export const JORNADA_STYLE: Record<Jornada, JornadaStyle> = {
     topBorder: "border-t-rose-400",
     ring: "ring-rose-400",
     selectedRow: "border-rose-400 bg-rose-50 dark:bg-rose-950/30",
-  },
-  NOCHE: {
-    emoji: "🌙",
-    topBorder: "border-t-indigo-400",
-    ring: "ring-indigo-400",
-    selectedRow: "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30",
   },
 };

@@ -1,10 +1,12 @@
-# API VolBogotá — contrato para el front
+# API Centros de Acopio Bogotá — contrato para el front
 
 Base URL local: `http://localhost:3000`
 
-Todos los endpoints viven bajo `/api`. No hay autenticación en esta tanda: los
-seis `GET` son públicos y el `POST` de inscripción también (lo protege la
-validación, no un token).
+Todos los endpoints viven bajo `/api`. Los que alimentan "Quiero ser
+voluntario" y "Quiero donar" son públicos — los `GET` por definición, y el
+`POST` de inscripción también (lo protege la validación, no un token). Los que
+cambian datos operativos — el semáforo de donaciones, las reservas — exigen
+token; ver [Endpoints de coordinación](#endpoints-de-coordinación-apiadmin).
 
 ---
 
@@ -33,7 +35,7 @@ validación, no un token).
 
 | HTTP | `code`                  | Cuándo pasa                                           |
 | ---- | ----------------------- | ----------------------------------------------------- |
-| 404  | `NOT_FOUND`             | El punto o el turno no existe                         |
+| 404  | `NOT_FOUND`             | El punto, el turno o el elemento no existe            |
 | 409  | `CONFLICT`              | Turno lleno, no disponible, o celular ya inscrito ahí |
 | 422  | `UNPROCESSABLE_ENTITY`  | No pasó validación — trae `details` por campo         |
 | 500  | `INTERNAL_SERVER_ERROR` | Error inesperado. El mensaje es genérico a propósito  |
@@ -51,12 +53,14 @@ En un 422, `details` viene listo para pintar el error bajo cada input:
 
 ## Vocabulario
 
-| Concepto    | Qué es                                                               |
-| ----------- | -------------------------------------------------------------------- |
-| **Punto**   | Punto de acopio autorizado. 6 en total. `id` es un slug: `cruz-roja` |
-| **Jornada** | `AM` · `PM` — siempre en mayúsculas. La jornada noche se eliminó     |
-| **Turno**   | Un punto + una fecha + una jornada. 48 en total (6 × 4 días × 2)     |
-| **Reserva** | La inscripción de un voluntario a un turno                           |
+| Concepto      | Qué es                                                                                        |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| **Punto**     | Punto de acopio autorizado. 6 en total. `id` es un slug: `cruz-roja`                          |
+| **Jornada**   | `AM` · `PM` — siempre en mayúsculas. La jornada noche se eliminó                              |
+| **Turno**     | Un punto + una fecha + una jornada. 48 en total (6 × 4 días × 2)                              |
+| **Reserva**   | La inscripción de un voluntario a un turno                                                    |
+| **Categoría** | Una de las 5 categorías de donación (ver abajo)                                               |
+| **Necesidad** | El estado de un elemento del catálogo en un punto: `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA` |
 
 El `turnoId` es predecible — `{puntoId}_{YYYY-MM-DD}_{jornada en minúscula}`, o
 sea `cruz-roja_2026-08-13_am`. Aun así, **no lo armes a mano**: úsalo como viene
@@ -84,18 +88,27 @@ transcripción.
 
 ⚠️ **Palacio de los Deportes recoge donaciones para el Chocó**, no para el sismo
 de Bogotá. Viene dicho en su campo `observaciones` — vale la pena mostrarlo
-distinto en la UI para que nadie done al destino equivocado.
+distinto en la UI para que nadie done al destino equivocado. Es también un caso
+real de `NO_APLICA` en el semáforo de donaciones: no todo el catálogo general
+aplica igual ahí.
 
 ⚠️ El `horario` del turno es el horario nominal de la jornada; el
 `horarioOficial` del punto es cuando la puerta está realmente abierta, y no
 siempre coinciden — Unicentro abre a las 9:00 a.m., no a las 8:00.
 **Muestra el horario oficial del punto** o mandarás gente a un sitio cerrado.
 
+### Las cinco categorías de donación
+
+`Alimentos` · `Elementos de aseo` · `Elementos de cocina` ·
+`Elementos para el hogar` · `Materiales de construcción` — un conjunto
+cerrado, igual que las jornadas.
+
 ---
 
 ## `GET /api/catalogos`
 
-Todo lo que necesitan los selects del formulario, en una sola llamada. **Empieza por acá.**
+Todo lo que necesitan los selects del formulario de voluntariado, en una sola
+llamada. **Empieza por acá para "Quiero ser voluntario".**
 
 ```json
 {
@@ -305,15 +318,89 @@ una inscripción por celular **por turno**.
 
 ---
 
+## Donaciones — "Quiero donar"
+
+Un solo endpoint, para después de elegir el punto de acopio: **sabe qué
+categorías tienen algo pendiente**, y para cada una, **cuáles elementos**. No
+hace falta un catálogo aparte.
+
+### `GET /api/donaciones/necesidades`
+
+**Query params:**
+
+| Param       | Valores      | Req. | Efecto                                       |
+| ----------- | ------------ | ---- | -------------------------------------------- |
+| `centro`    | id de punto  | sí   | Obligatorio                                  |
+| `categoria` | una de las 5 | no   | Si la mandas, `categorias` trae solo esa una |
+
+```jsonc
+// GET /api/donaciones/necesidades?centro=cruz-roja
+{
+  "centroId": "cruz-roja",
+  "centroNombre": "Cruz Roja",
+  "categorias": [
+    {
+      "categoria": "Alimentos",
+      "mensaje": "Recuerda: revisa siempre las fechas de vencimiento.",
+      "necesita": true,
+      "elementos": [
+        {
+          "id": "cruz-roja_alimentos-arroz-blanco",
+          "elementoId": "alimentos-arroz-blanco",
+          "elemento": "Arroz blanco",
+          "estado": "SE_NECESITA",
+          "semaforo": "ROJO",
+          "actualizadoEn": "2026-08-13T08:00:00.000Z",
+        },
+      ],
+    },
+    {
+      "categoria": "Elementos de aseo",
+      "mensaje": null,
+      "necesita": false,
+      "elementos": [/* … */],
+    },
+  ],
+}
+```
+
+- **`categorias`** trae **siempre las 5**, en el mismo orden, aunque una no
+  tenga nada pendiente — la grilla de categorías no espera una segunda
+  llamada para saber qué mostrar.
+- **`necesita`** — `true` si al menos un elemento de esa categoría está en
+  `SE_NECESITA`. Responde "¿cuáles categorías necesitan algo?" sin recorrer
+  `elementos` en el front.
+- **`mensaje`** es una nota **de categoría**, no de ítem — sale una vez por
+  categoría, no repetida por elemento.
+- **`estado`** por elemento — `SE_NECESITA` (🔴) · `SUFICIENTE` (🟢) ·
+  `NO_APLICA` (⚪ ese punto no maneja este ítem — el caso de Palacio de los
+  Deportes, que no recoge para el mismo destino que el resto).
+- **`semaforo`** — el color ya resuelto (`ROJO`/`VERDE`/`GRIS`), para no
+  reimplementar el mapeo estado → color en el front.
+- **`actualizadoEn`** viene `null` cuando el punto nunca ha tocado ese ítem —
+  el semáforo por defecto es `SE_NECESITA`: se asume que hace falta hasta que
+  un coordinador diga lo contrario.
+- `categoria=Alimentos` en la query reduce `categorias` a un solo elemento —
+  útil si ya sabes cuál eligió la persona y quieres un payload más chico.
+- `404` si el punto no existe o está inactivo. Omitir `centro` es `422`.
+
+Cambiar un estado es cosa del panel de coordinación:
+[`PATCH /api/admin/necesidades/{id}`](#patch-apiadminnecesidadesid).
+
+---
+
 ## Notas para el front
 
-**Los cupos cambian mientras el usuario mira la pantalla.** Estos endpoints son
-REST: dan una foto del momento. Dos caminos para que el número baje solo:
+**Los cupos y el semáforo cambian mientras el usuario mira la pantalla.**
+Estos endpoints son REST: dan una foto del momento. Dos caminos para que el
+número o el color bajen solos:
 
-1. **Polling** — re-pedir `/api/turnos` cada 15–30 s. Simple y suficiente.
-2. **Firestore en vivo** — suscribirse a la colección `turnos` con el SDK cliente
-   y `onSnapshot`. Las reglas ya están puestas: `turnos` y `centros` de lectura
-   pública, `reservas` cerrada. Falta montar la config del SDK cliente — pídemela.
+1. **Polling** — re-pedir `/api/turnos` o `/api/donaciones/necesidades` cada
+   15–30 s. Simple y suficiente.
+2. **Firestore en vivo** — suscribirse a las colecciones `turnos`, `centros`,
+   `catalogoDonaciones` o `necesidades` con el SDK cliente y `onSnapshot`. Las
+   reglas ya están puestas: las cuatro son de lectura pública, `reservas`
+   cerrada. Falta montar la config del SDK cliente — pídemela.
 
 **Cero datos de otros voluntarios.** Ningún endpoint público expone nombres,
 celulares ni edades. Solo contadores agregados. Ley 1581 de 2012.
@@ -330,21 +417,24 @@ npm run emulator
 ```
 
 ```bash
-FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Voluntariado_Bogota_Centros_Acopio_2.xlsx
+FIRESTORE_EMULATOR_HOST=localhost:8080 npm run import:excel -- --file ./Centros_de_Acopio_Bogota.xlsx
 ```
 
 ```bash
 FIRESTORE_EMULATOR_HOST=localhost:8080 npm run dev
 ```
 
-Queda con los 6 puntos, 48 turnos y 8.400 cupos reales, sin tocar producción.
+Queda con los 6 puntos, 48 turnos, 8.400 cupos, el catálogo de donaciones y el
+semáforo reales del Excel, sin tocar producción.
 
 ---
 
 # Endpoints de coordinación (`/api/admin`)
 
-**Todos exigen autenticación.** Devuelven nombres, celulares y edades de
-voluntarios: sin el token esto sería una fuga de datos personales.
+**Todos exigen autenticación.** Los de reservas devuelven nombres, celulares y
+edades de voluntarios: sin el token esto sería una fuga de datos personales.
+Los de donaciones no llevan datos personales, pero cambian lo que ve todo el
+mundo en la web, así que también van detrás del token.
 
 ```
 x-admin-token: <token>
@@ -426,6 +516,24 @@ normal en la portería. Formato `HH:MM` en 24 horas.
 - El **check-out calcula `horas`**, que alimentan los certificados de voluntariado.
 - Check-out sin check-in previo → `409`.
 - Salida anterior o igual a la entrada → `409`, en vez de guardar un negativo.
+
+## `PATCH /api/admin/necesidades/{id}`
+
+Cambia el semáforo de un ítem en un punto — lo que el panel de coordinación
+usa para actualizar en tiempo real qué se necesita en cada punto. `{id}` es
+`{centroId}_{elementoId}`, tal como viene en `necesidades[].id` de
+`GET /api/donaciones/necesidades`.
+
+```json
+{ "estado": "SUFICIENTE" }
+```
+
+`estado` acepta `SE_NECESITA` · `SUFICIENTE` · `NO_APLICA`. Responde con el
+mismo objeto de forma pública, incluido el `semaforo` ya resuelto y el
+`actualizadoEn` puesto a la hora del cambio.
+
+No hace falta que el par centro × ítem exista de antes: si nunca se ha tocado,
+este `PATCH` lo crea. `404` si el centro o el elemento no existen.
 
 ## `GET /api/admin/resumen`
 
