@@ -9,9 +9,18 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Every job needs the same four setup steps, and repeating them is the price of
+# splitting the pipeline. What the split buys is a red mark that names the stage:
+# before this, lint and tests shared one check, so a failure meant opening the log
+# to find out which of the two it was.
+#
+# The chain is deliberate rather than parallel. Running tests against code that
+# does not typecheck produces failures that describe the wrong problem, and the
+# minute saved is not worth the minutes spent reading them.
+
 jobs:
-  verify:
-    name: Lint · Types · Tests · Build
+  lint:
+    name: Formato · Lint · Tipos
     runs-on: ubuntu-latest
 
     steps:
@@ -37,9 +46,30 @@ jobs:
       - name: Typecheck
         run: pnpm run typecheck
 
+  test:
+    name: Tests · Build
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Test
         run: pnpm test
 
+      # The build stays with the tests because it is the same question — does this
+      # actually run — and because a build that fails after a green test suite is
+      # the last thing anyone wants to discover from a rollout.
       - name: Build
         run: pnpm run build
 
@@ -49,16 +79,17 @@ jobs:
   # the deploy started in parallel with these checks and did not wait for them, so
   # a commit with failing tests reached production while CI was still running.
   #
-  # `needs: verify` is what closes that. The cost is wall-clock — the two used to
-  # overlap and now they queue — so the rollout starts about three minutes later
-  # than it used to. That is the trade being made on purpose.
+  # `needs: test` is what closes that, and `test` needs `lint`, so nothing reaches
+  # production without both. The cost is wall-clock — these used to overlap and now
+  # they queue — so the rollout starts a few minutes later than it used to. That is
+  # the trade being made on purpose.
   #
   # Requires the backend's own rollout policy to be disabled, otherwise both this
   # job and App Hosting deploy the same commit and the second rollout cancels the
   # first for no reason.
   deploy:
     name: Deploy · App Hosting
-    needs: verify
+    needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
@@ -80,6 +111,7 @@ jobs:
 
       # The rollout builds from the branch on Google's side, so there is nothing to
       # upload from here — this step only asks for it and waits.
+      #
       # The commit goes through the environment rather than into the command line.
       # `github.sha` is a hex digest and safe either way, but a `run:` that
       # interpolates event data directly is the habit that later gets copied onto a
