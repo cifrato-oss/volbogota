@@ -42,11 +42,18 @@ export function CentroOption({ centro, href, mostrarCupos = true }: CentroOption
   return (
     <Link
       href={href}
-      className="group bg-card border-border hover:border-foreground/25 focus-visible:ring-ring flex h-full flex-col gap-3 rounded-xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none"
+      className="group bg-card border-border hover:border-primary focus-visible:border-primary focus-visible:ring-primary/30 flex h-full flex-col overflow-hidden rounded-xl border transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:outline-none"
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1">
-          <h3 className="leading-snug font-medium">{centro.nombre}</h3>
+      <div className="border-border bg-muted/40 group-hover:bg-primary/5 relative border-b px-8 py-3 transition-colors">
+        <h3 className="text-center leading-snug font-semibold tracking-tight">{centro.nombre}</h3>
+        <ArrowRight
+          className="text-muted-foreground group-hover:text-primary absolute top-1/2 right-3 size-4 -translate-y-1/2 transition-transform group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </div>
+
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="space-y-1">
           {ubicacion ? (
             <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
               <MapPin className="size-3.5 shrink-0" aria-hidden />
@@ -60,28 +67,24 @@ export function CentroOption({ centro, href, mostrarCupos = true }: CentroOption
             </p>
           ) : null}
         </div>
-        <ArrowRight
-          className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5"
-          aria-hidden
-        />
+
+        <EstadoActivo activo={centro.activo} />
+
+        {mostrarCupos ? (
+          <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
+            {JORNADAS_VOLUNTARIADO.map((jornada) => (
+              <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
+                <dt className="text-muted-foreground text-[11px]">
+                  <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
+                </dt>
+                <dd className="font-medium tabular-nums">
+                  {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
       </div>
-
-      <EstadoActivo activo={centro.activo} />
-
-      {mostrarCupos ? (
-        <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
-          {JORNADAS_VOLUNTARIADO.map((jornada) => (
-            <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
-              <dt className="text-muted-foreground text-[11px]">
-                <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
-              </dt>
-              <dd className="font-medium tabular-nums">
-                {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
     </Link>
   );
 }
