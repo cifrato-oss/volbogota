@@ -11,12 +11,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { ApiClientError } from "@/lib/api-client";
 import { getErrorMessage } from "@/lib/get-error-message";
+import { cn } from "@/lib/utils";
 import useCreateReserva from "@/queries/reservas/useCreateReserva";
 import { reservaFormSchema, type ReservaFormValues } from "@/schemas/reserva-form";
 import type { Reserva, Turno, ValidationErrorDetail } from "@/types/volbogota";
 
 type ReservaFormProps = {
   turno: Turno | null;
+  /** True when a shift was picked but its cupos are now 0 (or it closed). */
+  turnoLleno?: boolean;
   onSuccess: (reserva: Reserva) => void;
 };
 
@@ -33,7 +36,7 @@ function isFieldName(value: string): value is keyof ReservaFormValues {
 }
 
 /** Volunteer sign-up form. Submits to POST /api/reservas via `useCreateReserva`. */
-export function ReservaForm({ turno, onSuccess }: ReservaFormProps) {
+export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFormProps) {
   const mutation = useCreateReserva();
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -199,8 +202,15 @@ export function ReservaForm({ turno, onSuccess }: ReservaFormProps) {
           {mutation.isPending ? "Enviando…" : "Reservar cupo"}
         </Button>
         {!turno ? (
-          <p className="text-muted-foreground text-xs sm:text-center">
-            Selecciona un turno arriba para habilitar la reserva.
+          <p
+            className={cn(
+              "text-xs sm:text-center",
+              turnoLleno ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {turnoLleno
+              ? "El turno que elegiste se quedó sin cupos. Elige otro turno para continuar."
+              : "Selecciona un turno arriba para habilitar la reserva."}
           </p>
         ) : null}
       </div>

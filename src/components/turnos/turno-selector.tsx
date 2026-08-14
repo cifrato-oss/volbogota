@@ -4,21 +4,19 @@ import { useMemo } from "react";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  JORNADA_HORARIO,
-  JORNADA_LABEL,
-  JORNADA_STYLE,
-  JORNADAS_VOLUNTARIADO,
-} from "@/constants/jornadas";
+import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
 import { formatFecha } from "@/lib/format-fecha";
 import { formatNumero } from "@/lib/format-numero";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
-import useTurnos from "@/queries/turnos/useTurnos";
 import type { Jornada, Turno } from "@/types/volbogota";
 
 type TurnoSelectorProps = {
-  centroId: string;
+  turnos: Turno[];
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
   selectedTurnoId: string | null;
   onSelect: (turno: Turno) => void;
 };
@@ -31,9 +29,15 @@ function capitalizar(texto: string): string {
  * Shift picker for volunteers. Two columns — Mañana and Noche (no afternoon) —
  * each listing every date with live availability. Pick a date to book it.
  */
-export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSelectorProps) {
-  const { data: turnos, isPending, isError, error, refetch } = useTurnos({ centro: centroId });
-
+export function TurnoSelector({
+  turnos,
+  isPending,
+  isError,
+  error,
+  onRetry,
+  selectedTurnoId,
+  onSelect,
+}: TurnoSelectorProps) {
   const porJornada = useMemo(() => {
     const grouped = new Map<Jornada, Turno[]>(
       JORNADAS_VOLUNTARIADO.map((jornada) => [jornada, []]),
@@ -48,7 +52,7 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
   }, [turnos]);
 
   if (isError) {
-    return <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />;
+    return <ErrorState message={getErrorMessage(error)} onRetry={onRetry} />;
   }
 
   if (isPending) {
@@ -79,21 +83,17 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
         if (list.length === 0) return null;
 
         const style = JORNADA_STYLE[jornada];
-        const horario = JORNADA_HORARIO[jornada] ?? list[0]?.horario.etiqueta ?? "";
 
         return (
           <div
             key={jornada}
             className={cn("bg-card rounded-2xl border border-t-4 p-4", style.topBorder)}
           >
-            <div className="text-center">
-              <div className="text-lg font-semibold tracking-tight">
-                <span aria-hidden>{style.emoji}</span> Jornada {JORNADA_LABEL[jornada]}
-              </div>
-              <div className="text-muted-foreground text-sm">{horario}</div>
+            <div className="text-center text-lg font-semibold tracking-tight">
+              <span aria-hidden>{style.emoji}</span> Jornada {JORNADA_LABEL[jornada]}
             </div>
 
-            <div className="mt-3 space-y-2">
+            <div className="scroll-turnos mt-3 max-h-96 space-y-2 overflow-y-auto overscroll-contain pr-1 pl-0.5 sm:max-h-none sm:overflow-visible sm:px-0">
               {list.map((turno) => {
                 const disabled = turno.agotado || turno.estado !== "ABIERTO";
                 const selected = turno.id === selectedTurnoId;
@@ -119,9 +119,15 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
                       disabled && "hover:border-border cursor-not-allowed opacity-50",
                     )}
                   >
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span aria-hidden>📅</span>
-                      {capitalizar(formatFecha(turno.fecha))}
+                    <span className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span aria-hidden>📅</span>
+                        {capitalizar(formatFecha(turno.fecha))}
+                      </span>
+                      <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <span aria-hidden>🕐</span>
+                        {turno.horario.etiqueta}
+                      </span>
                     </span>
                     <span
                       className={cn(

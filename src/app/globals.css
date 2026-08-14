@@ -128,3 +128,24 @@
     @apply font-sans;
   }
 }
+
+/* Always-visible, clear scrollbar for the shift lists (used on mobile, where
+   native overlay scrollbars hide the fact that the list scrolls). */
+.scroll-turnos {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent) transparent;
+}
+.scroll-turnos::-webkit-scrollbar {
+  width: 8px;
+}
+.scroll-turnos::-webkit-scrollbar-track {
+  margin-block: 0.25rem;
+  background: transparent;
+}
+.scroll-turnos::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+}
+.scroll-turnos::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
+}
