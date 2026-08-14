@@ -44,6 +44,16 @@
  * autoriza de verdad es HOOK_TOKEN, que `doPost` valida antes de tocar nada.
  *
  * La URL del despliegue va en SHEETS_WEBHOOK_URL del backend.
+ *
+ * Para publicar un cambio de `doPost` después: Implementar → Gestionar
+ * implementaciones → el lápiz sobre la que ya existe → Versión: «Nueva versión»
+ * → Implementar. Eso conserva la URL.
+ *
+ * Lo que NO hay que usar es «Nueva implementación», que acuña un ID distinto: el
+ * backend le sigue hablando al viejo y las reservas dejan de llegar a la hoja sin
+ * que nada se ponga rojo. Ya pasó una vez. Guardar el archivo (⌘S) no despliega
+ * nada, y tampoco hace falta: el sentido hoja → backend corre el código guardado,
+ * y solo el sentido contrario depende de la versión desplegada.
  */
 
 var HOJA_CENTROS = "Centros";
