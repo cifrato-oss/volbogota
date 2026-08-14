@@ -13,6 +13,7 @@ export const siteConfig = {
     { label: "Inicio", href: "/" },
     { label: "Donar", href: "/donar" },
     { label: "Ser voluntario", href: "/voluntarios" },
+    { label: "Donar sangre", href: "/sangre" },
   ],
 } as const;
 

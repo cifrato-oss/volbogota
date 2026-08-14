@@ -27,6 +27,13 @@ const OPCIONES: Opcion[] = [
     cta: "Elegir centro y jornada",
     accent: "border-t-primary hover:border-primary/40",
   },
+  {
+    href: "/sangre",
+    emoji: "🩸",
+    titulo: "Quiero donar sangre",
+    cta: "Ver qué tipos reciben hoy",
+    accent: "border-t-rose-500 hover:border-rose-400",
+  },
 ];
 
 /** Entry screen: split the flow into donating vs. volunteering. */
@@ -40,7 +47,7 @@ export function InicioLanding() {
         <p className="text-muted-foreground text-lg text-pretty">{siteConfig.description}</p>
       </header>
 
-      <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+      <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {OPCIONES.map((opcion) => (
           <Link
             key={opcion.href}
@@ -67,7 +74,8 @@ export function InicioLanding() {
 
       <p className="text-muted-foreground mx-auto max-w-xl text-center text-xs text-pretty">
         ¿No sabes por dónde empezar? Si tienes cosas para entregar, elige “Quiero donar”. Si quieres
-        ayudar en persona en un centro, elige “Quiero ser voluntario”.
+        ayudar en persona en un centro, elige “Quiero ser voluntario”. Para donar sangre, cada punto
+        recibe tipos distintos según el día.
       </p>
     </div>
   );
