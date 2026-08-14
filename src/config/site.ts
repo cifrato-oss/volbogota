@@ -9,7 +9,11 @@ export const siteConfig = {
   description:
     "Aquí encontrarás toda la información sobre los puntos de acopio oficiales de la Alcaldía Mayor de Bogotá y la Cruz Roja.",
   locale: "es-CO",
-  nav: [{ label: "Inicio", href: "/" }],
+  nav: [
+    { label: "Inicio", href: "/" },
+    { label: "Donar", href: "/donar" },
+    { label: "Ser voluntario", href: "/voluntario" },
+  ],
 } as const;
 
 export type SiteConfig = typeof siteConfig;
