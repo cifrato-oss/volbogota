@@ -37,6 +37,7 @@ import {
 } from "@/server/modules/reservas/reservas.service";
 
 import {
+  estadoCupoDesdeSheet,
   estadoDesdeSheet,
   estadoHaciaSheet,
   estadoNecesidadDesdeSheet,
@@ -178,10 +179,14 @@ function aTurnoDeHoja(fila: FilaTurno): TurnoDeHoja {
     // The sheet names the point the way `Centros` writes it, and the slug is
     // what turns that into an id — the same route `Reservas` takes.
     centroId: slugify(fila.puntoDeAcopio),
+    // The raw name travels too: only it can tell `Cruz Roja – Sede
+    // Administrativa` from a point the catalogue genuinely does not have.
+    puntoDeAcopio: fila.puntoDeAcopio,
     fecha: fechaDesdeSheet(fila.fecha),
     jornada,
     dia: fila.dia,
     horario,
+    abierto: estadoCupoDesdeSheet(fila.estadoCupo),
     cuposTotales: fila.cuposTotales,
   };
 }

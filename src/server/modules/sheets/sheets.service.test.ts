@@ -68,6 +68,7 @@ function filaTurno(overrides: Record<string, unknown> = {}) {
     jornada: "AM",
     dia: null,
     horario: null,
+    estadoCupo: null,
     cuposTotales: "150",
     ...overrides,
   };
@@ -239,10 +240,11 @@ describe("sincronizarTurnosDesdeSheet", () => {
     // The row is gone from the board; another row keeps the batch non-empty.
     await sincronizarTurnos({ filas: [filaTurno({ jornada: "PM", cuposTotales: "150" })] });
 
-    // Closed, not deleted: a reservation may still point at it.
+    // Closed, not deleted: a reservation may still point at it. The capacity
+    // survives — zeroing it threw away what the shift held.
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
       estado: "CERRADO",
-      cuposTotales: 0,
+      cuposTotales: 300,
     });
   });
 
@@ -392,6 +394,38 @@ describe("sincronizarTurnosDesdeSheet", () => {
     await sincronizarTurnos({ filas: [filaTurno({ fecha: "16/08/2026", dia: null })] });
 
     expect(db.peek("turnos/punto-usaquen_2026-08-16_am")).toMatchObject({ diaSemana: "Domingo" });
+  });
+
+  it("keeps a shift open when Estado del cupo is blank but there is capacity", async () => {
+    // The column is a formula and it is not dragged to the bottom of the board:
+    // most rows are blank while holding perfectly good shifts.
+    await sincronizarTurnos({ filas: [filaTurno({ estadoCupo: null })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ estado: "ABIERTO" });
+  });
+
+  it("honours the affirmative spellings the board actually uses", async () => {
+    for (const valor of ["Abierto", "open", "Sí", "Disponible"]) {
+      await sincronizarTurnos({ filas: [filaTurno({ estadoCupo: valor })] });
+      expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ estado: "ABIERTO" });
+    }
+  });
+
+  it("closes the shift when the board says so, whatever the capacity", async () => {
+    await sincronizarTurnos({ filas: [filaTurno({ estadoCupo: "Cerrado", cuposTotales: "300" })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+      estado: "CERRADO",
+      cuposTotales: 300,
+    });
+  });
+
+  it("does not let a derived 'Sin cupos' freeze a full shift shut", async () => {
+    // It comes from `Disponibles` hitting zero, not from a decision. Honouring
+    // it would mean a cancellation could never reopen the shift.
+    await sincronizarTurnos({ filas: [filaTurno({ estadoCupo: "Sin cupos" })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ estado: "ABIERTO" });
   });
 
   it("reports a board row naming a point the catalogue does not have", async () => {

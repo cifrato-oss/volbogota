@@ -16,6 +16,7 @@ import {
   ACTIVIDADES,
   construirTurnos,
   etiquetaJornada,
+  resolverCentroId,
   toTurnoPublico,
   type Centro,
   type TurnoDeHoja,
@@ -92,9 +93,17 @@ export async function sincronizarCentros(centros: Centro[]): Promise<Sincronizac
   return { centros: guardados, turnos, desactivados };
 }
 
+/** Ids of the points no board row could be attached to, through the same resolver. */
 function desconocidos(centros: Centro[], filas: TurnoDeHoja[]): string[] {
   const conocidos = new Set(centros.map((centro) => centro.id));
-  return [...new Set(filas.map((f) => f.centroId).filter((id) => !conocidos.has(id)))];
+
+  return [
+    ...new Set(
+      filas
+        .filter((fila) => resolverCentroId(fila.puntoDeAcopio, conocidos) === null)
+        .map((fila) => fila.centroId),
+    ),
+  ];
 }
 
 export type SincronizacionTurnos = {
@@ -123,7 +132,7 @@ export async function sincronizarTurnos(filas: TurnoDeHoja[]): Promise<Sincroniz
   }
 
   const guardados = await guardarTurnos(turnos);
-  const cerrados = await cerrarTurnosAusentes(turnos.map((turno) => turno.id));
+  const cerrados = await cerrarTurnosAusentes(turnos);
 
   return {
     turnos: guardados,

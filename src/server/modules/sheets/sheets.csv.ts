@@ -133,6 +133,7 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
     dia: indiceDe(encabezado, "Día"),
     jornada: indiceDe(encabezado, "Jornada"),
     horario: indiceDe(encabezado, "Horario"),
+    estadoCupo: indiceDe(encabezado, "Estado del cupo"),
     cuposTotales: indiceDe(encabezado, "Cupos totales"),
   };
 
@@ -159,6 +160,7 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
       jornada,
       dia: valores[columnas.dia]?.trim() || null,
       horario: valores[columnas.horario]?.trim() || null,
+      estadoCupo: valores[columnas.estadoCupo]?.trim() || null,
       cuposTotales: valores[columnas.cuposTotales]?.trim() || "0",
     });
   }

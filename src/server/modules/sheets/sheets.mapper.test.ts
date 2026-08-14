@@ -8,6 +8,7 @@ import {
   fechaHaciaSheet,
   horarioDesdeSheet,
   jornadaDesdeSheet,
+  jornadaHaciaSheet,
   nombreCompletoHaciaSheet,
   partirNombreCompleto,
   siNoDesdeSheet,
@@ -47,6 +48,16 @@ describe("jornadas", () => {
   it("ignores case and surrounding space", () => {
     expect(jornadaDesdeSheet(" am ")).toBe("AM");
     expect(jornadaDesdeSheet("pm")).toBe("PM");
+  });
+
+  it("keeps the accent, because ID_Turno is matched literally on the sheet", () => {
+    // `MAÑANA` folded to `MANANA` builds an id no row has, and the Reservados
+    // write-back lands nowhere.
+    expect(jornadaDesdeSheet("Mañana")).toBe("MAÑANA");
+    expect(jornadaHaciaSheet("MAÑANA")).toBe("MAÑANA");
+    expect(turnoIdDesdeSheet("Punto Usaquén|2026-08-15|MAÑANA")).toBe(
+      "punto-usaquen_2026-08-15_manana",
+    );
   });
 
   it("accepts a slot the programme invented, normalised to one spelling", () => {

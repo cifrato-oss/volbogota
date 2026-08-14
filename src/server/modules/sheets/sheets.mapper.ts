@@ -268,6 +268,39 @@ export const ESTADOS_SHEET = ESTADOS_RESERVA.map(estadoHaciaSheet);
  * than the domain's screaming-snake ones. The sheet's own legend: "Rojo = se
  * necesita · Verde = no se necesita · Gris = no se recibe."
  */
+/**
+ * The board's `Estado del cupo`, when it states one.
+ *
+ * `true` opens the shift, `false` closes it whatever the capacity says, and
+ * `null` means the cell decides nothing — which is most of them: the column is
+ * a formula and it is not dragged to the bottom of the board, so 124 of 188
+ * rows sit blank while holding perfectly good shifts. A blank cell with
+ * capacity is an open shift; reading it as closed would retire all of them.
+ *
+ * `Sin cupos` is deliberately absent. It is derived from `Disponibles` reaching
+ * zero, not a decision someone made, and honouring it would freeze a full shift
+ * shut so a cancellation could never reopen it.
+ */
+const ESTADO_CUPO_DESDE_SHEET: Record<string, boolean> = {
+  abierto: true,
+  abierta: true,
+  open: true,
+  si: true,
+  disponible: true,
+  activo: true,
+  cerrado: false,
+  cerrada: false,
+  closed: false,
+  no: false,
+  "no disponible": false,
+  inactivo: false,
+};
+
+export function estadoCupoDesdeSheet(valor: string | null): boolean | null {
+  if (!valor) return null;
+  return ESTADO_CUPO_DESDE_SHEET[normalizar(valor).toLowerCase()] ?? null;
+}
+
 const ESTADO_NECESIDAD_DESDE_SHEET: Record<string, EstadoNecesidad> = {
   "se necesita": "SE_NECESITA",
   "no se necesita": "SUFICIENTE",
