@@ -7,7 +7,12 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A superseded run on a pull request is worth cancelling — nobody needs checks
+  # for a commit that has already been replaced. A run on `main` is not: it carries
+  # the deploy, and cancelling it mid-rollout leaves that commit undeployed with
+  # nothing red to show for it. That is how four merges landed in production's past
+  # while `main` moved on.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Every job needs the same four setup steps, and repeating them is the price of
 # splitting the pipeline. What the split buys is a red mark that names the stage:
@@ -85,14 +90,24 @@ jobs:
   # push and now waits for the checks — and that is the trade being made on
   # purpose.
   #
-  # Requires the backend's own rollout policy to be disabled, otherwise both this
-  # job and App Hosting deploy the same commit and the second rollout cancels the
-  # first for no reason.
+  # The backend's own rollout policy is disabled, and it has to stay that way. While
+  # it was on, every merge asked for two builds seconds apart — one from here, one
+  # from App Hosting watching `main`. Spaced-out merges hid it; four in ten minutes
+  # did not, and App Hosting started answering `409 unable to queue the operation`.
   deploy:
     name: Deploy · App Hosting
     needs: [lint, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+
+    # One rollout at a time, and queued rather than cancelled. App Hosting answers
+    # a second concurrent build request with `409 unable to queue the operation`,
+    # so two merges close together used to fail the later one outright. Waiting is
+    # the correct behaviour: the deploy is five minutes, the queue costs nothing,
+    # and every commit gets its turn.
+    concurrency:
+      group: deploy-apphosting
+      cancel-in-progress: false
 
     # Workload Identity Federation: GitHub mints a short-lived OIDC token per run
     # and Google exchanges it for credentials scoped to one service account. No key
