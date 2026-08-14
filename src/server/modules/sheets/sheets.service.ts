@@ -1,5 +1,6 @@
 import { badRequest, isAppError, unprocessable } from "@/server/http/errors";
 import { logger } from "@/server/lib/logger";
+import { findCentros } from "@/server/modules/catalogo/catalogo.repository";
 import {
   ACTIVIDADES,
   slugify,
@@ -13,6 +14,13 @@ import {
   type SincronizacionCatalogo,
   type SincronizacionTurnos,
 } from "@/server/modules/catalogo/catalogo.service";
+import { guardarNecesidadesEnLote } from "@/server/modules/donaciones/donaciones.repository";
+import {
+  buildElementoId,
+  buildNecesidadId,
+  categoriaDonacionSchema,
+  type Necesidad,
+} from "@/server/modules/donaciones/donaciones.schema";
 import { crearReservaSchema, type Reserva } from "@/server/modules/reservas/reservas.schema";
 import {
   actualizarEstadoReserva,
@@ -25,6 +33,7 @@ import {
 import {
   estadoDesdeSheet,
   estadoHaciaSheet,
+  estadoNecesidadDesdeSheet,
   fechaDesdeSheet,
   horarioDesdeSheet,
   jornadaDesdeSheet,
@@ -35,11 +44,13 @@ import {
 } from "./sheets.mapper";
 import type {
   FilaCentro,
+  FilaDonacionRechazada,
   FilaReserva,
   FilaTurno,
   FilaTurnoRechazada,
   ResultadoFila,
   SincronizarCentrosInput,
+  SincronizarDonacionesInput,
   SincronizarReservasInput,
   SincronizarTurnosInput,
 } from "./sheets.schema";
@@ -379,4 +390,91 @@ export async function sincronizarReservasDesdeSheet(
   });
 
   return { resultados, creadas, actualizadas };
+}
+
+// --- Donaciones -------------------------------------------------------------
+
+/**
+ * Applies a `Donaciones` edit: one status cell, one centre × item pair.
+ *
+ * Unlike `Centros`, this sheet does not own the catalogue of items or of
+ * points — both already live in Firestore, one seeded by `import-excel`, the
+ * other synced from its own sheet — so a cell naming either one wrong is
+ * reported back and skipped, the same way a bad `Turnos` row is, instead of
+ * being treated as a reason to reject cells that were typed correctly.
+ */
+export async function sincronizarDonacionesDesdeSheet(
+  input: SincronizarDonacionesInput,
+): Promise<{ necesidades: number; rechazadas: FilaDonacionRechazada[] }> {
+  const centros = await findCentros(false);
+  const nombrePorCentroId = new Map(centros.map((centro) => [centro.id, centro.nombre]));
+
+  const necesidades: Necesidad[] = [];
+  const rechazadas: FilaDonacionRechazada[] = [];
+  const ahora = new Date().toISOString();
+
+  for (const fila of input.filas) {
+    const categoriaParsed = categoriaDonacionSchema.safeParse(fila.categoria);
+    if (!categoriaParsed.success) {
+      rechazadas.push({
+        fila: fila.fila,
+        motivo: `La categoría "${fila.categoria}" no es válida.`,
+      });
+      continue;
+    }
+
+    const categoria = categoriaParsed.data;
+    const elementoId = buildElementoId(categoria, fila.elemento);
+
+    for (const [nombreCentro, textoEstado] of Object.entries(fila.estados)) {
+      // A blank cell means the pair has not been touched, not "not needed" —
+      // leaving it alone is what lets a coordinator clear a cell back to the
+      // service's own default instead of writing over it with nothing.
+      if (!textoEstado) continue;
+
+      const centroId = slugify(nombreCentro);
+      const centroNombre = nombrePorCentroId.get(centroId);
+
+      if (!centroNombre) {
+        rechazadas.push({
+          fila: fila.fila,
+          motivo: `El punto de acopio "${nombreCentro}" no está en la hoja Centros.`,
+        });
+        continue;
+      }
+
+      const estado = estadoNecesidadDesdeSheet(textoEstado);
+      if (!estado) {
+        rechazadas.push({
+          fila: fila.fila,
+          motivo: `El estado "${textoEstado}" no es válido para "${nombreCentro}".`,
+        });
+        continue;
+      }
+
+      necesidades.push({
+        id: buildNecesidadId(centroId, elementoId),
+        centroId,
+        centroNombre,
+        elementoId,
+        categoria,
+        elemento: fila.elemento,
+        estado,
+        actualizadoEn: ahora,
+      });
+    }
+  }
+
+  if (necesidades.length === 0) {
+    throw badRequest("Ninguna celda del rango enviado se pudo aplicar.");
+  }
+
+  await guardarNecesidadesEnLote(necesidades);
+
+  logger.info("Necesidades sincronizadas desde la hoja", {
+    necesidades: necesidades.length,
+    rechazadas: rechazadas.length,
+  });
+
+  return { necesidades: necesidades.length, rechazadas };
 }

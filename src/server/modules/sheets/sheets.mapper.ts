@@ -21,6 +21,7 @@ import {
   type Horario,
   type Jornada,
 } from "@/server/modules/catalogo/catalogo.schema";
+import type { EstadoNecesidad } from "@/server/modules/donaciones/donaciones.schema";
 import { ESTADOS_RESERVA, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
 
 /** The sheet separates the parts of a shift id with pipes. */
@@ -244,3 +245,20 @@ function normalizar(valor: string): string {
 
 /** Every state the sheet may send, for schema validation messages. */
 export const ESTADOS_SHEET = ESTADOS_RESERVA.map(estadoHaciaSheet);
+
+/**
+ * The `Donaciones` sheet's status dropdown, in the sheet's own words rather
+ * than the domain's screaming-snake ones. The sheet's own legend: "Rojo = se
+ * necesita · Verde = ya hay suficiente · Gris = no aplica en ese punto."
+ */
+const ESTADO_NECESIDAD_DESDE_SHEET: Record<string, EstadoNecesidad> = {
+  "se necesita": "SE_NECESITA",
+  "no se necesita": "SUFICIENTE",
+  "no aplica": "NO_APLICA",
+};
+
+/** `null` for a value the dropdown does not use, rather than throwing: one bad
+ *  cell should not take the rest of the sheet's edit down with it. */
+export function estadoNecesidadDesdeSheet(valor: string): EstadoNecesidad | null {
+  return ESTADO_NECESIDAD_DESDE_SHEET[normalizar(valor).toLowerCase()] ?? null;
+}

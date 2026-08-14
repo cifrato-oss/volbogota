@@ -144,6 +144,34 @@ export const sincronizarReservasSchema = z.object({
 });
 export type SincronizarReservasInput = z.infer<typeof sincronizarReservasSchema>;
 
+// --- Donaciones -------------------------------------------------------------
+
+/**
+ * A row of the `Donaciones` sheet: one item, one raw status cell per centre.
+ *
+ * Unlike `Centros` or `Turnos`, this sheet has no fixed set of columns — every
+ * centre gets its own, and the programme adds or retires one from time to
+ * time — so Apps Script sends the whole row as a map keyed by the centre's
+ * display name instead of naming each column in the schema.
+ */
+export const filaDonacionSchema = z.object({
+  /** 1-based row number in the sheet, so a rejected cell can name it. */
+  fila: z.number().int().positive(),
+  categoria: z.string().trim().min(1, "La categoría es obligatoria."),
+  elemento: z.string().trim().min(1, "El elemento es obligatorio."),
+  /** Centre's display name → the cell's raw text, or `null` when it is blank. */
+  estados: z.record(z.string(), z.string().nullable()),
+});
+export type FilaDonacion = z.infer<typeof filaDonacionSchema>;
+
+export const sincronizarDonacionesSchema = z.object({
+  filas: z.array(filaDonacionSchema).min(1, "No llegó ninguna fila."),
+});
+export type SincronizarDonacionesInput = z.infer<typeof sincronizarDonacionesSchema>;
+
+/** Why a `Donaciones` cell could not be applied, for the coordinator who typed it. */
+export type FilaDonacionRechazada = { fila: number; motivo: string };
+
 /** What Apps Script writes back into the row it sent. */
 export type ResultadoFila = {
   fila: number;

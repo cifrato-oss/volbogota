@@ -45,6 +45,7 @@
 var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 var HOJA_TURNOS = "Turnos";
+var HOJA_DONACIONES = "Donaciones";
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
@@ -86,6 +87,8 @@ function alEditar(e) {
     alEditarHoja(e, hoja, OBLIGATORIAS_CENTROS, COLUMNAS_QUE_SINCRONIZAN, sincronizarHojas);
   } else if (nombre === HOJA_TURNOS) {
     alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarHojas);
+  } else if (nombre === HOJA_DONACIONES) {
+    alEditarDonaciones(e, hoja);
   }
 }
 
@@ -128,6 +131,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("VolBogotá")
     .addItem("Sincronizar centros y turnos", "sincronizarHojas")
+    .addItem("Sincronizar donaciones", "sincronizarDonaciones")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
     .addSeparator()
     .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
@@ -285,6 +289,77 @@ function escribirValidacionTurnos(tablero, respuesta) {
     var numero = filas[j].fila;
     escribirCelda(hoja, mapa, numero, "Validación", motivos[numero] || "OK");
   }
+}
+
+// --- Donaciones -------------------------------------------------------------
+
+/**
+ * `Donaciones` has no fixed columns to watch: every centre gets its own, and
+ * the programme adds or retires one from time to time. What arms the sync
+ * here is simpler than for `Centros` — any edit past `Elemento`, on a row that
+ * actually names an item. `Categoría`/`Elemento` themselves are excluded on
+ * purpose: renaming an item is a catalogue edit, and the catalogue is not
+ * this sheet's job — it's seeded separately and stays stable.
+ */
+function alEditarDonaciones(e, hoja) {
+  var mapa = mapearEncabezados(hoja, ["Categoría", "Elemento"]);
+  var colElemento = mapa.columna("Elemento");
+  if (!colElemento) return;
+
+  var primera = e.range.getColumn();
+  if (primera <= colElemento) return;
+
+  var desde = e.range.getRow();
+  var hasta = desde + e.range.getNumRows() - 1;
+
+  for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
+    if (normalizar(hoja.getRange(fila, colElemento).getValue()) !== "") {
+      sincronizarDonaciones();
+      return;
+    }
+  }
+}
+
+/**
+ * Sends the whole `Donaciones` sheet, not just the edited cell.
+ *
+ * One POST per edit is simpler than isolating a single cell, and 56 items ×
+ * 6 points is nothing to resend — the same trade `sincronizarHojas` already
+ * makes for `Centros` and `Turnos`.
+ */
+function sincronizarDonaciones() {
+  var hoja = hojaPorNombre(HOJA_DONACIONES);
+  var mapa = mapearEncabezados(hoja, ["Categoría", "Elemento"]);
+  var colCategoria = mapa.columna("Categoría");
+  var colElemento = mapa.columna("Elemento");
+
+  var columnasCentro = [];
+  var ultimaColumna = hoja.getLastColumn();
+  for (var col = colElemento + 1; col <= ultimaColumna; col++) {
+    var nombreCentro = leer(hoja, mapa.encabezado, col);
+    if (nombreCentro) columnasCentro.push({ columna: col, nombre: nombreCentro });
+  }
+
+  if (columnasCentro.length === 0) return;
+
+  var filas = [];
+
+  for (var fila = mapa.encabezado + 1; fila <= hoja.getLastRow(); fila++) {
+    var categoria = leer(hoja, fila, colCategoria);
+    var elemento = leer(hoja, fila, colElemento);
+    if (!categoria || !elemento) continue;
+
+    var estados = {};
+    for (var i = 0; i < columnasCentro.length; i++) {
+      estados[columnasCentro[i].nombre] = leer(hoja, fila, columnasCentro[i].columna);
+    }
+
+    filas.push({ fila: fila, categoria: categoria, elemento: elemento, estados: estados });
+  }
+
+  if (filas.length === 0) return;
+
+  llamar("/api/hooks/sheets/donaciones", { filas: filas });
 }
 
 // --- Reservas -------------------------------------------------------------

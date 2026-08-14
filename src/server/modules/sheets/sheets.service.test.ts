@@ -11,14 +11,24 @@ vi.mock("@/server/db/firestore", () => ({
     reservas: "reservas",
     catalogos: "catalogos",
     inscritos: "inscritos",
+    catalogoDonaciones: "catalogoDonaciones",
+    necesidades: "necesidades",
   },
   getDb: () => db,
 }));
 
-const { sincronizarCentrosDesdeSheet, sincronizarReservasDesdeSheet, sincronizarTurnosDesdeSheet } =
-  await import("./sheets.service");
-const { sincronizarCentrosSchema, sincronizarReservasSchema, sincronizarTurnosSchema } =
-  await import("./sheets.schema");
+const {
+  sincronizarCentrosDesdeSheet,
+  sincronizarDonacionesDesdeSheet,
+  sincronizarReservasDesdeSheet,
+  sincronizarTurnosDesdeSheet,
+} = await import("./sheets.service");
+const {
+  sincronizarCentrosSchema,
+  sincronizarDonacionesSchema,
+  sincronizarReservasSchema,
+  sincronizarTurnosSchema,
+} = await import("./sheets.schema");
 
 // Through the schema, exactly as the route does: Apps Script sends every cell
 // as text, and the coercion is part of what these tests are checking.
@@ -32,6 +42,21 @@ function sincronizarReservas(body: unknown) {
 
 function sincronizarTurnos(body: unknown) {
   return sincronizarTurnosDesdeSheet(sincronizarTurnosSchema.parse(body));
+}
+
+function sincronizarDonaciones(body: unknown) {
+  return sincronizarDonacionesDesdeSheet(sincronizarDonacionesSchema.parse(body));
+}
+
+/** A row of the `Donaciones` sheet, as Apps Script reads it. */
+function filaDonacion(overrides: Record<string, unknown> = {}) {
+  return {
+    fila: 5,
+    categoria: "Alimentos",
+    elemento: "Arroz blanco",
+    estados: { "Cruz Roja": "Se necesita" },
+    ...overrides,
+  };
 }
 
 /** A row of the `Turnos` board, as Apps Script reads it. */
@@ -630,5 +655,129 @@ describe("sincronizarReservasDesdeSheet", () => {
 
     expect(creadas).toBe(1);
     expect(resultados[0]?.codigo).toMatch(/^VB-/);
+  });
+});
+
+describe("sincronizarDonacionesDesdeSheet", () => {
+  beforeEach(async () => {
+    await sincronizarCentros({
+      filas: [
+        filaCentro({ puntoDeAcopio: "Cruz Roja" }),
+        filaCentro({ puntoDeAcopio: "CC Unicentro" }),
+      ],
+      fechas: FECHAS,
+    });
+  });
+
+  it("writes the need for the point the cell named", async () => {
+    const resultado = await sincronizarDonaciones({ filas: [filaDonacion()] });
+
+    expect(resultado.necesidades).toBe(1);
+    expect(resultado.rechazadas).toEqual([]);
+    expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
+      centroId: "cruz-roja",
+      centroNombre: "Cruz Roja",
+      categoria: "Alimentos",
+      elemento: "Arroz blanco",
+      estado: "SE_NECESITA",
+    });
+  });
+
+  it("reads the sheet's own words for each of the three states", async () => {
+    await sincronizarDonaciones({
+      filas: [
+        filaDonacion({
+          estados: {
+            "Cruz Roja": "Se necesita",
+            "CC Unicentro": "No se necesita",
+          },
+        }),
+      ],
+    });
+
+    expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
+      estado: "SE_NECESITA",
+    });
+    expect(db.peek("necesidades/cc-unicentro_alimentos-arroz-blanco")).toMatchObject({
+      estado: "SUFICIENTE",
+    });
+  });
+
+  it("maps the grey state to NO_APLICA", async () => {
+    await sincronizarDonaciones({
+      filas: [filaDonacion({ estados: { "Cruz Roja": "No aplica" } })],
+    });
+
+    expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
+      estado: "NO_APLICA",
+    });
+  });
+
+  it("leaves an untouched pair alone instead of writing over it with a blank cell", async () => {
+    await sincronizarDonaciones({ filas: [filaDonacion()] });
+
+    // A second sync with the same item's cell blank for a different point must
+    // not create — or clear — anything for a pair nobody typed into.
+    await sincronizarDonaciones({
+      filas: [filaDonacion({ estados: { "Cruz Roja": null, "CC Unicentro": "Se necesita" } })],
+    });
+
+    expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
+      estado: "SE_NECESITA",
+    });
+    expect(db.peek("necesidades/cc-unicentro_alimentos-arroz-blanco")).toMatchObject({
+      estado: "SE_NECESITA",
+    });
+  });
+
+  it("names the cell whose point is not in the catalogue, without failing the rest", async () => {
+    const resultado = await sincronizarDonaciones({
+      filas: [
+        filaDonacion({
+          estados: { "Cruz Roja": "Se necesita", "Estadio El Campín": "Se necesita" },
+        }),
+      ],
+    });
+
+    expect(resultado.necesidades).toBe(1);
+    expect(resultado.rechazadas).toEqual([
+      { fila: 5, motivo: expect.stringContaining("Estadio El Campín") },
+    ]);
+  });
+
+  it("names the cell whose status is not one of the dropdown's words", async () => {
+    const resultado = await sincronizarDonaciones({
+      filas: [
+        filaDonacion({ estados: { "Cruz Roja": "Tal vez" } }),
+        filaDonacion({ fila: 6, elemento: "Frijol" }),
+      ],
+    });
+
+    expect(resultado.necesidades).toBe(1);
+    expect(resultado.rechazadas).toEqual([{ fila: 5, motivo: expect.stringContaining("Tal vez") }]);
+  });
+
+  it("rejects an unknown category without failing the rest of the batch", async () => {
+    const resultado = await sincronizarDonaciones({
+      filas: [filaDonacion({ fila: 6, categoria: "Electrodomésticos" }), filaDonacion({ fila: 7 })],
+    });
+
+    expect(resultado.necesidades).toBe(1);
+    expect(resultado.rechazadas).toEqual([
+      { fila: 6, motivo: expect.stringContaining("Electrodomésticos") },
+    ]);
+  });
+
+  it("refuses a batch in which no cell could be applied", async () => {
+    await expect(
+      sincronizarDonaciones({ filas: [filaDonacion({ estados: { "Cruz Roja": null } })] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("converges on the same document however many times the same cell is resent", async () => {
+    await sincronizarDonaciones({ filas: [filaDonacion()] });
+    await sincronizarDonaciones({ filas: [filaDonacion()] });
+
+    expect(db.pathsIn("necesidades")).toHaveLength(1);
   });
 });
