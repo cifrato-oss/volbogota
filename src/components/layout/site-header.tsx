@@ -40,9 +40,10 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <span className="bg-primary/10 text-primary inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium">
+        <span className="bg-primary/10 text-primary inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
           <span aria-hidden>📅</span>
-          {siteConfig.eventLabelLong}
+          <span className="sm:hidden">{siteConfig.eventLabel}</span>
+          <span className="hidden sm:inline">{siteConfig.eventLabelLong}</span>
         </span>
       </div>
     </header>
