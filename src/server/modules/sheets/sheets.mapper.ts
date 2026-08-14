@@ -209,6 +209,20 @@ export function estadoHaciaSheet(estado: EstadoReserva): string {
   return ESTADO_HACIA_SHEET[estado];
 }
 
+/**
+ * The board's `Asistencia` column, derived from the booking's state.
+ *
+ * Null while the shift has not been settled: an empty cell reads as "not marked
+ * yet", where a `No` would claim the volunteer failed to show up. The column
+ * replaced `Check-in`, `Check-out` and `Horas`, which the board dropped — those
+ * still live in Firestore and in the admin export, where hours are counted.
+ */
+export function asistenciaHaciaSheet(estado: EstadoReserva): string {
+  if (estado === "ASISTIO") return "Sí";
+  if (estado === "NO_ASISTIO") return "No";
+  return "";
+}
+
 /** The sheet's yes/no columns. Anything not recognisably "yes" is false. */
 export function siNoDesdeSheet(valor: string | null | undefined): boolean {
   if (!valor) return false;

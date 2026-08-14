@@ -122,16 +122,6 @@ describe("empujarReservasAlSheet", () => {
     });
   });
 
-  it("writes hours with a comma, the decimal separator the sheet's locale uses", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
-    vi.stubGlobal("fetch", fetchMock);
-
-    await empujarReservasAlSheet([reserva()]);
-
-    // A dot would read as a thousands separator and turn 5.92 into 592.
-    expect(loEnviado(fetchMock).cuerpo.reservas[0].horas).toBe("5,92");
-  });
-
   it("stamps the registration time in Bogotá, not UTC", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
@@ -141,17 +131,40 @@ describe("empujarReservasAlSheet", () => {
     expect(loEnviado(fetchMock).cuerpo.reservas[0].fechaRegistro).toBe("13/08/2026 09:05");
   });
 
-  it("leaves check-in and check-out empty rather than sending null into a cell", async () => {
+  it("leaves Asistencia empty while the shift has not been settled", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
 
-    await empujarReservasAlSheet([reserva({ checkIn: null, checkOut: null, horas: null })]);
+    await empujarReservasAlSheet([reserva({ estado: "RESERVADO" })]);
 
-    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({
-      checkIn: "",
-      checkOut: "",
-      horas: "",
-    });
+    // A `No` here would claim the volunteer failed to show up.
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({ asistencia: "" });
+  });
+
+  it.each([
+    ["ASISTIO", "Sí"],
+    ["NO_ASISTIO", "No"],
+  ] as const)("marks Asistencia as %s once attendance is settled", async (estado, esperado) => {
+    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await empujarReservasAlSheet([reserva({ estado })]);
+
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({ asistencia: esperado });
+  });
+
+  it("no longer sends the columns the board dropped", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await empujarReservasAlSheet([reserva({ checkIn: "08:12", checkOut: "13:05", horas: 4.88 })]);
+
+    // `Check-in`, `Check-out` and `Horas` are gone from the sheet; the times
+    // stay in Firestore and in the admin export, where hours are counted.
+    const fila = loEnviado(fetchMock).cuerpo.reservas[0];
+    expect(fila).not.toHaveProperty("checkIn");
+    expect(fila).not.toHaveProperty("checkOut");
+    expect(fila).not.toHaveProperty("horas");
   });
 
   it("reports a failure instead of throwing it at the booking", async () => {
