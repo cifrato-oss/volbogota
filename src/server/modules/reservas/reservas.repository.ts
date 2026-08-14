@@ -239,7 +239,7 @@ export async function crearReservaEnTransaccion(input: CrearReservaInput): Promi
         contactoEmergencia: input.contactoEmergencia,
         eps: input.eps,
         estado: "RESERVADO",
-        asistio: null,
+        asistencia: null,
         creadoEn,
         checkIn: null,
         checkOut: null,

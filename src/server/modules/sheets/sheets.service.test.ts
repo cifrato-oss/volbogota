@@ -680,17 +680,18 @@ describe("asistencia desde la hoja", () => {
   });
 
   it.each([
-    ["Sí", true],
-    ["si", true],
-    ["X", true],
-    ["No", false],
+    ["Sí", "ASISTIO"],
+    ["si", "ASISTIO"],
+    ["X", "ASISTIO"],
+    ["No", "NO_ASISTIO"],
+    ["Ausente", "NO_ASISTIO"],
   ])("reads %s as %s", async (celda, esperado) => {
     const { resultados } = await sincronizarReservas({ filas: [filaReserva()] });
     const codigo = resultados[0]?.codigo ?? "";
 
     await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: celda })] });
 
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistio: esperado });
+    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistencia: esperado });
   });
 
   it("leaves a blank cell as not marked, which is not the same as absent", async () => {
@@ -699,7 +700,7 @@ describe("asistencia desde la hoja", () => {
 
     await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: null })] });
 
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistio: null });
+    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistencia: null });
   });
 
   it("does not touch the booking's state", async () => {
@@ -711,7 +712,7 @@ describe("asistencia desde la hoja", () => {
     await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: "No" })] });
 
     expect(db.peek(`reservas/${codigo}`)).toMatchObject({
-      asistio: false,
+      asistencia: "NO_ASISTIO",
       estado: "RESERVADO",
     });
   });

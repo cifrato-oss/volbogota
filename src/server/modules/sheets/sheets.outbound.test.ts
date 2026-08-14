@@ -30,7 +30,7 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     celular: "3001234567",
     edad: 30,
     autorizoDatos: true,
-    asistio: null,
+    asistencia: null,
     nombreEmergencia: null,
     contactoEmergencia: null,
     eps: null,
@@ -136,7 +136,7 @@ describe("empujarReservasAlSheet", () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
 
-    await empujarReservasAlSheet([reserva({ estado: "ASISTIO", asistio: true })]);
+    await empujarReservasAlSheet([reserva({ estado: "ASISTIO", asistencia: "ASISTIO" })]);
 
     // Pushing it would overwrite what a coordinator marked at the door.
     expect(loEnviado(fetchMock).cuerpo.reservas[0]).not.toHaveProperty("asistencia");

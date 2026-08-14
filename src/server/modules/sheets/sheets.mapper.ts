@@ -22,7 +22,11 @@ import {
   type Jornada,
 } from "@/server/modules/catalogo/catalogo.schema";
 import type { EstadoNecesidad } from "@/server/modules/donaciones/donaciones.schema";
-import { ESTADOS_RESERVA, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
+import {
+  ESTADOS_RESERVA,
+  type Asistencia,
+  type EstadoReserva,
+} from "@/server/modules/reservas/reservas.schema";
 
 /** The sheet separates the parts of a shift id with pipes. */
 const SEPARADOR_ID_SHEET = "|";
@@ -220,12 +224,12 @@ export function estadoHaciaSheet(estado: EstadoReserva): string {
  * It is also independent of `Estado` — a booking can be `Confirmado` and still
  * have no attendance recorded.
  */
-export function asistenciaDesdeSheet(valor: string | null | undefined): boolean | null {
+export function asistenciaDesdeSheet(valor: string | null | undefined): Asistencia | null {
   if (!valor) return null;
 
   const texto = normalizar(valor).toLowerCase();
-  if (["si", "sí", "yes", "asistio", "asistió", "x", "1", "true"].includes(texto)) return true;
-  if (["no", "false", "0", "no asistio", "no asistió"].includes(texto)) return false;
+  if (["si", "yes", "asistio", "x", "1", "true"].includes(texto)) return "ASISTIO";
+  if (["no", "false", "0", "no asistio", "no vino", "ausente"].includes(texto)) return "NO_ASISTIO";
 
   return null;
 }

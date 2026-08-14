@@ -11,6 +11,7 @@ import {
 } from "./reservas.admin.repository";
 import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
 import type {
+  Asistencia,
   ConfirmacionReserva,
   CrearReservaInput,
   EstadoReserva,
@@ -99,9 +100,9 @@ export async function actualizarEstadoReserva(
 
 export async function registrarAsistenciaReserva(
   codigo: string,
-  asistio: boolean,
+  asistencia: Asistencia,
 ): Promise<Reserva> {
-  return registrarAsistencia(codigo, asistio);
+  return registrarAsistencia(codigo, asistencia);
 }
 
 export async function registrarHoraReserva(

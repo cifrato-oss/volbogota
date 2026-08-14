@@ -3,7 +3,12 @@ import { conflict, notFound } from "@/server/http/errors";
 
 import { hashCelular } from "./reservas.repository";
 import { puedeTransicionar } from "./reservas.admin.schema";
-import { reservaSchema, type EstadoReserva, type Reserva } from "./reservas.schema";
+import {
+  reservaSchema,
+  type Asistencia,
+  type EstadoReserva,
+  type Reserva,
+} from "./reservas.schema";
 import type { ListarReservasInput } from "./reservas.admin.schema";
 
 function parseReserva(doc: FirebaseFirestore.DocumentSnapshot): Reserva {
@@ -91,16 +96,19 @@ function normalizar(valor: string): string {
  * the two answer different questions — whether the booking is still valid, and
  * whether the person actually turned up.
  */
-export async function registrarAsistencia(codigo: string, asistio: boolean): Promise<Reserva> {
+export async function registrarAsistencia(
+  codigo: string,
+  asistencia: Asistencia,
+): Promise<Reserva> {
   const db = getDb();
   const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);
 
   const snap = await reservaRef.get();
   if (!snap.exists) throw notFound("La reserva no existe.");
 
-  await reservaRef.update({ asistio });
+  await reservaRef.update({ asistencia });
 
-  return { ...parseReserva(snap), asistio };
+  return { ...parseReserva(snap), asistencia };
 }
 
 export async function cambiarEstado(codigo: string, nuevo: EstadoReserva): Promise<Reserva> {

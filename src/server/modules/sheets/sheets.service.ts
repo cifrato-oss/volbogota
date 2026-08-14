@@ -287,9 +287,9 @@ async function aplicarEstadoYHoras(reserva: Reserva, fila: FilaReserva): Promise
     }
   }
 
-  const asistio = asistenciaDesdeSheet(fila.asistencia);
-  if (asistio !== null && asistio !== actual.asistio) {
-    actual = await registrarAsistenciaReserva(actual.codigo, asistio);
+  const asistencia = asistenciaDesdeSheet(fila.asistencia);
+  if (asistencia !== null && asistencia !== actual.asistencia) {
+    actual = await registrarAsistenciaReserva(actual.codigo, asistencia);
   }
 
   if (fila.checkIn && fila.checkIn !== actual.checkIn) {
