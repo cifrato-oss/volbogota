@@ -23,6 +23,25 @@ const celularSchema = z
 export const EDAD_MINIMA = 18;
 
 /**
+ * Emergency phone and health provider.
+ *
+ * Optional on purpose: the columns exist in the sheet and the form is about to
+ * ask for them, but a booking that already works must not start failing because
+ * a client has not shipped the fields yet. An empty string is stored as null so
+ * "not asked" and "left blank" read the same downstream.
+ *
+ * The emergency number is not held to the volunteer's own `3XXXXXXXXX` rule: it
+ * is often a landline or a relative abroad, and rejecting those would block the
+ * booking over the one field meant to help in an emergency.
+ */
+const opcionalSchema = (max: number, mensaje: string) =>
+  z
+    .union([z.string(), z.null()])
+    .optional()
+    .transform((valor) => valor?.trim() || null)
+    .pipe(z.string().max(max, mensaje).nullable());
+
+/**
  * Booking request.
  *
  * Deliberately short: name, surname, phone, age and consent. Every field here
@@ -54,6 +73,12 @@ export const crearReservaSchema = z.object({
   autorizoDatos: z.literal(true, {
     error: "Debes autorizar el tratamiento de datos personales.",
   }),
+  /** Sheet column R, `Contacto emergencia` — who to call. */
+  nombreEmergencia: opcionalSchema(60, "El nombre del contacto es demasiado largo."),
+  /** Sheet column S, `Cel. emergencia` — the number to call. */
+  contactoEmergencia: opcionalSchema(40, "El contacto de emergencia es demasiado largo."),
+  /** Sheet column T, `EPS`. */
+  eps: opcionalSchema(80, "El nombre de la EPS es demasiado largo."),
 });
 export type CrearReservaInput = z.infer<typeof crearReservaSchema>;
 
@@ -70,6 +95,11 @@ export const reservaSchema = z.object({
   celular: z.string(),
   edad: z.number().int(),
   autorizoDatos: z.boolean(),
+  // Nullable and defaulted: bookings taken before these columns existed carry
+  // neither, and failing them against the schema would empty the listing.
+  nombreEmergencia: z.string().nullable().default(null),
+  contactoEmergencia: z.string().nullable().default(null),
+  eps: z.string().nullable().default(null),
   estado: estadoReservaSchema,
   creadoEn: z.string(),
   checkIn: z.string().nullable(),

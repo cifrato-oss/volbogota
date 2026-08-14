@@ -30,6 +30,9 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     celular: "3001234567",
     edad: 30,
     autorizoDatos: true,
+    nombreEmergencia: null,
+    contactoEmergencia: null,
+    eps: null,
     estado: "ASISTIO",
     creadoEn: "2026-08-13T14:05:00.000Z",
     checkIn: "08:05",
@@ -62,6 +65,41 @@ afterEach(() => {
 });
 
 describe("empujarReservasAlSheet", () => {
+  it("carries the emergency contact and the EPS to their own columns", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await empujarReservasAlSheet([
+      reserva({
+        nombreEmergencia: "Pedro Pérez",
+        contactoEmergencia: "601 555 4433",
+        eps: "Sanitas",
+      }),
+    ]);
+
+    // Apps Script writes these into columns R, S and T. The name and the number
+    // are separate headings, so they must not collapse into one field.
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({
+      contactoEmergencia: "Pedro Pérez",
+      celEmergencia: "601 555 4433",
+      eps: "Sanitas",
+    });
+  });
+
+  it("sends an empty cell for a booking taken before the columns existed", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await empujarReservasAlSheet([reserva()]);
+
+    // `escribirCelda` skips empty values, so the coordinator's own text survives.
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({
+      contactoEmergencia: "",
+      celEmergencia: "",
+      eps: "",
+    });
+  });
+
   it("sends the row in the shapes the sheet reads, not ours", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);

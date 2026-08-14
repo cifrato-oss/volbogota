@@ -80,16 +80,65 @@ describe("crearReservaSchema", () => {
     expect(issuesFor({ ...valido, turnoId: "" })).toContain("turnoId");
   });
 
-  it("ignores fields the form no longer collects", () => {
+  it("ignores fields the contract does not model", () => {
+    // `eps` and `contactoEmergencia` used to be dropped here too; they are
+    // modelled now, and the emergency contact is the phone, not an object.
+    const parsed = crearReservaSchema.parse({ ...valido, notas: "algo", actividad: "Empaque" });
+
+    expect(parsed).not.toHaveProperty("notas");
+    expect(parsed).not.toHaveProperty("actividad");
+  });
+});
+
+describe("contacto de emergencia y EPS", () => {
+  const base = {
+    nombre: "Fulanita",
+    apellido: "Pérez",
+    celular: "3001234567",
+    edad: 22,
+    turnoId: "punto-usaquen_2026-08-15_manana",
+    autorizoDatos: true as const,
+  };
+
+  it("los acepta y los recorta", () => {
     const parsed = crearReservaSchema.parse({
-      ...valido,
-      eps: "Sura",
-      notas: "algo",
-      contactoEmergencia: { nombre: "Pedro", celular: "3009876543" },
+      ...base,
+      nombreEmergencia: "  Pedro Pérez  ",
+      contactoEmergencia: "  601 555 4433  ",
+      eps: "  Sanitas  ",
     });
 
-    expect(parsed).not.toHaveProperty("eps");
-    expect(parsed).not.toHaveProperty("notas");
-    expect(parsed).not.toHaveProperty("contactoEmergencia");
+    // Nombre y número son columnas distintas (R y S): no se mezclan.
+    expect(parsed).toMatchObject({
+      nombreEmergencia: "Pedro Pérez",
+      contactoEmergencia: "601 555 4433",
+      eps: "Sanitas",
+    });
+  });
+
+  it("no rompe una reserva que todavía no los manda", () => {
+    // El formulario aún no los pide: exigirlos tumbaría cada inscripción.
+    expect(crearReservaSchema.parse(base)).toMatchObject({
+      nombreEmergencia: null,
+      contactoEmergencia: null,
+      eps: null,
+    });
+  });
+
+  it("lee una celda vacía como ausente, no como cadena vacía", () => {
+    expect(crearReservaSchema.parse({ ...base, contactoEmergencia: "   ", eps: "" })).toMatchObject(
+      {
+        contactoEmergencia: null,
+        eps: null,
+      },
+    );
+  });
+
+  it("no exige el formato de celular colombiano al contacto de emergencia", () => {
+    // Suele ser un fijo o un familiar en el exterior.
+    expect(
+      crearReservaSchema.parse({ ...base, contactoEmergencia: "+34 600 123 456" })
+        .contactoEmergencia,
+    ).toBe("+34 600 123 456");
   });
 });

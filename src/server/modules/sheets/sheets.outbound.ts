@@ -43,6 +43,12 @@ type FilaSaliente = {
   jornada: string;
   idTurno: string;
   autorizoDatos: string;
+  /** Sheet column R. */
+  contactoEmergencia: string;
+  /** Sheet column S. */
+  celEmergencia: string;
+  /** Sheet column T. */
+  eps: string;
   estado: string;
   checkIn: string;
   checkOut: string;
@@ -62,6 +68,9 @@ function aFilaSaliente(reserva: Reserva): FilaSaliente {
     jornada: jornadaHaciaSheet(reserva.jornada as Jornada),
     idTurno: turnoIdHaciaSheet(reserva.centroNombre, reserva.fecha, reserva.jornada as Jornada),
     autorizoDatos: siNoHaciaSheet(reserva.autorizoDatos),
+    contactoEmergencia: reserva.nombreEmergencia ?? "",
+    celEmergencia: reserva.contactoEmergencia ?? "",
+    eps: reserva.eps ?? "",
     estado: estadoHaciaSheet(reserva.estado),
     checkIn: reserva.checkIn ?? "",
     checkOut: reserva.checkOut ?? "",
