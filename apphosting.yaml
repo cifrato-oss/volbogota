@@ -140,6 +140,6 @@ env:
   # backend empuja las reservas hacia la hoja. La URL no es un secreto — quien
   # autoriza es SHEETS_HOOK_TOKEN, que el script valida en el cuerpo.
   - variable: SHEETS_WEBHOOK_URL
-    value: https://script.google.com/macros/s/AKfycbzbD7yENoGLlE5xWch47-pXzDqAasniAylMGuwhBlf3TBvtKjuQ6zFdvAnVi9kaViOUxA/exec
+    value: https://script.google.com/macros/s/AKfycbw5prSWqr51TbBD48It72IL_IiFJNEFNbeM5CJyqWE30pKmydGOmlVRhUXnU3B4C6BV2Q/exec
     availability:
       - RUNTIME
