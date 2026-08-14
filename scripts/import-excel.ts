@@ -19,10 +19,9 @@ import ExcelJS from "exceljs";
 
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
 import {
-  ETIQUETA_JORNADA,
   HORARIOS,
-  JORNADAS,
   buildTurnoId,
+  etiquetaJornada,
   slugify,
   type Centro,
   type Jornada,
@@ -128,9 +127,21 @@ function cuposDe(row: ExcelJS.Row, column: number | null): number {
  */
 const ALIAS_CUPOS: Record<Jornada, string[]> = {
   AM: ["Cupos AM", "Cupos Mañana"],
-  PM: ["Cupos PM", "Cupos Tarde"],
+  TARDE: ["Cupos TARDE", "Cupos Tarde"],
+  PM: ["Cupos PM"],
+  MADRUGADA: ["Cupos MADRUGADA", "Cupos Madrugada"],
   NOCHE: ["Cupos Noche"],
 };
+
+/** The slots this seed knows a column for; the board may open others. */
+const JORNADAS = Object.keys(ALIAS_CUPOS);
+
+/** Every slot in `ALIAS_CUPOS` has a default, so this only guards the types. */
+function horarioDe(jornada: Jornada) {
+  const horario = HORARIOS[jornada];
+  if (!horario) throw new Error(`La jornada ${jornada} no tiene horario por defecto.`);
+  return horario;
+}
 
 /**
  * The column that holds a jornada's capacity.
@@ -143,7 +154,7 @@ function columnaDeCupos(
   columna: (titulo: string) => number | null,
   jornada: Jornada,
 ): number | null {
-  const presentes = ALIAS_CUPOS[jornada].filter((titulo) => columna(titulo) !== null);
+  const presentes = (ALIAS_CUPOS[jornada] ?? []).filter((titulo) => columna(titulo) !== null);
 
   if (presentes.length > 1) {
     console.warn(
@@ -173,7 +184,9 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
   // A jornada whose column the file omits is read as zero; what fails loudly is
   // a sheet with no capacity column at all.
   const colCuposAm = columnaDeCupos(columna, "AM");
+  const colCuposTarde = columnaDeCupos(columna, "TARDE");
   const colCuposPm = columnaDeCupos(columna, "PM");
+  const colCuposMadrugada = columnaDeCupos(columna, "MADRUGADA");
   const colCuposNoche = columnaDeCupos(columna, "NOCHE");
 
   if (!colCuposAm && !colCuposPm) {
@@ -215,7 +228,9 @@ function readCentros(workbook: ExcelJS.Workbook): Centro[] {
       actividades,
       cuposPorJornada: {
         AM: cuposDe(row, colCuposAm),
+        TARDE: cuposDe(row, colCuposTarde),
         PM: cuposDe(row, colCuposPm),
+        MADRUGADA: cuposDe(row, colCuposMadrugada),
         NOCHE: cuposDe(row, colCuposNoche),
       },
       activo: (readOptional(row, colActivo) ?? "Sí").toLowerCase().startsWith("s"),
@@ -279,7 +294,7 @@ function buildTurnos(centros: Centro[], fechas: string[]): Turno[] {
           fecha,
           diaSemana: diaSemana(fecha),
           jornada,
-          horario: HORARIOS[jornada],
+          horario: horarioDe(jornada),
           horarioOficialCentro: centro.horarioOficial,
           centroActivo: centro.activo,
           cuposTotales: cupos,
@@ -535,8 +550,8 @@ async function main(): Promise<void> {
     fechas,
     jornadas: JORNADAS.map((jornada) => ({
       valor: jornada,
-      etiqueta: ETIQUETA_JORNADA[jornada],
-      horario: HORARIOS[jornada],
+      etiqueta: etiquetaJornada(jornada),
+      horario: horarioDe(jornada),
     })),
     categoriasDonacion: [...CATEGORIAS_DONACION],
     actualizadoEn: new Date().toISOString(),
@@ -602,10 +617,12 @@ function reportarHorariosEnConflicto(centros: Centro[]): void {
 
     for (const jornada of JORNADAS) {
       if ((centro.cuposPorJornada[jornada] ?? 0) === 0) continue;
-      if (cierre >= enMinutos(HORARIOS[jornada].fin)) continue;
+
+      const horario = horarioDe(jornada);
+      if (cierre >= enMinutos(horario.fin)) continue;
 
       conflictos.push(
-        `   ${centro.nombre} — jornada ${jornada} (${HORARIOS[jornada].etiqueta}), cierra ${centro.horarioOficial}`,
+        `   ${centro.nombre} — jornada ${jornada} (${horario.etiqueta}), cierra ${centro.horarioOficial}`,
       );
     }
   }

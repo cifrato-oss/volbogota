@@ -53,6 +53,8 @@ leyendo y escribiendo **la misma base que sirve el evento** — ver
 - Front: http://localhost:3000
 - API: http://localhost:3000/api/health
 - Contrato de endpoints para el front: [`docs/api.md`](docs/api.md)
+- Probar la sincronización con la hoja sin tocar producción:
+  [`docs/probar-con-una-copia-de-la-hoja.md`](docs/probar-con-una-copia-de-la-hoja.md)
 
 ### Sin credenciales, con el emulador
 

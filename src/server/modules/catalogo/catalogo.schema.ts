@@ -8,12 +8,26 @@ import { z } from "zod";
  * what lives in Firestore once imported, not the raw spreadsheet columns.
  */
 
-/** Morning and afternoon everywhere; evening only where the point opens at night. */
-export const JORNADAS = ["AM", "PM", "NOCHE"] as const;
-export const jornadaSchema = z.enum(JORNADAS, {
-  error: () => `La jornada debe ser una de: ${JORNADAS.join(", ")}.`,
-});
-export type Jornada = z.infer<typeof jornadaSchema>;
+/**
+ * A shift's slot within the day.
+ *
+ * Open on purpose. The `Turnos` sheet is the authority on which slots actually
+ * run, and the programme invents them as the operation demands — `MADRUGADA 1`,
+ * `MADRUGADA 2`. A closed enum would reject the row rather than open the shift,
+ * so the value is normalised to one spelling and otherwise taken as written.
+ */
+export type Jornada = string;
+
+/** `  madrugada  1 ` → `MADRUGADA 1`: one spelling per slot, whoever typed it. */
+export function normalizarJornada(valor: string): Jornada {
+  return valor.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().replace(/\s+/g, " ").toUpperCase();
+}
+
+export const jornadaSchema = z
+  .string()
+  .trim()
+  .min(1, "La jornada es obligatoria.")
+  .transform(normalizarJornada);
 
 export const horarioSchema = z.object({
   inicio: z.string(),
@@ -22,19 +36,35 @@ export const horarioSchema = z.object({
 });
 export type Horario = z.infer<typeof horarioSchema>;
 
-/** Default schedule per shift, used when a `Turnos` row does not state its own. */
-export const HORARIOS: Record<Jornada, Horario> = {
-  AM: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
-  PM: { inicio: "13:00", fin: "17:00", etiqueta: "1:00 p.m. - 5:00 p.m." },
+/**
+ * Fallback schedule for the slots the programme runs by default.
+ *
+ * Only reached when a `Turnos` row leaves its `Horario` cell empty — the sheet's
+ * own column wins whenever it is filled. A slot that is not here and states no
+ * schedule is rejected: inventing hours for `MADRUGADA 2` would publish a time
+ * nobody authorised.
+ */
+export const HORARIOS: Record<string, Horario> = {
+  AM: { inicio: "08:00", fin: "13:00", etiqueta: "8:00 a.m. - 1:00 p.m." },
+  TARDE: { inicio: "13:00", fin: "18:00", etiqueta: "1:00 p.m. - 6:00 p.m." },
+  PM: { inicio: "18:00", fin: "21:00", etiqueta: "6:00 p.m. - 9:00 p.m." },
+  MADRUGADA: { inicio: "00:00", fin: "06:00", etiqueta: "12:00 a.m. - 6:00 a.m." },
+  /** Kept for boards still written against the older three-slot day. */
   NOCHE: { inicio: "19:00", fin: "22:00", etiqueta: "7:00 p.m. - 10:00 p.m." },
 };
 
-/** Label used in the spreadsheet and in the UI. */
-export const ETIQUETA_JORNADA: Record<Jornada, string> = {
+/** Display label: the canonical casing for known slots, verbatim for the rest. */
+const ETIQUETAS: Record<string, string> = {
   AM: "AM",
   PM: "PM",
+  TARDE: "Tarde",
   NOCHE: "Noche",
+  MADRUGADA: "Madrugada",
 };
+
+export function etiquetaJornada(jornada: Jornada): string {
+  return ETIQUETAS[jornada] ?? jornada;
+}
 
 export const ACTIVIDADES = ["Empaque", "Clasificación", "Carga y descarga"] as const;
 export const actividadSchema = z.enum(ACTIVIDADES, {
@@ -74,11 +104,12 @@ export const centroSchema = z.object({
   observaciones: z.string().nullable(),
   actividades: z.array(actividadSchema),
   /**
-   * Partial on purpose: a point that never opens at night has no `NOCHE` key,
-   * and the centres already stored carry only `AM`/`PM`. Requiring every shift
-   * would fail them all against the schema and empty the catalogue.
+   * Nominal capacity per slot, as `Centros` states it. Sparse on purpose: a
+   * point that never opens at night carries no `NOCHE` key, and the slots
+   * themselves are open-ended, so the keys are whatever that sheet's columns
+   * name. Informative only — the `Turnos` board is what creates shifts.
    */
-  cuposPorJornada: z.partialRecord(jornadaSchema, z.number().int().nonnegative()),
+  cuposPorJornada: z.record(z.string(), z.number().int().nonnegative()),
   activo: z.boolean(),
   coordinador: coordinadorSchema.nullable(),
 });
@@ -135,7 +166,9 @@ export function toTurnoPublico(turno: Turno): TurnoPublico {
 
 /** `vive-claro_2026-08-13_am` — stable, URL-safe, and derivable from its parts. */
 export function buildTurnoId(centroId: string, fecha: string, jornada: Jornada): string {
-  return `${centroId}_${fecha}_${jornada.toLowerCase()}`;
+  // Slugged, not just lower-cased: a slot like `MADRUGADA 1` would otherwise
+  // put a space in a document id.
+  return `${centroId}_${fecha}_${slugify(jornada)}`;
 }
 
 const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -157,48 +190,33 @@ export type TurnoDeHoja = {
   centroId: string;
   fecha: string;
   jornada: Jornada;
+  /**
+   * The board's own `Día` label, or null to derive it from the date. An
+   * overnight shift spans two days — `Sábado-Domingo` — which the date alone
+   * cannot express.
+   */
+  dia: string | null;
   /** Null when the row leaves the column empty: `HORARIOS` decides. */
   horario: Horario | null;
   cuposTotales: number;
 };
 
 /**
- * The programme's shifts: one per centre × date × slot, overridden by `Turnos`.
+ * The programme's shifts, one per row of the `Turnos` board.
  *
- * `Centros` states each point's nominal capacity per shift, and the product of
- * centres, dates and slots is what that implies. But nominal capacity cannot say
- * that El Campín takes 300 on Thursday and 150 on Friday, or that a point opens
- * at night on one day only — so a row of the `Turnos` sheet wins over the
- * product for the shift it names, and creates that shift when the product does
- * not reach it at all, which is how a date outside the calendar gets opened.
+ * That board is the sole authority on which shifts exist. `Centros` states a
+ * nominal capacity per slot, but deriving shifts from the product of centres,
+ * dates and slots is what coupled the two sheets: editing an address rebuilt
+ * every shift, and the per-day figures the board had authorised were flattened
+ * back to nominal. A row states its own point, day, slot, hours and capacity,
+ * so the two syncs no longer have to agree about anything.
  *
- * Capacity 0 still means the point does not open in that shift, whichever side
- * states it: the sheet's own instructions are explicit that it must not be
- * bookable. Dropping a row from `Turnos` is therefore not a deletion — the shift
- * reverts to the nominal capacity `Centros` gives it.
+ * Capacity 0 still means the point does not open in that shift: the sheet's own
+ * instructions are explicit that it must not be bookable.
  */
-export function construirTurnos(
-  centros: Centro[],
-  fechas: string[],
-  filas: TurnoDeHoja[] = [],
-): Turno[] {
+export function construirTurnos(centros: Centro[], filas: TurnoDeHoja[]): Turno[] {
   const porId = new Map(centros.map((centro) => [centro.id, centro]));
   const turnos = new Map<string, Turno>();
-
-  for (const centro of centros) {
-    for (const fecha of fechas) {
-      for (const jornada of JORNADAS) {
-        const turno = armarTurno(
-          centro,
-          fecha,
-          jornada,
-          centro.cuposPorJornada[jornada] ?? 0,
-          null,
-        );
-        turnos.set(turno.id, turno);
-      }
-    }
-  }
 
   for (const fila of filas) {
     const centro = porId.get(fila.centroId);
@@ -206,28 +224,42 @@ export function construirTurnos(
     // sheet by the sync; here it simply has no centre to hang off.
     if (!centro) continue;
 
-    const turno = armarTurno(centro, fila.fecha, fila.jornada, fila.cuposTotales, fila.horario);
+    // Likewise for a slot with neither its own hours nor a default: the sync
+    // has already turned that into a verdict for the row's Validación cell.
+    const horario = horarioDeJornada(fila.jornada, fila.horario);
+    if (!horario) continue;
+
+    const turno = armarTurno(centro, fila, horario);
     turnos.set(turno.id, turno);
   }
 
   return [...turnos.values()];
 }
 
-function armarTurno(
-  centro: Centro,
-  fecha: string,
-  jornada: Jornada,
-  cuposTotales: number,
-  horario: Horario | null,
-): Turno {
+/**
+ * The hours a row runs at: its own column, or the slot's default.
+ *
+ * Null when neither exists, which the sync turns into a rejected row. Inventing
+ * a schedule for a slot nobody has defined would publish an hour no coordinator
+ * authorised, and a volunteer would show up to a closed door.
+ */
+export function horarioDeJornada(jornada: Jornada, horario: Horario | null): Horario | null {
+  return horario ?? HORARIOS[jornada] ?? null;
+}
+
+function armarTurno(centro: Centro, fila: TurnoDeHoja, horario: Horario): Turno {
+  const { fecha, jornada, cuposTotales } = fila;
+
   return {
     id: buildTurnoId(centro.id, fecha, jornada),
     centroId: centro.id,
     centroNombre: centro.nombre,
     fecha,
-    diaSemana: diaSemanaDe(fecha),
+    // The board's label wins: only it can say `Sábado-Domingo` for a shift that
+    // starts one night and ends the next morning.
+    diaSemana: fila.dia ?? diaSemanaDe(fecha),
     jornada,
-    horario: horario ?? HORARIOS[jornada],
+    horario,
     horarioOficialCentro: centro.horarioOficial,
     centroActivo: centro.activo,
     cuposTotales,

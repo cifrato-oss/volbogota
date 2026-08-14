@@ -69,7 +69,8 @@ export async function findTurnos(filters: TurnoFilters = {}): Promise<Turno[]> {
     (a, b) =>
       a.fecha.localeCompare(b.fecha) ||
       a.centroNombre.localeCompare(b.centroNombre) ||
-      jornadaOrder(a.jornada) - jornadaOrder(b.jornada),
+      a.horario.inicio.localeCompare(b.horario.inicio) ||
+      a.jornada.localeCompare(b.jornada, "es"),
   );
 }
 
@@ -84,24 +85,42 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
   return turno ?? null;
 }
 
-function jornadaOrder(jornada: Jornada): number {
-  return { AM: 0, PM: 1, NOCHE: 2 }[jornada];
-}
-
 export type CatalogoGuardado = { centros: number; turnos: number };
 
 /**
- * Writes the catalogue, carrying live booking counters over.
+ * Writes the points, and nothing else.
+ *
+ * Split from the shifts on purpose: the `Centros` sheet is informative — it
+ * describes where a point is and what it nominally holds — while the `Turnos`
+ * board is what creates a bookable shift. Keeping the two writes apart is what
+ * lets one sheet be edited without the other's numbers moving.
+ */
+export async function guardarCentros(centros: Centro[]): Promise<number> {
+  if (centros.length === 0) return 0;
+
+  const db = getDb();
+  const batch = db.batch();
+
+  for (const centro of centros) {
+    const { id, ...data } = centro;
+    batch.set(db.collection(COLLECTIONS.centros).doc(id), data, { merge: true });
+  }
+
+  await batch.commit();
+
+  return centros.length;
+}
+
+/**
+ * Writes the shifts, carrying live booking counters over.
  *
  * `reservados` belongs to the booking transaction, never to the spreadsheet:
  * re-reading it and writing it back is what keeps a capacity edit from wiping
- * bookings already taken. Everything else on the shift is rebuilt from the
- * centre, because the sheet is the authority on the catalogue.
+ * bookings already taken.
  */
-export async function guardarCatalogo(
-  centros: Centro[],
-  turnos: Turno[],
-): Promise<CatalogoGuardado> {
+export async function guardarTurnos(turnos: Turno[]): Promise<number> {
+  if (turnos.length === 0) return 0;
+
   const db = getDb();
 
   const existentes = await db.collection(COLLECTIONS.turnos).get();
@@ -110,11 +129,6 @@ export async function guardarCatalogo(
   );
 
   const batch = db.batch();
-
-  for (const centro of centros) {
-    const { id, ...data } = centro;
-    batch.set(db.collection(COLLECTIONS.centros).doc(id), data, { merge: true });
-  }
 
   for (const turno of turnos) {
     const { id, ...data } = turno;
@@ -127,7 +141,80 @@ export async function guardarCatalogo(
 
   await batch.commit();
 
-  return { centros: centros.length, turnos: turnos.length };
+  return turnos.length;
+}
+
+/**
+ * Re-stamps on each shift the centre fields it carries a copy of.
+ *
+ * Those copies exist so listing shifts costs no centre lookup, which means a
+ * `Centros` edit has to reach them — renaming a point or retiring it would
+ * otherwise stay invisible on the board until someone touched `Turnos`.
+ * Capacity is deliberately not among them: that is the board's to state.
+ */
+export async function refrescarCentroEnTurnos(centros: Centro[]): Promise<number> {
+  if (centros.length === 0) return 0;
+
+  const db = getDb();
+  const porId = new Map(centros.map((centro) => [centro.id, centro]));
+  const snapshot = await db.collection(COLLECTIONS.turnos).get();
+
+  const batch = db.batch();
+  let tocados = 0;
+
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const centro = porId.get(String(data.centroId ?? ""));
+    if (!centro) continue;
+
+    const cuposTotales = Number(data.cuposTotales) || 0;
+
+    batch.update(db.collection(COLLECTIONS.turnos).doc(doc.id), {
+      centroNombre: centro.nombre,
+      centroActivo: centro.activo,
+      horarioOficialCentro: centro.horarioOficial,
+      coordinador: centro.coordinador,
+      estado: centro.activo && cuposTotales > 0 ? "ABIERTO" : "CERRADO",
+    });
+    tocados += 1;
+  }
+
+  if (tocados > 0) await batch.commit();
+
+  return tocados;
+}
+
+/**
+ * Closes shifts the board no longer lists.
+ *
+ * Apps Script sends the whole `Turnos` sheet on every edit, so a shift missing
+ * from the payload is one a coordinator deleted. It is closed rather than
+ * deleted because a reservation may still point at it — the same reasoning
+ * `desactivarCentrosAusentes` applies to a retired point.
+ */
+export async function cerrarTurnosAusentes(idsVigentes: string[]): Promise<string[]> {
+  const db = getDb();
+  const vigentes = new Set(idsVigentes);
+  const snapshot = await db.collection(COLLECTIONS.turnos).get();
+
+  const ausentes = snapshot.docs.filter(
+    (doc) => !vigentes.has(doc.id) && doc.data().estado !== "CERRADO",
+  );
+
+  if (ausentes.length === 0) return [];
+
+  const batch = db.batch();
+
+  for (const doc of ausentes) {
+    batch.update(db.collection(COLLECTIONS.turnos).doc(doc.id), {
+      estado: "CERRADO",
+      cuposTotales: 0,
+    });
+  }
+
+  await batch.commit();
+
+  return ausentes.map((doc) => doc.id);
 }
 
 /**

@@ -28,6 +28,10 @@
  * activadores simples no pueden hacer peticiones de red, así que un `onEdit`
  * normal nunca llamaría al backend.
  *
+ * Cada hoja va por su lado y a su propio endpoint: `Centros` describe el punto
+ * (dónde queda, qué cupo tiene nominalmente) y `Turnos` es lo único que crea un
+ * turno reservable. Editar un cupo en `Centros` ya no relee el tablero.
+ *
  * Para la dirección contraria (que el backend escriba en la hoja), despliega:
  * Implementar → Nueva implementación → Aplicación web, con
  *
@@ -55,7 +59,14 @@ var HOJA_DONACIONES = "Donaciones";
  * están acá a propósito — corregir una tilde no tiene por qué reenviar el
  * catálogo entero; para eso está el menú.
  */
-var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM", "Cupos Noche"];
+var COLUMNAS_QUE_SINCRONIZAN = [
+  "Activo",
+  "Cupos AM",
+  "Cupos TARDE",
+  "Cupos PM",
+  "Cupos MADRUGADA",
+  "Cupos Noche",
+];
 
 /**
  * Columnas de `Turnos` que, al editarse, sincronizan solas.
@@ -63,7 +74,7 @@ var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM", "Cupos Noche"]
  * `Reservados` no está y no puede estar: esa columna la escribe el backend, y
  * ponerla acá haría que cada reserva reenviara el tablero entero.
  */
-var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario"];
+var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario", "Jornada"];
 
 /** Encabezados que identifican cada hoja. */
 var OBLIGATORIAS_CENTROS = ["Dirección", "Cupos AM"];
@@ -84,9 +95,9 @@ function alEditar(e) {
   var nombre = hoja.getName();
 
   if (nombre === HOJA_CENTROS) {
-    alEditarHoja(e, hoja, OBLIGATORIAS_CENTROS, COLUMNAS_QUE_SINCRONIZAN, sincronizarHojas);
+    alEditarHoja(e, hoja, OBLIGATORIAS_CENTROS, COLUMNAS_QUE_SINCRONIZAN, sincronizarCentros);
   } else if (nombre === HOJA_TURNOS) {
-    alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarHojas);
+    alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarTurnos);
   } else if (nombre === HOJA_DONACIONES) {
     alEditarDonaciones(e, hoja);
   }
@@ -130,7 +141,8 @@ function tocaAlgunaColumna(mapa, columnas, primera, ultima) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("VolBogotá")
-    .addItem("Sincronizar centros y turnos", "sincronizarHojas")
+    .addItem("Sincronizar centros", "sincronizarCentros")
+    .addItem("Sincronizar turnos", "sincronizarTurnos")
     .addItem("Sincronizar donaciones", "sincronizarDonaciones")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
     .addSeparator()
@@ -141,84 +153,75 @@ function onOpen() {
 // --- Centros y turnos -----------------------------------------------------
 
 /**
- * Manda las dos hojas juntas, edite el coordinador la que edite.
+ * Manda solo `Centros`.
  *
- * `Centros` da la capacidad nominal de cada jornada y `Turnos` la autoridad
- * sobre un turno concreto, así que ninguna de las dos describe el programa por
- * su cuenta: reconstruir desde una sola pisaría lo que dice la otra. Editar un
- * punto releía los turnos y editar un turno releía los puntos, que es lo mismo
- * que mandarlas siempre juntas — y así el backend hace una sola reconstrucción
- * que no puede contradecirse a sí misma.
+ * Antes las dos hojas viajaban juntas, porque el backend derivaba los turnos
+ * del producto de puntos × fechas × jornadas y reconstruir desde una sola
+ * pisaba lo que decía la otra. Ahora `Turnos` crea sus propios turnos, así que
+ * editar un cupo acá ya no relee el tablero entero — que era de dónde salían
+ * los veinte segundos.
  */
-function sincronizarHojas() {
+function sincronizarCentros() {
   var hoja = hojaPorNombre(HOJA_CENTROS);
   var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
+  var tabla = leerTabla(hoja, mapa);
+
+  var colNombre = mapa.columna("Punto de acopio") || mapa.columna("Centro");
   var filas = [];
 
-  for (var fila = mapa.encabezado + 1; fila <= hoja.getLastRow(); fila++) {
-    var nombre = leer(hoja, fila, mapa.columna("Punto de acopio") || mapa.columna("Centro"));
+  for (var i = 0; i < tabla.length; i++) {
+    var nombre = tabla[i].texto(colNombre);
     if (!nombre) continue;
 
     filas.push({
       puntoDeAcopio: nombre,
-      direccion: leer(hoja, fila, mapa.columna("Dirección")),
-      localidad: leer(hoja, fila, mapa.columna("Localidad")),
-      horarioOficial: leer(hoja, fila, mapa.columna("Horario oficial del punto")),
-      cuposAm: leer(hoja, fila, mapa.columna("Cupos AM")),
-      cuposPm: leer(hoja, fila, mapa.columna("Cupos PM")),
+      direccion: tabla[i].texto(mapa.columna("Dirección")),
+      localidad: tabla[i].texto(mapa.columna("Localidad")),
+      horarioOficial: tabla[i].texto(mapa.columna("Horario oficial del punto")),
+      cuposAm: tabla[i].texto(mapa.columna("Cupos AM")),
+      cuposTarde: tabla[i].texto(mapa.columna("Cupos TARDE")),
+      cuposPm: tabla[i].texto(mapa.columna("Cupos PM")),
+      cuposMadrugada: tabla[i].texto(mapa.columna("Cupos MADRUGADA")),
       // Ausente en las hojas que no reinstauraron la noche: el backend la toma como 0.
-      cuposNoche: leer(hoja, fila, mapa.columna("Cupos Noche")),
-      actividades: leer(hoja, fila, mapa.columna("Actividades habilitadas")),
-      linkMaps: leer(hoja, fila, mapa.columna("Link Google Maps")),
-      activo: leer(hoja, fila, mapa.columna("Activo")),
-      observaciones: leer(hoja, fila, mapa.columna("Observaciones")),
+      cuposNoche: tabla[i].texto(mapa.columna("Cupos Noche")),
+      actividades: tabla[i].texto(mapa.columna("Actividades habilitadas")),
+      linkMaps: tabla[i].texto(mapa.columna("Link Google Maps")),
+      activo: tabla[i].texto(mapa.columna("Activo")),
+      observaciones: tabla[i].texto(mapa.columna("Observaciones")),
     });
   }
 
   if (filas.length === 0) return;
 
-  var tablero = leerTablero();
-
   // El backend descarta la fila TOTAL y las notas al pie; acá las mandamos
   // todas para no duplicar esa regla en dos sitios.
-  var respuesta = llamar("/api/hooks/sheets/centros", {
-    filas: filas,
-    fechas: fechasDelPrograma(),
-    turnos: tablero.filas,
-  });
-
-  if (tablero.hoja) escribirValidacionTurnos(tablero, respuesta);
+  llamar("/api/hooks/sheets/centros", { filas: filas });
 }
 
-/** Las fechas salen de la hoja Listas; si no están, el backend usa las ya cargadas. */
-function fechasDelPrograma() {
-  var hoja = libro().getSheetByName("Listas");
-  if (!hoja) return undefined;
+/**
+ * Manda solo `Turnos` — la única hoja que crea un turno.
+ *
+ * Va entera y no solo la fila editada: el backend reemplaza el tablero con lo
+ * que reciba, y una fila borrada tiene que poder cerrarse.
+ *
+ * `Cupos totales` puede traer una fórmula que busca la capacidad en `Centros` o
+ * un número escrito encima; acá llega el valor calculado en los dos casos, que
+ * es lo que permite que una sola columna cargue lo nominal y la excepción.
+ */
+function sincronizarTurnos() {
+  var tablero = leerTablero();
+  if (!tablero.hoja || tablero.filas.length === 0) return;
 
-  var fechas = [];
-  var valores = hoja.getRange(1, 3, hoja.getLastRow(), 1).getValues();
+  var respuesta = llamar("/api/hooks/sheets/turnos", { filas: tablero.filas });
 
-  for (var i = 0; i < valores.length; i++) {
-    var valor = valores[i][0];
-    if (valor instanceof Date) fechas.push(Utilities.formatDate(valor, "UTC", "yyyy-MM-dd"));
-  }
-
-  return fechas.length > 0 ? fechas : undefined;
+  escribirValidacionTurnos(tablero, respuesta);
 }
 
 /**
  * Lee el tablero completo.
  *
- * Va entero y no solo la fila editada: el backend reconstruye desde lo que
- * reciba, y una fila borrada tiene que poder volver al cupo nominal.
- *
  * Devuelve `hoja: null` si el libro todavía no tiene `Turnos` o si no se le
- * reconocen los encabezados: eso deja la sincronización de `Centros` andando
- * igual que antes en un libro que aún no montó el tablero.
- *
- * `Cupos totales` puede traer una fórmula que busca la capacidad en `Centros` o
- * un número escrito encima; acá llega el valor calculado en los dos casos, que
- * es lo que permite que una sola columna cargue lo nominal y la excepción.
+ * reconocen los encabezados, para que un libro a medio montar no reviente.
  */
 function leerTablero() {
   var hoja = libro().getSheetByName(HOJA_TURNOS);
@@ -233,25 +236,29 @@ function leerTablero() {
   }
 
   var colPunto = mapa.columna("Punto de acopio") || mapa.columna("Centro");
+  var tabla = leerTabla(hoja, mapa);
   var filas = [];
 
-  for (var fila = mapa.encabezado + 1; fila <= hoja.getLastRow(); fila++) {
-    var punto = leer(hoja, fila, colPunto);
-    var fecha = leer(hoja, fila, mapa.columna("Fecha"));
-    var jornada = leer(hoja, fila, mapa.columna("Jornada"));
+  for (var i = 0; i < tabla.length; i++) {
+    var punto = tabla[i].texto(colPunto);
+    var fecha = tabla[i].texto(mapa.columna("Fecha"));
+    var jornada = tabla[i].texto(mapa.columna("Jornada"));
 
     // Una fila a medio llenar todavía no describe un turno. No es un error: es
     // el renglón que un coordinador acaba de empezar a escribir.
     if (!punto || !fecha || !jornada) continue;
 
     filas.push({
-      fila: fila,
+      fila: tabla[i].fila,
       puntoDeAcopio: punto,
       fecha: fecha,
       jornada: jornada,
+      // Tal cual: un turno que cruza la medianoche dice «Sábado-Domingo», y eso
+      // la fecha sola no lo puede expresar.
+      dia: tabla[i].texto(mapa.columna("Día")),
       // Vacío: el backend usa el horario por defecto de la jornada.
-      horario: leer(hoja, fila, mapa.columna("Horario")),
-      cuposTotales: leer(hoja, fila, mapa.columna("Cupos totales")),
+      horario: tabla[i].texto(mapa.columna("Horario")),
+      cuposTotales: tabla[i].texto(mapa.columna("Cupos totales")),
     });
   }
 
@@ -285,10 +292,20 @@ function escribirValidacionTurnos(tablero, respuesta) {
     motivos[rechazadas[i].fila] = rechazadas[i].motivo;
   }
 
+  // De un tirón y no celda por celda: un tablero de ochenta filas eran ochenta
+  // escrituras, cada una un viaje a Google. Se escribe el bloque contiguo que
+  // va de la primera fila enviada a la última, dejando intactas las de en medio
+  // que no mandamos.
+  var colValidacion = mapa.columna("Validación");
+  var desde = filas[0].fila;
+  var hasta = filas[filas.length - 1].fila;
+  var actuales = hoja.getRange(desde, colValidacion, hasta - desde + 1, 1).getValues();
+
   for (var j = 0; j < filas.length; j++) {
-    var numero = filas[j].fila;
-    escribirCelda(hoja, mapa, numero, "Validación", motivos[numero] || "OK");
+    actuales[filas[j].fila - desde][0] = motivos[filas[j].fila] || "OK";
   }
+
+  hoja.getRange(desde, colValidacion, actuales.length, 1).setValues(actuales);
 }
 
 // --- Donaciones -------------------------------------------------------------
@@ -324,8 +341,8 @@ function alEditarDonaciones(e, hoja) {
  * Sends the whole `Donaciones` sheet, not just the edited cell.
  *
  * One POST per edit is simpler than isolating a single cell, and 56 items ×
- * 6 points is nothing to resend — the same trade `sincronizarHojas` already
- * makes for `Centros` and `Turnos`.
+ * 6 points is nothing to resend — the same trade `sincronizarCentros` and
+ * `sincronizarTurnos` already make for their own sheets.
  */
 function sincronizarDonaciones() {
   var hoja = hojaPorNombre(HOJA_DONACIONES);
@@ -335,26 +352,29 @@ function sincronizarDonaciones() {
 
   var columnasCentro = [];
   var ultimaColumna = hoja.getLastColumn();
+  var encabezados = hoja.getRange(mapa.encabezado, 1, 1, ultimaColumna).getValues()[0];
+
   for (var col = colElemento + 1; col <= ultimaColumna; col++) {
-    var nombreCentro = leer(hoja, mapa.encabezado, col);
+    var nombreCentro = valorDeCelda(encabezados[col - 1]);
     if (nombreCentro) columnasCentro.push({ columna: col, nombre: nombreCentro });
   }
 
   if (columnasCentro.length === 0) return;
 
+  var tabla = leerTabla(hoja, mapa);
   var filas = [];
 
-  for (var fila = mapa.encabezado + 1; fila <= hoja.getLastRow(); fila++) {
-    var categoria = leer(hoja, fila, colCategoria);
-    var elemento = leer(hoja, fila, colElemento);
+  for (var f = 0; f < tabla.length; f++) {
+    var categoria = tabla[f].texto(colCategoria);
+    var elemento = tabla[f].texto(colElemento);
     if (!categoria || !elemento) continue;
 
     var estados = {};
     for (var i = 0; i < columnasCentro.length; i++) {
-      estados[columnasCentro[i].nombre] = leer(hoja, fila, columnasCentro[i].columna);
+      estados[columnasCentro[i].nombre] = tabla[f].texto(columnasCentro[i].columna);
     }
 
-    filas.push({ fila: fila, categoria: categoria, elemento: elemento, estados: estados });
+    filas.push({ fila: tabla[f].fila, categoria: categoria, elemento: elemento, estados: estados });
   }
 
   if (filas.length === 0) return;
@@ -717,12 +737,48 @@ function normalizar(valor) {
 function leer(hoja, fila, columna) {
   if (!columna) return null;
 
-  var valor = hoja.getRange(fila, columna).getValue();
+  return valorDeCelda(hoja.getRange(fila, columna).getValue());
+}
+
+function valorDeCelda(valor) {
   if (valor === null || valor === undefined || valor === "") return null;
 
   if (valor instanceof Date) return Utilities.formatDate(valor, "UTC", "yyyy-MM-dd");
 
   return String(valor).trim();
+}
+
+/**
+ * Toda la tabla en una sola llamada.
+ *
+ * Cada `getRange().getValue()` es un viaje de ida y vuelta a los servidores de
+ * Google. Leer `Centros` y `Turnos` celda por celda eran unos seiscientos, que
+ * es de donde salía el grueso de los veinte segundos; `getValues()` los deja en
+ * uno. Cada fila expone `texto(columna)` con el mismo contrato que `leer`.
+ */
+function leerTabla(hoja, mapa) {
+  var primeraFila = mapa.encabezado + 1;
+  var alto = hoja.getLastRow() - mapa.encabezado;
+  if (alto <= 0) return [];
+
+  var valores = hoja.getRange(primeraFila, 1, alto, hoja.getLastColumn()).getValues();
+  var tabla = [];
+
+  for (var i = 0; i < valores.length; i++) {
+    tabla.push(filaDeTabla(valores[i], primeraFila + i));
+  }
+
+  return tabla;
+}
+
+function filaDeTabla(valores, numero) {
+  return {
+    fila: numero,
+    texto: function (columna) {
+      // `columna` es 1-based, como todo lo que devuelve `mapa.columna`.
+      return columna ? valorDeCelda(valores[columna - 1]) : null;
+    },
+  };
 }
 
 /**

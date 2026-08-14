@@ -1,7 +1,7 @@
 import { notFound } from "@/server/http/errors";
 import { logger } from "@/server/lib/logger";
 import { findCentroById } from "@/server/modules/catalogo/catalogo.repository";
-import { ETIQUETA_JORNADA } from "@/server/modules/catalogo/catalogo.schema";
+import { etiquetaJornada } from "@/server/modules/catalogo/catalogo.schema";
 
 import { buscarReservaPorCodigo, cambiarEstado, registrarHora } from "./reservas.admin.repository";
 import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
@@ -44,7 +44,7 @@ export async function crearReserva(input: CrearReservaInput): Promise<Confirmaci
       id: turno.id,
       centroNombre: turno.centroNombre,
       fecha: turno.fecha,
-      jornada: ETIQUETA_JORNADA[turno.jornada],
+      jornada: etiquetaJornada(turno.jornada),
       horario: turno.horario.etiqueta,
       direccion: centro?.direccion ?? null,
       horarioOficial: centro?.horarioOficial ?? null,

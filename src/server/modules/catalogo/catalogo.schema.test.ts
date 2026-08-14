@@ -32,6 +32,7 @@ function fila(overrides: Partial<TurnoDeHoja> = {}): TurnoDeHoja {
     centroId: "vive-claro",
     fecha: "2026-08-13",
     jornada: "AM",
+    dia: null,
     horario: null,
     cuposTotales: 150,
     ...overrides,
@@ -72,83 +73,70 @@ describe("buildTurnoId", () => {
 });
 
 describe("construirTurnos", () => {
-  it("derives one shift per centre, date and slot from the nominal capacity", () => {
-    const turnos = construirTurnos([centro()], ["2026-08-13", "2026-08-14"]);
+  it("builds exactly the shifts the board lists, and no others", () => {
+    // The centre states AM and PM capacity, but only the row creates a shift:
+    // `Centros` is informative now, so nothing is derived from it.
+    const turnos = construirTurnos([centro()], [fila()]);
 
-    expect(turnos).toHaveLength(6);
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_am")?.cuposTotales).toBe(300);
-    // No evening capacity in the centre means the shift exists but is closed.
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_noche")).toMatchObject({
-      cuposTotales: 0,
-      estado: "CERRADO",
+    expect(turnos).toHaveLength(1);
+    expect(turnos[0]).toMatchObject({
+      id: "vive-claro_2026-08-13_am",
+      cuposTotales: 150,
+      estado: "ABIERTO",
     });
   });
 
-  it("lets a sheet row override the capacity for one day only", () => {
+  it("takes each row's capacity, so the same slot can differ by day", () => {
     const turnos = construirTurnos(
       [centro()],
-      ["2026-08-13", "2026-08-14"],
-      [fila({ fecha: "2026-08-14", cuposTotales: 150 })],
+      [fila({ cuposTotales: 300 }), fila({ fecha: "2026-08-14", cuposTotales: 150 })],
     );
 
     expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_am")?.cuposTotales).toBe(300);
     expect(turnos.find((t) => t.id === "vive-claro_2026-08-14_am")?.cuposTotales).toBe(150);
-    expect(turnos).toHaveLength(6);
   });
 
-  it("opens a shift the nominal capacity leaves closed", () => {
+  it("opens a slot the programme invented, given its own schedule", () => {
+    const horario = { inicio: "22:00", fin: "02:00", etiqueta: "10:00 p.m. - 2:00 a.m." };
     const turnos = construirTurnos(
       [centro()],
-      ["2026-08-13"],
-      [fila({ jornada: "NOCHE", cuposTotales: 80 })],
+      [fila({ jornada: "MADRUGADA 2", horario, cuposTotales: 80 })],
     );
 
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_noche")).toMatchObject({
+    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_madrugada-2")).toMatchObject({
+      jornada: "MADRUGADA 2",
+      horario,
       cuposTotales: 80,
       estado: "ABIERTO",
     });
   });
 
-  it("creates a shift on a date outside the programme's calendar", () => {
-    const turnos = construirTurnos([centro()], ["2026-08-13"], [fila({ fecha: "2026-08-20" })]);
-
-    expect(turnos).toHaveLength(4);
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-20_am")).toMatchObject({
-      fecha: "2026-08-20",
-      diaSemana: "Jueves",
-      cuposTotales: 150,
-    });
-  });
-
-  it("takes the row's schedule and falls back to the shift's default", () => {
+  it("takes the row's schedule and falls back to the slot's default", () => {
     const horario = { inicio: "06:00", fin: "10:00", etiqueta: "6:00 a.m. - 10:00 a.m." };
-    const turnos = construirTurnos(
-      [centro()],
-      ["2026-08-13"],
-      [fila({ horario }), fila({ jornada: "PM" })],
-    );
+    const turnos = construirTurnos([centro()], [fila({ horario }), fila({ jornada: "TARDE" })]);
 
     expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_am")?.horario).toEqual(horario);
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_pm")?.horario.inicio).toBe("13:00");
+    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_tarde")?.horario.inicio).toBe(
+      "13:00",
+    );
+  });
+
+  it("skips a slot with neither its own schedule nor a default", () => {
+    // Inventing hours here would publish a time nobody authorised; the sync
+    // rejects the row before this, with a verdict for its Validación cell.
+    expect(construirTurnos([centro()], [fila({ jornada: "MADRUGADA 2" })])).toHaveLength(0);
   });
 
   it("keeps a shift closed while its point is retired, whatever the row says", () => {
-    const turnos = construirTurnos(
-      [centro({ activo: false })],
-      ["2026-08-13"],
-      [fila({ cuposTotales: 500 })],
-    );
+    const turnos = construirTurnos([centro({ activo: false })], [fila({ cuposTotales: 500 })]);
 
-    expect(turnos.find((t) => t.id === "vive-claro_2026-08-13_am")).toMatchObject({
-      centroActivo: false,
-      estado: "CERRADO",
-    });
+    expect(turnos[0]).toMatchObject({ centroActivo: false, estado: "CERRADO" });
   });
 
   it("ignores a row whose point is not in the catalogue", () => {
-    const turnos = construirTurnos([centro()], ["2026-08-13"], [fila({ centroId: "no-existe" })]);
+    const turnos = construirTurnos([centro()], [fila(), fila({ centroId: "no-existe" })]);
 
-    expect(turnos).toHaveLength(3);
+    expect(turnos).toHaveLength(1);
     expect(turnos.every((t) => t.centroId === "vive-claro")).toBe(true);
   });
 });

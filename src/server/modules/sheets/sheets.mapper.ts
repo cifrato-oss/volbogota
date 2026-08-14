@@ -15,8 +15,8 @@
 
 import { badRequest } from "@/server/http/errors";
 import {
-  JORNADAS,
   buildTurnoId,
+  normalizarJornada,
   slugify,
   type Horario,
   type Jornada,
@@ -39,6 +39,14 @@ export function fechaDesdeSheet(valor: string): string {
   }
 
   const [, dia = "", mes = "", anio = ""] = match;
+
+  // A month past 12 means the cell is M/D/YYYY, which this cannot disambiguate
+  // from D/M/YYYY on a day under 13. Rejecting beats storing `2026-15-08`,
+  // which passes the ISO shape and is silently wrong from then on.
+  if (Number(mes) > 12 || Number(mes) < 1 || Number(dia) < 1 || Number(dia) > 31) {
+    throw badRequest(`No entiendo la fecha "${valor}". Usa DD/MM/AAAA o AAAA-MM-DD.`);
+  }
+
   return `${anio}-${mes.padStart(2, "0")}-${dia.padStart(2, "0")}`;
 }
 
@@ -51,16 +59,17 @@ export function fechaHaciaSheet(iso: string): string {
 /**
  * The sheet's `Jornada` column, case- and accent-insensitive.
  *
- * Anything outside the programme's shifts — a typo, or a slot someone invented
- * in the dropdown — is rejected here with its own verdict for the `Validación`
- * column instead of being quietly booked into a shift that does not run.
+ * No longer checked against a closed list: the board is the authority on which
+ * slots run, and the programme opens new ones — `MADRUGADA 1`, `MADRUGADA 2` —
+ * without asking. What used to guard against a typo now guards nothing a
+ * coordinator cannot see, and a row is instead rejected further down when its
+ * slot states no schedule.
  */
 export function jornadaDesdeSheet(valor: string): Jornada {
-  const normalizada = normalizar(valor).toUpperCase();
-  const jornada = JORNADAS.find((candidata) => candidata === normalizada);
+  const jornada = normalizarJornada(valor);
 
   if (!jornada) {
-    throw badRequest(`La jornada "${valor}" no es válida. Usa ${JORNADAS.join(", ")}.`);
+    throw badRequest("La jornada está vacía.");
   }
 
   return jornada;
@@ -69,9 +78,12 @@ export function jornadaDesdeSheet(valor: string): Jornada {
 /** The range separators a coordinator actually types between two times. */
 const SEPARADOR_HORARIO = /\s*(?:-|–|—|\ba\b)\s*/;
 
+/** `a. m.`, `a.m.`, `A M` → `am`: one token the range separator cannot split. */
+const MERIDIANO = /([ap])\.?\s*m\.?/gi;
+
 /**
  * The `Turnos` sheet's `Horario` column — `8:00 a.m. - 2:00 p.m.`, `08:00-14:00`,
- * `7 p.m. a 10 p.m.`.
+ * `7 p.m. a 10 p.m.`, `8:00 a. m. – 1:00 p. m.`.
  *
  * The label is kept verbatim because it is what the sheet chose to display and
  * what a volunteer will read; only `inicio` and `fin` are normalised to 24-hour
@@ -82,9 +94,13 @@ const SEPARADOR_HORARIO = /\s*(?:-|–|—|\ba\b)\s*/;
 export function horarioDesdeSheet(valor: string): Horario {
   const etiqueta = valor.trim();
 
-  // Dots go first so `a.m.` cannot be mistaken for the `a` that separates a
-  // range: `8:00 a.m. - 2:00 p.m.` would otherwise split at the meridiem.
-  const partes = etiqueta.replace(/\./g, "").split(SEPARADOR_HORARIO).filter(Boolean);
+  // The meridiem collapses first: stripping dots alone turns the `a. m.` that a
+  // Spanish-locale sheet writes into a lone `a`, which is the range separator.
+  const partes = etiqueta
+    .replace(MERIDIANO, "$1m")
+    .replace(/\./g, "")
+    .split(SEPARADOR_HORARIO)
+    .filter(Boolean);
 
   if (partes.length !== 2) {
     throw badRequest(
@@ -119,14 +135,15 @@ function horaDesdeSheet(parte: string, horarioCompleto: string): string {
   return `${String(hora).padStart(2, "0")}:${minutos}`;
 }
 
-const ETIQUETA_JORNADA_SHEET: Record<Jornada, string> = {
-  AM: "AM",
-  PM: "PM",
-  NOCHE: "Noche",
-};
-
+/**
+ * Back to the sheet verbatim, not as a pretty label.
+ *
+ * `ID_Turno` is matched literally on the other side — the board's own column
+ * spells the slot `TARDE`, so answering `Tarde` would build an id no row has
+ * and the `Reservados` write-back would land nowhere.
+ */
 export function jornadaHaciaSheet(jornada: Jornada): string {
-  return ETIQUETA_JORNADA_SHEET[jornada];
+  return normalizarJornada(jornada);
 }
 
 /**

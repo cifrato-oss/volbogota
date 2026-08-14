@@ -66,6 +66,7 @@ function filaTurno(overrides: Record<string, unknown> = {}) {
     puntoDeAcopio: "Punto Usaquén",
     fecha: "13/08/2026",
     jornada: "AM",
+    dia: null,
     horario: null,
     cuposTotales: "150",
     ...overrides,
@@ -115,94 +116,39 @@ beforeEach(() => {
 });
 
 describe("sincronizarCentrosDesdeSheet", () => {
-  it("writes the point and its shifts for every date", async () => {
-    const resultado = await sincronizarCentros({
-      filas: [filaCentro()],
-      fechas: FECHAS,
-    });
+  it("writes the point, and does not invent shifts for it", async () => {
+    const resultado = await sincronizarCentros({ filas: [filaCentro()] });
 
     expect(resultado.centros).toBe(1);
-    expect(resultado.turnos).toBe(6); // 1 punto × 2 fechas × 3 jornadas
 
     expect(db.peek("centros/punto-usaquen")).toMatchObject({
       nombre: "Punto Usaquén",
       localidad: "Usaquén",
-      // No evening column in the row: the point simply does not open at night.
-      cuposPorJornada: { AM: 150, PM: 150, NOCHE: 0 },
+      cuposPorJornada: { AM: 150, PM: 150, TARDE: 0, MADRUGADA: 0, NOCHE: 0 },
       activo: true,
     });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
-      cuposTotales: 150,
-      reservados: 0,
-      estado: "ABIERTO",
-      diaSemana: "Jueves",
+    // Capacity here is nominal and informative: only the board makes a shift.
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toBeUndefined();
+  });
+
+  it("carries every capacity column the sheet now has", async () => {
+    await sincronizarCentros({
+      filas: [filaCentro({ cuposTarde: "200", cuposMadrugada: "50" })],
+    });
+
+    expect(db.peek("centros/punto-usaquen")?.cuposPorJornada).toMatchObject({
+      AM: 150,
+      TARDE: 200,
+      PM: 150,
+      MADRUGADA: 50,
     });
   });
 
-  it("opens the evening shift when the sheet fills 'Cupos Noche'", async () => {
-    await sincronizarCentros({
-      filas: [filaCentro({ cuposNoche: "150" })],
-      fechas: FECHAS,
-    });
-
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_noche")).toMatchObject({
-      cuposTotales: 150,
-      estado: "ABIERTO",
-      horario: { etiqueta: "7:00 p.m. - 10:00 p.m." },
-    });
-  });
-
-  it("closes the shift when the sheet sets that slot's capacity to zero", async () => {
-    // This is how the file says "this point does not open in that shift".
-    await sincronizarCentros({
-      filas: [filaCentro({ puntoDeAcopio: "CC Unicentro", cuposPm: "0" })],
-      fechas: FECHAS,
-    });
-
-    expect(db.peek("turnos/cc-unicentro_2026-08-13_pm")).toMatchObject({
-      cuposTotales: 0,
-      estado: "CERRADO",
-    });
-  });
-
-  it("never wipes bookings already taken when capacity is edited", async () => {
-    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
-
-    db.seed("turnos/punto-usaquen_2026-08-13_am", {
-      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
-      reservados: 40,
-    });
-
-    await sincronizarCentros({
-      filas: [filaCentro({ cuposAm: "200" })],
-      fechas: FECHAS,
-    });
-
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
-      cuposTotales: 200,
-      reservados: 40,
-    });
-  });
-
-  it("applies a capacity cut below what is booked, leaving it visibly oversold", async () => {
-    // The sheet is the authority on capacity. Refusing the edit would hide a
-    // real decision; dropping volunteers to fit would be worse.
-    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
-    db.seed("turnos/punto-usaquen_2026-08-13_am", {
-      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
-      reservados: 100,
-    });
-
-    await sincronizarCentros({
-      filas: [filaCentro({ cuposAm: "10" })],
-      fechas: FECHAS,
-    });
-
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
-      cuposTotales: 10,
-      reservados: 100,
-    });
+  it("refuses a batch with no actual points", async () => {
+    await expect(
+      sincronizarCentros({ filas: [filaCentro({ puntoDeAcopio: "TOTAL" })] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("skips the totals row and the footnotes under the table", async () => {
@@ -213,7 +159,6 @@ describe("sincronizarCentrosDesdeSheet", () => {
         filaCentro({ puntoDeAcopio: "SUPUESTO: los cupos por jornada los puse yo" }),
         filaCentro({ puntoDeAcopio: "Un cupo en 0 desactiva ese turno" }),
       ],
-      fechas: FECHAS,
     });
 
     expect(resultado.centros).toBe(1);
@@ -223,7 +168,6 @@ describe("sincronizarCentrosDesdeSheet", () => {
   it("drops activities that are not in the closed set instead of failing", async () => {
     await sincronizarCentros({
       filas: [filaCentro({ actividades: "Empaque, Logística, Clasificación" })],
-      fechas: FECHAS,
     });
 
     expect(db.peek("centros/punto-usaquen")?.actividades).toEqual(["Empaque", "Clasificación"]);
@@ -232,83 +176,74 @@ describe("sincronizarCentrosDesdeSheet", () => {
   it("retires a point that disappeared from the sheet without deleting it", async () => {
     await sincronizarCentros({
       filas: [filaCentro(), filaCentro({ puntoDeAcopio: "Cruz Roja" })],
-      fechas: FECHAS,
     });
 
-    const resultado = await sincronizarCentros({
-      filas: [filaCentro()],
-      fechas: FECHAS,
-    });
+    const resultado = await sincronizarCentros({ filas: [filaCentro()] });
 
     expect(resultado.desactivados).toEqual(["cruz-roja"]);
     // Kept, not deleted: reservations still point at its shifts.
     expect(db.peek("centros/cruz-roja")).toMatchObject({ activo: false });
-    expect(db.peek("turnos/cruz-roja_2026-08-13_am")).toMatchObject({
+  });
+
+  it("leaves the board's capacity alone — that is the whole point of the split", async () => {
+    await sincronizarCentros({ filas: [filaCentro()] });
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    await sincronizarCentros({ filas: [filaCentro({ cuposAm: "80" })] });
+
+    // Editing a nominal figure in `Centros` used to rebuild every shift and
+    // flatten the 300 the board had authorised back to the centre's number.
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
+    expect(db.peek("centros/punto-usaquen")).toMatchObject({
+      cuposPorJornada: expect.objectContaining({ AM: 80 }),
+    });
+  });
+
+  it("re-stamps on the board the centre fields each shift copies", async () => {
+    await sincronizarCentros({ filas: [filaCentro()] });
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    await sincronizarCentros({ filas: [filaCentro({ activo: "No" })] });
+
+    // Retiring a point has to reach its shifts, or the board keeps offering it.
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
       centroActivo: false,
       estado: "CERRADO",
     });
-  });
-
-  it("accepts a row that omits the optional columns entirely", async () => {
-    // The totals row and any short row send fewer keys, not keys set to null.
-    // Requiring every column would reject the batch on a row we then discard.
-    const resultado = await sincronizarCentros({
-      filas: [
-        { puntoDeAcopio: "Cruz Roja", cuposAm: "150", cuposPm: "150" },
-        { puntoDeAcopio: "TOTAL", cuposAm: "1,050" },
-      ],
-      fechas: FECHAS,
-    });
-
-    expect(resultado.centros).toBe(1);
-    expect(db.peek("centros/cruz-roja")).toMatchObject({
-      direccion: null,
-      observaciones: null,
-      activo: true,
-    });
-  });
-
-  it("refuses a batch with no actual points", async () => {
-    await expect(
-      sincronizarCentros({
-        filas: [filaCentro({ puntoDeAcopio: "TOTAL" })],
-        fechas: FECHAS,
-      }),
-    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-  });
-
-  it("reuses the dates already loaded when the batch does not restate them", async () => {
-    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
-
-    const resultado = await sincronizarCentros({ filas: [filaCentro({ cuposAm: "80" })] });
-
-    expect(resultado.fechas).toEqual(FECHAS);
-    expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 80 });
   });
 });
 
 describe("sincronizarTurnosDesdeSheet", () => {
   beforeEach(async () => {
-    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
+    await sincronizarCentros({ filas: [filaCentro()] });
   });
 
   it("lets the board authorise more capacity than the point's nominal figure", async () => {
     // This is the whole point of the board: 300 on Thursday at a point whose
     // `Centros` row says 150, without touching the other days.
-    const resultado = await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+    const resultado = await sincronizarTurnos({
+      filas: [
+        filaTurno({ fila: 2, cuposTotales: "300" }),
+        filaTurno({ fila: 3, fecha: "14/08/2026", cuposTotales: "150" }),
+      ],
+    });
 
     expect(resultado.rechazadas).toEqual([]);
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
     expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 150 });
   });
 
-  it("reverts a shift to the nominal capacity when its row is deleted", async () => {
+  it("closes a shift whose row the board stopped listing", async () => {
     await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
 
     // The row is gone from the board; another row keeps the batch non-empty.
     await sincronizarTurnos({ filas: [filaTurno({ jornada: "PM", cuposTotales: "150" })] });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 150 });
+    // Closed, not deleted: a reservation may still point at it.
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+      estado: "CERRADO",
+      cuposTotales: 0,
+    });
   });
 
   it("opens a night the point's nominal capacity leaves closed", async () => {
@@ -364,19 +299,21 @@ describe("sincronizarTurnosDesdeSheet", () => {
       filas: [
         filaTurno({ fila: 2, cuposTotales: "300" }),
         filaTurno({ fila: 3, fecha: "13 de agosto" }),
-        filaTurno({ fila: 4, jornada: "Madrugada" }),
+        filaTurno({ fila: 4, jornada: "Madrugada 2" }),
         filaTurno({ fila: 5, jornada: "PM", horario: "por la mañana" }),
       ],
     });
 
+    // Row 4 names a slot the programme invented and states no hours for it.
     expect(resultado.rechazadas.map((r) => r.fila)).toEqual([3, 4, 5]);
+    expect(resultado.rechazadas[1]?.motivo).toMatch(/no tiene horario por defecto/i);
     expect(resultado.rechazadas[0]?.motivo).toMatch(/no entiendo la fecha/i);
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
   });
 
   it("names the row whose point is not in the catalogue", async () => {
     const resultado = await sincronizarTurnos({
-      filas: [filaTurno({ fila: 7, puntoDeAcopio: "Estadio El Campin" })],
+      filas: [filaTurno(), filaTurno({ fila: 7, puntoDeAcopio: "Estadio El Campin" })],
     });
 
     expect(resultado.rechazadas).toEqual([
@@ -386,32 +323,27 @@ describe("sincronizarTurnosDesdeSheet", () => {
 
   it("refuses a batch in which no row could be read", async () => {
     await expect(
-      sincronizarTurnos({ filas: [filaTurno({ jornada: "Madrugada" })] }),
+      sincronizarTurnos({ filas: [filaTurno({ jornada: "Madrugada 2" })] }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
-  it("survives an edit to Centros when the board travels with it", async () => {
-    // The board is what authorises 300 for one day. Rebuilding the shifts from
-    // the centres alone would quietly undo it on the next address correction.
-    const tablero = [filaTurno({ cuposTotales: "300" })];
-
-    await sincronizarTurnos({ filas: tablero });
-    await sincronizarCentros({
-      filas: [filaCentro({ localidad: "Usaquén (corregido)" })],
-      fechas: FECHAS,
-      turnos: tablero,
+  it("opens a slot the programme invented, given its own hours", async () => {
+    await sincronizarTurnos({
+      filas: [filaTurno({ jornada: "Madrugada 2", horario: "10 p. m. a 2 a. m." })],
     });
 
-    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_madrugada-2")).toMatchObject({
+      jornada: "MADRUGADA 2",
+      horario: { inicio: "22:00", fin: "02:00" },
+      estado: "ABIERTO",
+    });
   });
 
   it("reads a formula row and a hard-typed row from the same column", async () => {
     // The sheet sends computed values, so `Cupos totales` carries the figure
     // looked up in `Centros` and the one typed over it without distinction.
-    await sincronizarCentros({
-      filas: [filaCentro()],
-      fechas: FECHAS,
-      turnos: [
+    await sincronizarTurnos({
+      filas: [
         filaTurno({ fila: 2, cuposTotales: "150" }), // = INDEX(Centros!…)
         filaTurno({ fila: 3, fecha: "14/08/2026", cuposTotales: "400" }), // typed over
       ],
@@ -421,11 +353,50 @@ describe("sincronizarTurnosDesdeSheet", () => {
     expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 400 });
   });
 
-  it("reports a board row the Centros payload does not contain", async () => {
-    const resultado = await sincronizarCentros({
-      filas: [filaCentro()],
-      fechas: FECHAS,
-      turnos: [filaTurno({ fila: 9, puntoDeAcopio: "Estadio El Campin" })],
+  it("keeps two madrugada slots on the same night apart", async () => {
+    // Straight from the live board: `MADRUGADA 1` is its own shift, not a
+    // misspelling of `MADRUGADA`, and both can run on the same date.
+    await sincronizarTurnos({
+      filas: [
+        filaTurno({
+          fila: 2,
+          fecha: "16/08/2026",
+          jornada: "MADRUGADA 1",
+          horario: "12:00 a. m. – 4:00 a. m.",
+        }),
+        filaTurno({
+          fila: 3,
+          fecha: "16/08/2026",
+          jornada: "MADRUGADA",
+          horario: "10:00 p. m. – 5:00 a.m.",
+          dia: "Sábado-Domingo",
+        }),
+      ],
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_madrugada-1")).toMatchObject({
+      jornada: "MADRUGADA 1",
+      horario: { inicio: "00:00", fin: "04:00" },
+    });
+
+    // The board's own label, verbatim: a shift that starts one night and ends
+    // the next morning spans two days, which the date alone cannot say.
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_madrugada")).toMatchObject({
+      jornada: "MADRUGADA",
+      horario: { inicio: "22:00", fin: "05:00" },
+      diaSemana: "Sábado-Domingo",
+    });
+  });
+
+  it("derives the weekday only when the board leaves Día empty", async () => {
+    await sincronizarTurnos({ filas: [filaTurno({ fecha: "16/08/2026", dia: null })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_am")).toMatchObject({ diaSemana: "Domingo" });
+  });
+
+  it("reports a board row naming a point the catalogue does not have", async () => {
+    const resultado = await sincronizarTurnos({
+      filas: [filaTurno(), filaTurno({ fila: 9, puntoDeAcopio: "Estadio El Campin" })],
     });
 
     expect(resultado.rechazadas).toEqual([
@@ -447,7 +418,16 @@ describe("sincronizarTurnosDesdeSheet", () => {
 
 describe("sincronizarReservasDesdeSheet", () => {
   beforeEach(async () => {
-    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
+    await sincronizarCentros({ filas: [filaCentro()] });
+    // The board is the only thing that creates a bookable shift now.
+    await sincronizarTurnos({
+      filas: FECHAS.flatMap((fecha, i) =>
+        ["AM", "PM"].map((jornada, j) => ({
+          ...filaTurno({ fila: 2 + i * 2 + j, jornada }),
+          fecha,
+        })),
+      ),
+    });
   });
 
   it("creates the reservation a coordinator typed by hand and answers with its code", async () => {
@@ -665,7 +645,6 @@ describe("sincronizarDonacionesDesdeSheet", () => {
         filaCentro({ puntoDeAcopio: "Cruz Roja" }),
         filaCentro({ puntoDeAcopio: "CC Unicentro" }),
       ],
-      fechas: FECHAS,
     });
   });
 
