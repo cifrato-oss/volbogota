@@ -60,18 +60,18 @@ export function DonarSangre() {
         </p>
       </header>
 
-      <section className="bg-card space-y-4 rounded-2xl border p-5">
-        <div className="space-y-1">
-          <p className="text-muted-foreground text-[11px] font-semibold tracking-widest uppercase">
-            Autoevaluación
-          </p>
-          <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
-          <p className="text-muted-foreground text-sm text-pretty">
+      <section className="bg-card space-y-3 rounded-2xl border p-4">
+        <div className="space-y-0.5">
+          <h2 className="font-heading text-base font-semibold">¿Sabes tu tipo de sangre?</h2>
+          <p className="text-muted-foreground text-xs text-pretty">
             Si no lo sabes, igual puedes donar: te lo dicen ahí.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {/* Four across even on the narrowest phone: the labels are two
+            characters, and two columns turned this into four rows of scroll
+            before the donor reached a single point. */}
+        <div className="grid grid-cols-4 gap-2">
           {TIPOS_SANGRE.map((tipo) => {
             const activo = eligio && seleccion === tipo;
             return (
@@ -88,7 +88,7 @@ export function DonarSangre() {
                   setEligio(!yaEstaba);
                 }}
                 className={cn(
-                  "rounded-xl border px-3 py-3 text-base font-semibold transition-colors",
+                  "rounded-lg border px-2 py-2.5 text-sm font-semibold tabular-nums transition-colors",
                   "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
                   activo
                     ? "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
@@ -109,7 +109,7 @@ export function DonarSangre() {
             setEligio(true);
           }}
           className={cn(
-            "w-full rounded-xl border px-3 py-3 text-sm font-medium transition-colors",
+            "w-full rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
             "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
             eligio && seleccion === null
               ? "border-foreground/40 bg-muted"
@@ -119,11 +119,11 @@ export function DonarSangre() {
           No lo sé
         </button>
 
-        <p className="text-muted-foreground bg-muted/50 flex gap-2 rounded-lg px-3 py-2 text-xs text-pretty">
+        <p className="text-muted-foreground flex gap-1.5 text-[11px] text-pretty">
           <span aria-hidden>🔒</span>
           <span>
-            <strong className="text-foreground font-medium">Tu tipo de sangre no se guarda.</strong>{" "}
-            Se usa solo para filtrar los puntos de esta pantalla y se descarta al salir.
+            <strong className="text-foreground font-medium">Tu tipo no se guarda.</strong> Se usa
+            solo para filtrar esta pantalla y se descarta al salir.
           </span>
         </p>
       </section>
@@ -145,9 +145,9 @@ export function DonarSangre() {
         {isError ? (
           <ErrorState message="No pudimos cargar los puntos de donación." />
         ) : isPending ? (
-          <div className="space-y-3">
-            {[0, 1, 2].map((i) => (
-              <Skeleton key={i} className="h-28 rounded-2xl" />
+          <div className="bg-card divide-y overflow-hidden rounded-2xl border">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[74px] rounded-none" />
             ))}
           </div>
         ) : visibles.length === 0 ? (
@@ -156,7 +156,13 @@ export function DonarSangre() {
             llama al punto antes de desplazarte.
           </p>
         ) : (
-          <ul className="space-y-3">
+          /*
+            One bordered container with divided rows, not sixteen separate cards.
+            With a handful of points the cards read fine; past a dozen, every
+            border and gap is scroll the donor pays for, and the list stops
+            scanning as a list.
+          */
+          <ul className="bg-card divide-y overflow-hidden rounded-2xl border">
             {visibles.map((banco) => (
               <TarjetaBanco key={banco.id} banco={banco} seleccion={eligio ? seleccion : null} />
             ))}
@@ -177,26 +183,33 @@ function TarjetaBanco({ banco, seleccion }: { banco: BancoSangreVista; seleccion
   return (
     <li
       className={cn(
-        "bg-card space-y-2 rounded-2xl border p-4",
-        recibeElTuyo && "border-rose-500 ring-1 ring-rose-500/20",
+        "relative p-4 pl-5 transition-colors",
+        // The match gets a left rail rather than a full border: inside a divided
+        // list a ring would fight the dividers, and a rail is what the eye picks
+        // up when scanning straight down the edge.
+        recibeElTuyo &&
+          "bg-rose-50/40 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-rose-500 dark:bg-rose-950/20",
+        // A closed point stays in the list and steps back from it.
+        !banco.recibiendoHoy && "opacity-60",
       )}
     >
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <h3 className="font-semibold tracking-tight">{banco.nombre}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-sm leading-snug font-semibold tracking-tight text-balance">
+          {banco.nombre}
+        </h3>
+        <Estado banco={banco} seleccion={seleccion} recibeElTuyo={recibeElTuyo} />
       </div>
 
-      <p className="text-muted-foreground text-sm">
-        {[banco.direccion, banco.localidad].filter(Boolean).join(" · ")}
+      <p className="text-muted-foreground mt-1 truncate text-xs">
+        {[banco.localidad, banco.direccion].filter(Boolean).join(" · ")}
       </p>
 
-      <Estado banco={banco} seleccion={seleccion} recibeElTuyo={recibeElTuyo} />
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
         {/* Comes straight from the sheet and answers the question that follows
             "can they take me" — until what time. */}
-        {banco.horarioOficial ? (
-          <p className="text-muted-foreground text-xs tabular-nums">{banco.horarioOficial}</p>
-        ) : null}
+        {banco.horarioOficial ? <span className="tabular-nums">{banco.horarioOficial}</span> : null}
+
+        {banco.horarioOficial && banco.linkMaps ? <span aria-hidden>·</span> : null}
 
         {/*
           The sheet already carries a Maps link per bank, and a Maps listing shows
@@ -206,12 +219,12 @@ function TarjetaBanco({ banco, seleccion }: { banco: BancoSangreVista; seleccion
         */}
         {banco.linkMaps ? (
           <a
-            className="text-foreground text-xs font-medium underline underline-offset-2"
+            className="text-foreground font-medium underline underline-offset-2"
             href={banco.linkMaps}
             target="_blank"
             rel="noreferrer"
           >
-            Ver en Maps
+            Cómo llegar
           </a>
         ) : null}
       </div>
@@ -228,13 +241,16 @@ function Estado({
   seleccion: SeleccionTipo;
   recibeElTuyo: boolean;
 }) {
+  // Sits to the right of the name, so it has to hold its width and stay on one
+  // line: the column of chips down the right edge is what makes the list
+  // scannable without reading a single bank name.
   const base =
-    "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide uppercase";
+    "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide whitespace-nowrap uppercase";
 
   if (!banco.recibiendoHoy) {
     return (
-      <span className={cn(base, "bg-muted text-muted-foreground")}>
-        <span aria-hidden>●</span> Hoy no está recibiendo
+      <span className={cn(base, "bg-muted text-muted-foreground")} title="Hoy no está recibiendo">
+        <span aria-hidden>●</span> Hoy no
       </span>
     );
   }
@@ -243,26 +259,14 @@ function Estado({
   // donor can still go, they just cannot know in advance whether they match.
   if (banco.tiposQueRecibe.length === 0) {
     return (
-      <div className="space-y-1.5">
-        <span
-          className={cn(
-            base,
-            "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-          )}
-        >
-          <span aria-hidden>●</span> Recibiendo · tipos sin confirmar
-        </span>
-        <p className="text-muted-foreground text-xs text-pretty">
-          Este punto no ha dicho qué tipos está recibiendo. Puede que reciba el tuyo — confirma
-          antes de desplazarte.
-        </p>
-      </div>
+      <span
+        className={cn(base, "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300")}
+        title="Este punto no ha dicho qué tipos recibe. Puede que reciba el tuyo — confirma antes de desplazarte."
+      >
+        <span aria-hidden>●</span> Sin confirmar
+      </span>
     );
   }
-
-  // The coordinator's own wording — "O+, RH−" reads better than the five types it
-  // expands into, and it is what the person at the door will also say.
-  const resumen = banco.resumenTipos ?? banco.tiposQueRecibe.join(", ");
 
   if (recibeElTuyo) {
     return (
@@ -272,14 +276,21 @@ function Estado({
           "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
         )}
       >
-        <span aria-hidden>●</span> Recibe {seleccion?.replace("-", "−")} hoy
+        <span aria-hidden>●</span> Recibe {seleccion?.replace("-", "−")}
       </span>
     );
   }
 
+  // The coordinator's own wording — "O+, RH−" reads better than the five types it
+  // expands into, and it is what the person at the door will also say.
+  const resumen = banco.resumenTipos ?? banco.tiposQueRecibe.join(", ");
+
   return (
-    <span className={cn(base, "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300")}>
-      <span aria-hidden>●</span> Hoy solo {resumen.replace(/-/g, "−")}
+    <span
+      className={cn(base, "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300")}
+      title={`Hoy solo ${resumen}`}
+    >
+      <span aria-hidden>●</span> {resumen.replace(/-/g, "−")}
     </span>
   );
 }
