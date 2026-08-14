@@ -8,6 +8,8 @@ type CentroHeaderProps = {
   centro: Centro;
   backHref: string;
   backLabel: string;
+  /** The coordinator notes are volunteer-oriented, so the donation view hides them. */
+  mostrarObservaciones?: boolean;
 };
 
 /** A titled block so each piece of center info reads clearly as what it is. */
@@ -32,7 +34,12 @@ function SeccionInfo({
 }
 
 /** Header card for a center's detail page: name, location, hours, map. */
-export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps) {
+export function CentroHeader({
+  centro,
+  backHref,
+  backLabel,
+  mostrarObservaciones = true,
+}: CentroHeaderProps) {
   const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
 
   return (
@@ -91,7 +98,7 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
         </SeccionInfo>
       ) : null}
 
-      {centro.observaciones ? (
+      {mostrarObservaciones && centro.observaciones ? (
         <SeccionInfo
           titulo="Observaciones"
           descripcion="Información importante que debes tener en cuenta sobre este punto."

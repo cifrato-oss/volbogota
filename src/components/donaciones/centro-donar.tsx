@@ -32,7 +32,12 @@ export function CentroDonar({ centroId }: { centroId: string }) {
 
   return (
     <div className="space-y-8 pb-16">
-      <CentroHeader centro={centro} backHref="/donar" backLabel="Volver a centros" />
+      <CentroHeader
+        centro={centro}
+        backHref="/donar"
+        backLabel="Volver a centros"
+        mostrarObservaciones={false}
+      />
       <SeleccionDonacion key={centro.id} centroId={centro.id} />
       <CentroMapa centro={centro} />
     </div>
