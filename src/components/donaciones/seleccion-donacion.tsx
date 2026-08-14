@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { CATEGORIAS_DONACION } from "@/constants/donaciones";
+import { donarSeleccionHabilitada } from "@/lib/flags";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
 import useCrearSolicitudDonacion from "@/queries/donaciones/useCrearSolicitudDonacion";
@@ -97,13 +98,18 @@ function AvisoAlimentos() {
   );
 }
 
-/** The selectable rows for one category. Only 🔴 SE_NECESITA items can be ticked. */
+/**
+ * One category's items. Read-only by default (just the name + its status); when
+ * the donation-selection flag is on, each 🔴 SE_NECESITA item becomes tickable.
+ */
 function ListaElementos({
   categoria,
+  interactivo,
   seleccionados,
   onToggle,
 }: {
   categoria: NecesidadesCategoria;
+  interactivo: boolean;
   seleccionados: Record<string, SolicitudDonacionItem>;
   onToggle: (item: SolicitudDonacionItem, checked: boolean) => void;
 }) {
@@ -115,7 +121,7 @@ function ListaElementos({
       <ul className="divide-border divide-y overflow-hidden rounded-xl border">
         {categoria.elementos.map((elemento) => {
           const seleccionable = elemento.semaforo === "ROJO";
-          const checked = Boolean(seleccionados[elemento.elementoId]);
+          const checked = interactivo && Boolean(seleccionados[elemento.elementoId]);
           // Only 🔴 items can be picked. An item already in the basket that a
           // coordinator later flips off stays togglable, so the donor can still
           // clear it in place instead of being stuck with a checked-disabled box.
@@ -126,37 +132,45 @@ function ListaElementos({
               key={elemento.id}
               className={cn(
                 "flex items-center gap-3 px-4 py-3 text-sm transition-colors",
-                checked
-                  ? "bg-primary/5 hover:bg-primary/10"
-                  : bloqueado
-                    ? null
-                    : "hover:bg-muted/60",
+                !interactivo
+                  ? "odd:bg-muted/30"
+                  : checked
+                    ? "bg-primary/5 hover:bg-primary/10"
+                    : bloqueado
+                      ? null
+                      : "hover:bg-muted/60",
               )}
             >
-              <Checkbox
-                id={inputId}
-                checked={checked}
-                disabled={bloqueado}
-                onCheckedChange={(value) =>
-                  onToggle(
-                    {
-                      elementoId: elemento.elementoId,
-                      categoria: categoria.categoria,
-                      elemento: elemento.elemento,
-                    },
-                    value,
-                  )
-                }
-              />
-              <Label
-                htmlFor={inputId}
-                className={cn(
-                  "flex-1 font-normal",
-                  bloqueado ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer",
-                )}
-              >
-                {elemento.elemento}
-              </Label>
+              {interactivo ? (
+                <>
+                  <Checkbox
+                    id={inputId}
+                    checked={checked}
+                    disabled={bloqueado}
+                    onCheckedChange={(value) =>
+                      onToggle(
+                        {
+                          elementoId: elemento.elementoId,
+                          categoria: categoria.categoria,
+                          elemento: elemento.elemento,
+                        },
+                        value,
+                      )
+                    }
+                  />
+                  <Label
+                    htmlFor={inputId}
+                    className={cn(
+                      "flex-1 font-normal",
+                      bloqueado ? "text-muted-foreground cursor-not-allowed" : "cursor-pointer",
+                    )}
+                  >
+                    {elemento.elemento}
+                  </Label>
+                </>
+              ) : (
+                <span className="flex-1 font-medium">{elemento.elemento}</span>
+              )}
               <SemaforoBadge semaforo={elemento.semaforo} />
             </li>
           );
@@ -181,6 +195,9 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
   const [seleccionados, setSeleccionados] = useState<Record<string, SolicitudDonacionItem>>({});
   const [categoria, setCategoria] = useState<CategoriaDonacion | null>(null);
   const successHeadingRef = useRef<HTMLHeadingElement>(null);
+  // Off by default → the page is read-only/informative: no checkboxes, no
+  // confirmation basket, just what the center needs by category.
+  const interactivo = donarSeleccionHabilitada;
 
   // Move focus to the confirmation heading once the donation is registered so
   // screen-reader users land on it (the form subtree is replaced).
@@ -227,7 +244,7 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
   }
 
   // Success is terminal: show the confirmation and let the donor start over.
-  if (mutation.isSuccess) {
+  if (interactivo && mutation.isSuccess) {
     const { codigo, totalItems } = mutation.data;
     return (
       <section
@@ -344,24 +361,30 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
         {categorias.map((cat) => (
           <TabsPanel key={cat.categoria} value={cat.categoria} className="space-y-3">
             {cat.categoria === "Alimentos" ? <AvisoAlimentos /> : null}
-            <ListaElementos categoria={cat} seleccionados={seleccionados} onToggle={alternar} />
+            <ListaElementos
+              categoria={cat}
+              interactivo={interactivo}
+              seleccionados={seleccionados}
+              onToggle={alternar}
+            />
           </TabsPanel>
         ))}
       </Tabs>
     );
   }
 
-  const mostrarConfirmacion = hayBasket || Boolean(data && primeraCategoria);
+  const mostrarConfirmacion = interactivo && (hayBasket || Boolean(data && primeraCategoria));
 
   return (
     <section className="space-y-6" aria-labelledby="donar-heading">
       <div className="space-y-1">
         <h2 id="donar-heading" className="text-lg font-semibold tracking-tight">
-          ¿Qué quieres donar?
+          {interactivo ? "¿Qué quieres donar?" : "¿Qué necesita este centro?"}
         </h2>
         <p className="text-muted-foreground text-sm text-pretty">
-          Elige una categoría y marca los elementos que el centro necesita. Tu selección se guarda
-          mientras navegas entre categorías.
+          {interactivo
+            ? "Elige una categoría y marca los elementos que el centro necesita. Tu selección se guarda mientras navegas entre categorías."
+            : "Consulta lo que necesita este centro, organizado por categoría, antes de llevar tu donación."}
         </p>
       </div>
 

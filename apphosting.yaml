@@ -100,6 +100,16 @@ env:
       - BUILD
       - RUNTIME
 
+  # --- Flags de features (cliente) --------------------------------------
+  # Selección interactiva de donaciones (+ canasta de confirmación) en /donar.
+  # `false` = solo informativo. Es `NEXT_PUBLIC_*`, así que va en BUILD: para
+  # cambiarla hay que volver a desplegar, no solo reiniciar.
+  - variable: NEXT_PUBLIC_DONAR_SELECCION
+    value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
+
   # --- Secretos ---------------------------------------------------------
   # Viven en Cloud Secret Manager; acá va el nombre, nunca el valor. Se crean con
   #   firebase apphosting:secrets:set <NOMBRE> --project volbogota
