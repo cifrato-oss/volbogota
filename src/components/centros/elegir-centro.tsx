@@ -5,7 +5,7 @@ import { CentroOptionSkeleton } from "@/components/centros/centro-option-skeleto
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
 import { getErrorMessage } from "@/lib/get-error-message";
-import useCentros from "@/queries/centros/useCentros";
+import useCentrosRealtime from "@/queries/centros/useCentrosRealtime";
 
 const SKELETON_COUNT = 6;
 
@@ -29,7 +29,7 @@ export function ElegirCentro({
   hrefBase,
   mostrarCupos = true,
 }: ElegirCentroProps) {
-  const { data: centros, isPending, isError, error, refetch } = useCentros();
+  const { data: centros, isPending, isError, error, refetch } = useCentrosRealtime();
 
   return (
     <div className="space-y-6">

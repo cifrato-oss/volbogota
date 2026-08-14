@@ -6,11 +6,11 @@ import { ReservaFlow } from "@/components/reservas/reserva-flow";
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getErrorMessage } from "@/lib/get-error-message";
-import useCentro from "@/queries/centros/useCentro";
+import useCentroRealtime from "@/queries/centros/useCentroRealtime";
 
 /** Center detail page for volunteers: info, booking flow, and location. */
 export function CentroDetalle({ centroId }: { centroId: string }) {
-  const { data: centro, isPending, isError, error, refetch } = useCentro(centroId);
+  const { data: centro, isPending, isError, error, refetch } = useCentroRealtime(centroId);
 
   if (isError) {
     return (
@@ -20,7 +20,7 @@ export function CentroDetalle({ centroId }: { centroId: string }) {
     );
   }
 
-  if (isPending) {
+  if (isPending || !centro) {
     return (
       <div className="space-y-4 pb-16">
         <Skeleton className="h-4 w-24" />

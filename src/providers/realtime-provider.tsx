@@ -8,21 +8,21 @@ import { getFirebaseDb } from "@/lib/firebase-client";
 import { queryKeys } from "@/queries/queryKeys";
 
 /**
- * Small public collections worth subscribing to app-wide. `necesidades` is NOT
- * here — it's large (one doc per center × item), so it's read live per center,
- * scoped by `centroId`, in `useNecesidadesRealtime` instead.
+ * Public collections whose React Query caches we refresh on any change.
+ *
+ * `centros` and `necesidades` are NOT here: both are read straight from
+ * Firestore via `onSnapshot` (`useCentrosRealtime`/`useCentroRealtime` and
+ * `useNecesidadesRealtime`), so there is no query cache to invalidate for them.
+ * `turnos` still goes through the API, so it stays.
  */
-const SUBSCRIPCIONES = [
-  { coleccion: "centros", queryKey: queryKeys.centros.all },
-  { coleccion: "turnos", queryKey: queryKeys.turnos.all },
-] as const;
+const SUBSCRIPCIONES = [{ coleccion: "turnos", queryKey: queryKeys.turnos.all }] as const;
 
 /** Coalesce bursts of writes (e.g. many bookings) into one refetch. */
 const DEBOUNCE_MS = 400;
 
 /**
  * Subscribes to Firestore in the browser and invalidates React Query on any
- * change, so cupos and center data refresh in real time. The API stays the
+ * change, so shift occupancy (cupos) refreshes in real time. The API stays the
  * source of truth — snapshots only signal "refetch" — so no server logic is
  * duplicated. Degrades to polling when the client SDK isn't configured.
  */
