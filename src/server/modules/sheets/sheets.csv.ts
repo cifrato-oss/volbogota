@@ -2,8 +2,8 @@ import { env } from "@/server/config/env";
 import { logger } from "@/server/lib/logger";
 
 import { fechaDesdeSheet } from "./sheets.mapper";
-import { sincronizarCentrosSchema } from "./sheets.schema";
-import { sincronizarCentrosDesdeSheet } from "./sheets.service";
+import { sincronizarCentrosSchema, sincronizarDonacionesSchema, type FilaDonacion } from "./sheets.schema";
+import { sincronizarCentrosDesdeSheet, sincronizarDonacionesDesdeSheet } from "./sheets.service";
 
 /**
  * Reads the spreadsheet directly, without Apps Script.
@@ -207,4 +207,116 @@ export async function asegurarCatalogo(hayCentros: boolean): Promise<void> {
     });
 
   return enCurso;
+}
+
+// --- Donaciones ("Donaciones" sheet) ---------------------------------------
+
+/**
+ * Finds the header row by content, not position.
+ *
+ * `Centros` and `Turnos` put theirs on row 1; `Donaciones` does not — a title,
+ * a legend and a "last updated" stamp sit above it — so this scans the first
+ * few rows the way Apps Script's own `mapearEncabezados` does.
+ */
+function encontrarEncabezado(filas: string[][], requeridas: string[]): number {
+  const limite = Math.min(12, filas.length);
+
+  for (let i = 0; i < limite; i += 1) {
+    const fila = filas[i] ?? [];
+    if (requeridas.every((titulo) => indiceDe(fila, titulo) !== -1)) return i;
+  }
+
+  throw new Error("No encontré la fila de encabezados de 'Donaciones'.");
+}
+
+/**
+ * `Donaciones`: one row per item, one column per centre — the same shape
+ * `sincronizarDonacionesDesdeSheet` expects from the live hook, built here
+ * instead from the published CSV.
+ */
+async function leerDonaciones(): Promise<FilaDonacion[]> {
+  const filas = await descargar("Donaciones");
+  const indiceEncabezado = encontrarEncabezado(filas, ["Categoría", "Elemento"]);
+  const encabezado = filas[indiceEncabezado] ?? [];
+
+  const colCategoria = indiceDe(encabezado, "Categoría");
+  const colElemento = indiceDe(encabezado, "Elemento");
+
+  const columnasCentro: Array<{ columna: number; nombre: string }> = [];
+  for (let col = colElemento + 1; col < encabezado.length; col += 1) {
+    const nombre = encabezado[col]?.trim();
+    if (nombre) columnasCentro.push({ columna: col, nombre });
+  }
+
+  if (columnasCentro.length === 0) {
+    throw new Error("La hoja 'Donaciones' no tiene columnas de puntos de acopio.");
+  }
+
+  const filasDonacion: FilaDonacion[] = [];
+
+  for (let fila = indiceEncabezado + 1; fila < filas.length; fila += 1) {
+    const valores = filas[fila] ?? [];
+    const categoria = valores[colCategoria]?.trim();
+    const elemento = valores[colElemento]?.trim();
+    if (!categoria || !elemento) continue;
+
+    const estados: Record<string, string | null> = {};
+    for (const centro of columnasCentro) {
+      estados[centro.nombre] = valores[centro.columna]?.trim() || null;
+    }
+
+    // 1-based, matching the row Apps Script would report.
+    filasDonacion.push({ fila: fila + 1, categoria, elemento, estados });
+  }
+
+  return filasDonacion;
+}
+
+/** Pulls the donation semaphore and applies it through the same path the hook uses. */
+export async function importarNecesidadesDesdeCsv(): Promise<{ necesidades: number }> {
+  if (!env.sheetId) {
+    throw new Error("Falta SHEET_ID: sin él no hay hoja que leer.");
+  }
+
+  const filas = await leerDonaciones();
+  const input = sincronizarDonacionesSchema.parse({ filas });
+  const resultado = await sincronizarDonacionesDesdeSheet(input);
+
+  logger.info("Necesidades importadas desde el CSV de la hoja", {
+    necesidades: resultado.necesidades,
+  });
+
+  return { necesidades: resultado.necesidades };
+}
+
+const ESPERA_TRAS_FALLO_NECESIDADES_MS = 30_000;
+let ultimoIntentoNecesidades = 0;
+let enCursoNecesidades: Promise<void> | null = null;
+
+/**
+ * Loads the donation semaphore on demand when the store has none.
+ *
+ * Same reasoning as `asegurarCatalogo`: a fresh deploy, or a restart under
+ * `DB_DRIVER=memory`, should not wait for a coordinator to touch a cell before
+ * "Quiero donar" has real data to show.
+ */
+export async function asegurarNecesidades(hayNecesidades: boolean): Promise<void> {
+  if (hayNecesidades || !env.sheetId) return;
+  if (enCursoNecesidades) return enCursoNecesidades;
+  if (Date.now() - ultimoIntentoNecesidades < ESPERA_TRAS_FALLO_NECESIDADES_MS) return;
+
+  ultimoIntentoNecesidades = Date.now();
+
+  enCursoNecesidades = importarNecesidadesDesdeCsv()
+    .then(() => undefined)
+    .catch((error) => {
+      logger.warn("No se pudo importar las necesidades desde la hoja", {
+        motivo: error instanceof Error ? error.message : String(error),
+      });
+    })
+    .finally(() => {
+      enCursoNecesidades = null;
+    });
+
+  return enCursoNecesidades;
 }

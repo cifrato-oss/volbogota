@@ -42,3 +42,28 @@ export async function guardarNecesidad(necesidad: Necesidad): Promise<void> {
   const { id, ...data } = necesidad;
   await getDb().collection(COLLECTIONS.necesidades).doc(id).set(data, { merge: true });
 }
+
+/** Firestore's batch write cap is 500 — chunked so a full sheet sync stays under it. */
+const LIMITE_LOTE = 400;
+
+/** Upserts many needs at once — what the sheet sync applies on every edit. */
+export async function guardarNecesidadesEnLote(necesidades: Necesidad[]): Promise<void> {
+  const db = getDb();
+
+  for (let inicio = 0; inicio < necesidades.length; inicio += LIMITE_LOTE) {
+    const lote = db.batch();
+
+    for (const necesidad of necesidades.slice(inicio, inicio + LIMITE_LOTE)) {
+      const { id, ...data } = necesidad;
+      lote.set(db.collection(COLLECTIONS.necesidades).doc(id), data, { merge: true });
+    }
+
+    await lote.commit();
+  }
+}
+
+/** Whether the sheet (or the admin panel) has ever written a need, anywhere. */
+export async function hayNecesidades(): Promise<boolean> {
+  const snapshot = await getDb().collection(COLLECTIONS.necesidades).limit(1).get();
+  return !snapshot.empty;
+}

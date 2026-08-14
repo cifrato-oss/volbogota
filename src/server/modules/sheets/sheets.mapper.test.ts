@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   estadoDesdeSheet,
   estadoHaciaSheet,
+  estadoNecesidadDesdeSheet,
   fechaDesdeSheet,
   fechaHaciaSheet,
   horarioDesdeSheet,
@@ -186,5 +187,24 @@ describe("partirNombreCompleto", () => {
     const { nombre, apellido } = partirNombreCompleto("Ana María Ramírez Gómez");
 
     expect(nombreCompletoHaciaSheet(nombre, apellido)).toBe("Ana María Ramírez Gómez");
+  });
+});
+
+describe("estadoNecesidadDesdeSheet", () => {
+  it("reads the dropdown's three words for the semaphore", () => {
+    expect(estadoNecesidadDesdeSheet("Se necesita")).toBe("SE_NECESITA");
+    expect(estadoNecesidadDesdeSheet("No se necesita")).toBe("SUFICIENTE");
+    expect(estadoNecesidadDesdeSheet("No aplica")).toBe("NO_APLICA");
+  });
+
+  it("is case- and accent-insensitive", () => {
+    expect(estadoNecesidadDesdeSheet("NO APLICA")).toBe("NO_APLICA");
+    expect(estadoNecesidadDesdeSheet("se necesita")).toBe("SE_NECESITA");
+  });
+
+  it("returns null for a value the dropdown does not use, instead of throwing", () => {
+    // A bad cell must not take the rest of the sheet's edit down with it.
+    expect(estadoNecesidadDesdeSheet("Suficiente")).toBeNull();
+    expect(estadoNecesidadDesdeSheet("Tal vez")).toBeNull();
   });
 });
