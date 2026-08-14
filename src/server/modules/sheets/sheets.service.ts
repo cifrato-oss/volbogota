@@ -35,7 +35,6 @@ import {
   encontrarReserva,
   encontrarReservaDeCelular,
   registrarAsistenciaReserva,
-  registrarHoraReserva,
 } from "@/server/modules/reservas/reservas.service";
 
 import {
@@ -274,10 +273,11 @@ function turnoIdDe(fila: FilaReserva): string {
 /**
  * Applies the row's state and times to a reservation that already exists.
  *
- * State goes first on purpose: a check-in marks `ASISTIO`, and applying the
- * sheet's `Confirmado` afterwards would be an illegal transition out of it.
+ * State and attendance are independent: `Estado` says whether the booking is
+ * still valid, `Asistencia` whether the person turned up, so neither overrides
+ * the other and a `No` in one leaves the other alone.
  */
-async function aplicarEstadoYHoras(reserva: Reserva, fila: FilaReserva): Promise<Reserva> {
+async function aplicarEstadoYAsistencia(reserva: Reserva, fila: FilaReserva): Promise<Reserva> {
   let actual = reserva;
 
   if (fila.estado) {
@@ -290,14 +290,6 @@ async function aplicarEstadoYHoras(reserva: Reserva, fila: FilaReserva): Promise
   const asistencia = asistenciaDesdeSheet(fila.asistencia);
   if (asistencia !== null && asistencia !== actual.asistencia) {
     actual = await registrarAsistenciaReserva(actual.codigo, asistencia);
-  }
-
-  if (fila.checkIn && fila.checkIn !== actual.checkIn) {
-    actual = await registrarHoraReserva(actual.codigo, "checkIn", fila.checkIn);
-  }
-
-  if (fila.checkOut && fila.checkOut !== actual.checkOut) {
-    actual = await registrarHoraReserva(actual.codigo, "checkOut", fila.checkOut);
   }
 
   return actual;
@@ -333,7 +325,7 @@ async function crearDesdeFila(fila: FilaReserva): Promise<ResultadoFila> {
   const confirmacion = await crearReserva(input);
 
   const creada = await encontrarReserva(confirmacion.codigo);
-  const final = creada ? await aplicarEstadoYHoras(creada, fila) : null;
+  const final = creada ? await aplicarEstadoYAsistencia(creada, fila) : null;
 
   return {
     fila: fila.fila,
@@ -345,7 +337,7 @@ async function crearDesdeFila(fila: FilaReserva): Promise<ResultadoFila> {
 }
 
 async function actualizarDesdeFila(reserva: Reserva, fila: FilaReserva): Promise<ResultadoFila> {
-  const actual = await aplicarEstadoYHoras(reserva, fila);
+  const actual = await aplicarEstadoYAsistencia(reserva, fila);
 
   return {
     fila: fila.fila,

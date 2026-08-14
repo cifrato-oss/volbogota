@@ -33,17 +33,6 @@ export const cambiarEstadoSchema = z.object({
 });
 export type CambiarEstadoInput = z.infer<typeof cambiarEstadoSchema>;
 
-/** `HH:MM` in Bogotá local time, as read off the phone at the door. */
-const horaSchema = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "La hora debe ir en formato HH:MM (24 horas).");
-
-export const registrarHoraSchema = z.object({
-  /** Omitted means "right now", which is the common case at the gate. */
-  hora: horaSchema.optional(),
-});
-export type RegistrarHoraInput = z.infer<typeof registrarHoraSchema>;
-
 export const listarReservasSchema = z.object({
   turno: z.string().min(1).optional(),
   centro: z.string().min(1).optional(),

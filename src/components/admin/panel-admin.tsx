@@ -27,7 +27,7 @@ type Sesion = { usuario: string | null; nombre: string };
 type ResumenOperativo = {
   cupos: { ofertados: number; reservados: number; disponibles: number; ocupacion: number };
   reservas: { total: number };
-  asistencia: { asistieron: number; horasDonadas: number };
+  asistencia: { asistieron: number; sinMarcar: number };
   porCentro: Array<{
     id: string;
     nombre: string;
@@ -117,7 +117,7 @@ export function PanelAdmin() {
             <Cifra titulo="Cupos ofertados" valor={resumen.cupos.ofertados} />
             <Cifra titulo="Reservados" valor={resumen.cupos.reservados} />
             <Cifra titulo="Disponibles" valor={resumen.cupos.disponibles} />
-            <Cifra titulo="Horas donadas" valor={Math.round(resumen.asistencia.horasDonadas)} />
+            <Cifra titulo="Sin marcar" valor={resumen.asistencia.sinMarcar} />
           </section>
 
           <DescargarPorCentro centros={resumen.porCentro} />

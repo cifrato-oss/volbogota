@@ -36,9 +36,6 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     eps: null,
     estado: "ASISTIO",
     creadoEn: "2026-08-13T14:05:00.000Z",
-    checkIn: "08:05",
-    checkOut: "14:00",
-    horas: 5.92,
     ...overrides,
   };
 }
@@ -140,20 +137,6 @@ describe("empujarReservasAlSheet", () => {
 
     // Pushing it would overwrite what a coordinator marked at the door.
     expect(loEnviado(fetchMock).cuerpo.reservas[0]).not.toHaveProperty("asistencia");
-  });
-
-  it("no longer sends the columns the board dropped", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
-    vi.stubGlobal("fetch", fetchMock);
-
-    await empujarReservasAlSheet([reserva({ checkIn: "08:12", checkOut: "13:05", horas: 4.88 })]);
-
-    // `Check-in`, `Check-out` and `Horas` are gone from the sheet; the times
-    // stay in Firestore and in the admin export, where hours are counted.
-    const fila = loEnviado(fetchMock).cuerpo.reservas[0];
-    expect(fila).not.toHaveProperty("checkIn");
-    expect(fila).not.toHaveProperty("checkOut");
-    expect(fila).not.toHaveProperty("horas");
   });
 
   it("reports a failure instead of throwing it at the booking", async () => {

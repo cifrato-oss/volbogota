@@ -119,9 +119,6 @@ export const reservaSchema = z.object({
    */
   asistencia: asistenciaSchema.nullable().default(null),
   creadoEn: z.string(),
-  checkIn: z.string().nullable(),
-  checkOut: z.string().nullable(),
-  horas: z.number().nullable(),
 });
 export type Reserva = z.infer<typeof reservaSchema>;
 

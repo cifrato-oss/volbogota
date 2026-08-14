@@ -7,7 +7,6 @@ import {
   buscarReservaPorCodigo,
   cambiarEstado,
   registrarAsistencia,
-  registrarHora,
 } from "./reservas.admin.repository";
 import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
 import type {
@@ -103,12 +102,4 @@ export async function registrarAsistenciaReserva(
   asistencia: Asistencia,
 ): Promise<Reserva> {
   return registrarAsistencia(codigo, asistencia);
-}
-
-export async function registrarHoraReserva(
-  codigo: string,
-  campo: "checkIn" | "checkOut",
-  hora: string,
-): Promise<Reserva> {
-  return registrarHora(codigo, campo, hora);
 }

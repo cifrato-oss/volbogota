@@ -107,8 +107,6 @@ function filaReserva(overrides: Record<string, unknown> = {}) {
     autorizoDatos: "Sí",
     asistencia: null,
     estado: null,
-    checkIn: null,
-    checkOut: null,
     ...overrides,
   };
 }
@@ -613,29 +611,6 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(actualizadas).toBe(1);
     expect(resultados[0]?.estado).toBe("Confirmado");
     expect(db.peek(`reservas/${codigo}`)).toMatchObject({ estado: "CONFIRMADO" });
-  });
-
-  it("marks attendance from a check-in typed at the gate", async () => {
-    const primera = await sincronizarReservas({ filas: [filaReserva()] });
-    const codigo = primera.resultados[0]?.codigo ?? "";
-
-    const { resultados } = await sincronizarReservas({
-      filas: [filaReserva({ codigo, checkIn: "08:05" })],
-    });
-
-    expect(resultados[0]?.estado).toBe("Asistió");
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ checkIn: "08:05", estado: "ASISTIO" });
-  });
-
-  it("computes donated hours from a check-out", async () => {
-    const primera = await sincronizarReservas({ filas: [filaReserva()] });
-    const codigo = primera.resultados[0]?.codigo ?? "";
-
-    await sincronizarReservas({
-      filas: [filaReserva({ codigo, checkIn: "08:05", checkOut: "14:00" })],
-    });
-
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ horas: 5.92 });
   });
 
   it("releases the seat when the sheet cancels a reservation", async () => {
