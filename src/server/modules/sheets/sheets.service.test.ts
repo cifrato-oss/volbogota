@@ -681,6 +681,27 @@ describe("sincronizarDonacionesDesdeSheet", () => {
     });
   });
 
+  it("retires an item the sheet stopped naming, and the needs written against it", async () => {
+    await sincronizarDonaciones({
+      filas: [filaDonacion(), filaDonacion({ fila: 6, elemento: "Frijol" })],
+    });
+    expect(db.peek("catalogoDonaciones/alimentos-frijol")).toMatchObject({ nombre: "Frijol" });
+    expect(db.peek("necesidades/cruz-roja_alimentos-frijol")).toMatchObject({
+      estado: "SE_NECESITA",
+    });
+
+    // The second sync's row for "Frijol" is gone — deleted from the sheet.
+    const resultado = await sincronizarDonaciones({ filas: [filaDonacion()] });
+
+    expect(resultado.eliminados).toEqual(["alimentos-frijol"]);
+    expect(db.peek("catalogoDonaciones/alimentos-frijol")).toBeUndefined();
+    expect(db.peek("necesidades/cruz-roja_alimentos-frijol")).toBeUndefined();
+    // The item still in the sheet is untouched.
+    expect(db.peek("catalogoDonaciones/alimentos-arroz-blanco")).toMatchObject({
+      nombre: "Arroz blanco",
+    });
+  });
+
   it("writes the catalogue item even when no centre's cell could be applied", async () => {
     const resultado = await sincronizarDonaciones({
       filas: [filaDonacion({ estados: { "Cruz Roja": null } })],

@@ -83,3 +83,46 @@ export async function guardarElementosEnLote(elementos: ElementoDonacion[]): Pro
     await lote.commit();
   }
 }
+
+/**
+ * Retires items the sheet no longer states, and the needs written against them.
+ *
+ * The sheet sends its whole table on every sync, so an item missing from
+ * `idsVigentes` did not just go unedited — it was deleted from `Donaciones`
+ * (or renamed, which is the same thing to an id built from categoría+nombre).
+ * Same reasoning as `desactivarCentrosAusentes`: what disappears from the
+ * sheet must disappear from the catalogue, not linger as a row nobody can
+ * see was ever removed. Unlike a centre, an item has no reservation to keep
+ * history for, so this deletes rather than deactivates.
+ */
+export async function eliminarElementosAusentes(idsVigentes: string[]): Promise<string[]> {
+  const db = getDb();
+  const vigentes = new Set(idsVigentes);
+  const todos = await findElementos();
+  const ausentes = todos.filter((elemento) => !vigentes.has(elemento.id));
+
+  if (ausentes.length === 0) return [];
+
+  const lote = db.batch();
+  for (const elemento of ausentes) {
+    lote.delete(db.collection(COLLECTIONS.catalogoDonaciones).doc(elemento.id));
+  }
+  await lote.commit();
+
+  for (const elemento of ausentes) {
+    const necesidadesHuerfanas = await db
+      .collection(COLLECTIONS.necesidades)
+      .where("elementoId", "==", elemento.id)
+      .get();
+
+    if (necesidadesHuerfanas.empty) continue;
+
+    const loteNecesidades = db.batch();
+    for (const doc of necesidadesHuerfanas.docs) {
+      loteNecesidades.delete(db.collection(COLLECTIONS.necesidades).doc(doc.id));
+    }
+    await loteNecesidades.commit();
+  }
+
+  return ausentes.map((elemento) => elemento.id);
+}

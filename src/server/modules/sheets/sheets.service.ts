@@ -16,6 +16,7 @@ import {
   type SincronizacionTurnos,
 } from "@/server/modules/catalogo/catalogo.service";
 import {
+  eliminarElementosAusentes,
   guardarElementosEnLote,
   guardarNecesidadesEnLote,
 } from "@/server/modules/donaciones/donaciones.repository";
@@ -423,9 +424,12 @@ export async function sincronizarReservasDesdeSheet(
  * does not use, is reported back and skipped, the same way a bad `Turnos` row
  * is, instead of being treated as a reason to reject cells typed correctly.
  */
-export async function sincronizarDonacionesDesdeSheet(
-  input: SincronizarDonacionesInput,
-): Promise<{ elementos: number; necesidades: number; rechazadas: FilaDonacionRechazada[] }> {
+export async function sincronizarDonacionesDesdeSheet(input: SincronizarDonacionesInput): Promise<{
+  elementos: number;
+  necesidades: number;
+  eliminados: string[];
+  rechazadas: FilaDonacionRechazada[];
+}> {
   const centros = await findCentros(false);
   const nombrePorCentroId = new Map(centros.map((centro) => [centro.id, centro.nombre]));
 
@@ -508,11 +512,16 @@ export async function sincronizarDonacionesDesdeSheet(
     necesidades.length > 0 ? guardarNecesidadesEnLote(necesidades) : Promise.resolve(),
   ]);
 
+  // After the catalogue reflects the current sheet, anything else stored
+  // under a different id is what the sheet stopped naming.
+  const eliminados = await eliminarElementosAusentes([...elementos.keys()]);
+
   logger.info("Donaciones sincronizadas desde la hoja", {
     elementos: elementos.size,
     necesidades: necesidades.length,
+    eliminados: eliminados.length,
     rechazadas: rechazadas.length,
   });
 
-  return { elementos: elementos.size, necesidades: necesidades.length, rechazadas };
+  return { elementos: elementos.size, necesidades: necesidades.length, eliminados, rechazadas };
 }

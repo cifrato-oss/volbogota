@@ -317,6 +317,7 @@ async function leerDonaciones(): Promise<FilaDonacion[]> {
 export async function importarNecesidadesDesdeCsv(): Promise<{
   elementos: number;
   necesidades: number;
+  eliminados: string[];
 }> {
   if (!env.sheetId) {
     throw new Error("Falta SHEET_ID: sin él no hay hoja que leer.");
@@ -329,9 +330,14 @@ export async function importarNecesidadesDesdeCsv(): Promise<{
   logger.info("Donaciones importadas desde el CSV de la hoja", {
     elementos: resultado.elementos,
     necesidades: resultado.necesidades,
+    eliminados: resultado.eliminados.length,
   });
 
-  return { elementos: resultado.elementos, necesidades: resultado.necesidades };
+  return {
+    elementos: resultado.elementos,
+    necesidades: resultado.necesidades,
+    eliminados: resultado.eliminados,
+  };
 }
 
 const ESPERA_TRAS_FALLO_NECESIDADES_MS = 30_000;
