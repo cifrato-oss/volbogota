@@ -1,13 +1,17 @@
 import { env } from "@/server/config/env";
 import { logger } from "@/server/lib/logger";
 
-import { fechaDesdeSheet } from "./sheets.mapper";
 import {
   sincronizarCentrosSchema,
   sincronizarDonacionesSchema,
+  sincronizarTurnosSchema,
   type FilaDonacion,
 } from "./sheets.schema";
-import { sincronizarCentrosDesdeSheet, sincronizarDonacionesDesdeSheet } from "./sheets.service";
+import {
+  sincronizarCentrosDesdeSheet,
+  sincronizarDonacionesDesdeSheet,
+  sincronizarTurnosDesdeSheet,
+} from "./sheets.service";
 
 /**
  * Reads the spreadsheet directly, without Apps Script.
@@ -93,28 +97,53 @@ async function descargar(hoja: string): Promise<string[][]> {
   return parsearCsv(await respuesta.text());
 }
 
-/** Programme dates, taken from the `Turnos` sheet's own date column. */
-async function leerFechas(): Promise<string[]> {
+/**
+ * The `Turnos` board, one row per shift — the same shape the live hook sends.
+ *
+ * A row this cannot read is skipped rather than thrown: the board carries
+ * footer notes and half-typed rows, and one of them must not stop a cold start
+ * from loading the eighty that are fine.
+ */
+async function leerTurnos(): Promise<Record<string, unknown>[]> {
   const filas = await descargar("Turnos");
-  const encabezado = filas[0] ?? [];
-  const columna = indiceDe(encabezado, "Fecha");
+  const indiceEncabezado = encontrarEncabezado(filas, ["Fecha", "Cupos totales"]);
+  const encabezado = filas[indiceEncabezado] ?? [];
 
-  if (columna === -1) return [];
+  const columnas = {
+    puntoDeAcopio: indiceDe(encabezado, "Punto de acopio"),
+    fecha: indiceDe(encabezado, "Fecha"),
+    jornada: indiceDe(encabezado, "Jornada"),
+    horario: indiceDe(encabezado, "Horario"),
+    cuposTotales: indiceDe(encabezado, "Cupos totales"),
+  };
 
-  const fechas = new Set<string>();
-
-  for (const fila of filas.slice(1)) {
-    const valor = fila[columna]?.trim();
-    if (!valor) continue;
-
-    try {
-      fechas.add(fechaDesdeSheet(valor));
-    } catch {
-      // Footer rows and stray text live in this column too.
-    }
+  if (columnas.puntoDeAcopio === -1 || columnas.jornada === -1) {
+    throw new Error("La hoja 'Turnos' no trae las columnas esperadas.");
   }
 
-  return [...fechas].sort();
+  const turnos: Record<string, unknown>[] = [];
+
+  for (let fila = indiceEncabezado + 1; fila < filas.length; fila += 1) {
+    const valores = filas[fila] ?? [];
+    const punto = valores[columnas.puntoDeAcopio]?.trim();
+    const fecha = valores[columnas.fecha]?.trim();
+    const jornada = valores[columnas.jornada]?.trim();
+
+    // A half-filled row does not describe a shift yet.
+    if (!punto || !fecha || !jornada) continue;
+
+    turnos.push({
+      // 1-based, matching the row Apps Script would report.
+      fila: fila + 1,
+      puntoDeAcopio: punto,
+      fecha,
+      jornada,
+      horario: valores[columnas.horario]?.trim() || null,
+      cuposTotales: valores[columnas.cuposTotales]?.trim() || "0",
+    });
+  }
+
+  return turnos;
 }
 
 async function leerCentros(): Promise<Record<string, string>[]> {
@@ -155,27 +184,33 @@ async function leerCentros(): Promise<Record<string, string>[]> {
   return centros;
 }
 
-/** Pulls the catalogue and applies it through the same path the hook uses. */
+/**
+ * Pulls the catalogue and applies it through the same paths the hooks use.
+ *
+ * Both sheets, in order: the points first, because a board row naming a point
+ * the catalogue does not have yet would be rejected. They are two calls now
+ * rather than one payload — the same split the live hooks made.
+ */
 export async function importarCatalogoDesdeCsv(): Promise<{ centros: number; turnos: number }> {
   if (!env.sheetId) {
     throw new Error("Falta SHEET_ID: sin él no hay hoja que leer.");
   }
 
-  const [filas, fechas] = await Promise.all([leerCentros(), leerFechas()]);
+  const centros = await sincronizarCentrosDesdeSheet(
+    sincronizarCentrosSchema.parse({ filas: await leerCentros() }),
+  );
 
-  const input = sincronizarCentrosSchema.parse({
-    filas,
-    fechas: fechas.length > 0 ? fechas : undefined,
-  });
-
-  const resultado = await sincronizarCentrosDesdeSheet(input);
+  const turnos = await sincronizarTurnosDesdeSheet(
+    sincronizarTurnosSchema.parse({ filas: await leerTurnos() }),
+  );
 
   logger.info("Catálogo importado desde el CSV de la hoja", {
-    centros: resultado.centros,
-    turnos: resultado.turnos,
+    centros: centros.centros,
+    turnos: turnos.turnos,
+    rechazadas: turnos.rechazadas.length,
   });
 
-  return resultado;
+  return { centros: centros.centros, turnos: turnos.turnos };
 }
 
 /** Don't hammer Google when the sheet is unreachable or genuinely empty. */

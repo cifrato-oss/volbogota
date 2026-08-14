@@ -1,5 +1,5 @@
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
-import { ETIQUETA_JORNADA } from "@/server/modules/catalogo/catalogo.schema";
+import { etiquetaJornada } from "@/server/modules/catalogo/catalogo.schema";
 import { reservaSchema, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
 
 /**
@@ -79,7 +79,7 @@ export async function construirFilas(filtros: ExportFiltros = {}): Promise<strin
       String(reserva.edad),
       reserva.centroNombre,
       reserva.fecha,
-      ETIQUETA_JORNADA[reserva.jornada],
+      etiquetaJornada(reserva.jornada),
       reserva.turnoId,
       reserva.autorizoDatos ? "Sí" : "No",
       ETIQUETA_ESTADO[reserva.estado],

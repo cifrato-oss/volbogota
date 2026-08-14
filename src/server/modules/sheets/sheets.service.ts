@@ -3,13 +3,14 @@ import { logger } from "@/server/lib/logger";
 import { findCentros } from "@/server/modules/catalogo/catalogo.repository";
 import {
   ACTIVIDADES,
+  horarioDeJornada,
   slugify,
   type Actividad,
   type Centro,
   type TurnoDeHoja,
 } from "@/server/modules/catalogo/catalogo.schema";
 import {
-  sincronizarCatalogo,
+  sincronizarCentros,
   sincronizarTurnos,
   type SincronizacionCatalogo,
   type SincronizacionTurnos,
@@ -116,9 +117,13 @@ function aCentro(fila: FilaCentro): Centro {
     horarioOficial: fila.horarioOficial,
     observaciones: fila.observaciones,
     actividades: parsearActividades(fila.actividades),
+    // One key per capacity column the sheet carries. Nominal and informative:
+    // what makes a shift bookable is a row of the `Turnos` board.
     cuposPorJornada: {
       AM: fila.cuposAm,
+      TARDE: fila.cuposTarde,
       PM: fila.cuposPm,
+      MADRUGADA: fila.cuposMadrugada,
       NOCHE: fila.cuposNoche,
     },
     // An empty cell means the point is in operation: the column exists to
@@ -129,47 +134,53 @@ function aCentro(fila: FilaCentro): Centro {
 }
 
 /**
- * Applies a `Centros` edit, together with the board that overrides it.
+ * Applies a `Centros` edit: the points, and nothing else.
  *
- * The board travels in the same payload on purpose. Rebuilding the shifts from
- * the centres alone would reset every capacity the `Turnos` sheet had authorised
- * for a single day — correcting an address would quietly undo an approved
- * overbooking. Sending both halves means one rebuild that cannot disagree with
- * itself; a sheet that does not send the board behaves exactly as before.
+ * The board used to travel in this same payload, because shifts were derived
+ * from the product of centres, dates and slots and a centre-only rebuild would
+ * flatten the per-day capacity `Turnos` had authorised. Now the board creates
+ * its own shifts, so this sheet no longer has to carry it — which is what makes
+ * a capacity edit here cheap instead of a full re-read of both sheets.
  */
 export async function sincronizarCentrosDesdeSheet(
   input: SincronizarCentrosInput,
-): Promise<SincronizacionCatalogo & { rechazadas: FilaTurnoRechazada[] }> {
+): Promise<SincronizacionCatalogo> {
   const centros = input.filas.filter(esFilaDePunto).map(aCentro);
 
   if (centros.length === 0) {
     throw badRequest("Ninguna fila del rango enviado es un punto de acopio.");
   }
 
-  const tablero = leerTablero(input.turnos ?? []);
-  const resultado = await sincronizarCatalogo(centros, input.fechas, tablero.turnos);
-  const rechazadas = tablero.conDesconocidos(resultado.centrosDesconocidos);
+  const resultado = await sincronizarCentros(centros);
 
-  logger.info("Catálogo sincronizado desde la hoja", {
+  logger.info("Centros sincronizados desde la hoja", {
     centros: resultado.centros,
-    turnos: resultado.turnos,
+    turnosRefrescados: resultado.turnos,
     desactivados: resultado.desactivados,
-    rechazadas: rechazadas.length,
   });
 
-  return { ...resultado, rechazadas };
+  return resultado;
 }
 
 // --- Turnos ---------------------------------------------------------------
 
 function aTurnoDeHoja(fila: FilaTurno): TurnoDeHoja {
+  const jornada = jornadaDesdeSheet(fila.jornada);
+  const horario = fila.horario ? horarioDesdeSheet(fila.horario) : null;
+
+  // A slot the programme invented — `MADRUGADA 2` — has no default hours, so
+  // its row has to state them. Guessing would publish a time nobody authorised.
+  if (!horarioDeJornada(jornada, horario)) {
+    throw badRequest(`La jornada "${fila.jornada}" no tiene horario por defecto: llena Horario.`);
+  }
+
   return {
     // The sheet names the point the way `Centros` writes it, and the slug is
     // what turns that into an id — the same route `Reservas` takes.
     centroId: slugify(fila.puntoDeAcopio),
     fecha: fechaDesdeSheet(fila.fecha),
-    jornada: jornadaDesdeSheet(fila.jornada),
-    horario: fila.horario ? horarioDesdeSheet(fila.horario) : null,
+    jornada,
+    horario,
     cuposTotales: fila.cuposTotales,
   };
 }

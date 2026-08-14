@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-import { fechaSchema } from "@/server/modules/catalogo/catalogo.schema";
 import { EDAD_MINIMA } from "@/server/modules/reservas/reservas.schema";
 
 /**
@@ -42,8 +41,10 @@ export const filaCentroSchema = z.object({
   localidad: textoOpcional,
   horarioOficial: textoOpcional,
   cuposAm: cuposSchema,
+  cuposTarde: cuposSchema,
   cuposPm: cuposSchema,
-  /** Absent in sheets that never reinstated the evening shift: empty means 0. */
+  cuposMadrugada: cuposSchema,
+  /** Kept for sheets still carrying the old evening column: empty means 0. */
   cuposNoche: cuposSchema,
   /** Comma-separated in the sheet: "Empaque, Clasificación, Carga y descarga". */
   actividades: textoOpcional,
@@ -83,19 +84,16 @@ export type SincronizarTurnosInput = z.infer<typeof sincronizarTurnosSchema>;
 /** Why a `Turnos` row could not be applied, for the coordinator who typed it. */
 export type FilaTurnoRechazada = { fila: number; motivo: string };
 
+/**
+ * What a `Centros` edit sends: the points alone.
+ *
+ * It used to carry the programme's dates and the whole `Turnos` board, because
+ * shifts were derived from the three together. The board now owns the shifts,
+ * so this payload shrank to the sheet that was edited — which is most of why a
+ * capacity edit stopped costing a full re-read of both sheets.
+ */
 export const sincronizarCentrosSchema = z.object({
   filas: z.array(filaCentroSchema).min(1, "No llegó ninguna fila."),
-  /**
-   * The programme's dates, from the `Listas` sheet. Optional: a capacity edit
-   * should not have to restate the calendar, so when it is missing the dates
-   * already in Firestore are reused.
-   */
-  fechas: z.array(fechaSchema).optional(),
-  /**
-   * The `Turnos` board, so one rebuild sees both halves of the truth. Optional:
-   * a sheet that does not send it gets the plain centre-driven catalogue.
-   */
-  turnos: z.array(filaTurnoSchema).optional(),
 });
 export type SincronizarCentrosInput = z.infer<typeof sincronizarCentrosSchema>;
 

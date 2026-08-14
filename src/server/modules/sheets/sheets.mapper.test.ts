@@ -49,8 +49,16 @@ describe("jornadas", () => {
     expect(jornadaDesdeSheet("pm")).toBe("PM");
   });
 
-  it("rejects anything outside the three slots", () => {
-    expect(() => jornadaDesdeSheet("Madrugada")).toThrowError(/no es válida/i);
+  it("accepts a slot the programme invented, normalised to one spelling", () => {
+    // The board decides which slots run; a closed list would reject the row
+    // instead of opening the shift.
+    expect(jornadaDesdeSheet("Madrugada")).toBe("MADRUGADA");
+    expect(jornadaDesdeSheet("  madrugada  2 ")).toBe("MADRUGADA 2");
+    expect(jornadaDesdeSheet("Tarde")).toBe("TARDE");
+  });
+
+  it("still refuses an empty slot", () => {
+    expect(() => jornadaDesdeSheet("   ")).toThrowError(/vacía/i);
   });
 
   it("reads the evening shift the sheet labels 'Noche'", () => {
@@ -65,6 +73,23 @@ describe("horarioDesdeSheet", () => {
       inicio: "08:00",
       fin: "14:00",
       etiqueta: "8:00 a.m. - 2:00 p.m.",
+    });
+  });
+
+  it("reads the spaced meridiem a Spanish-locale sheet writes", () => {
+    // `a. m.` with a space: stripping dots alone left a lone `a`, which is the
+    // range separator, so every AM row in the board was rejected.
+    expect(horarioDesdeSheet("8:00 a. m. – 1:00 p. m.")).toMatchObject({
+      inicio: "08:00",
+      fin: "13:00",
+    });
+    expect(horarioDesdeSheet("1:00 p. m. – 6:00 p. m.")).toMatchObject({
+      inicio: "13:00",
+      fin: "18:00",
+    });
+    expect(horarioDesdeSheet("6:00 p. m. – 9:00 p. m.")).toMatchObject({
+      inicio: "18:00",
+      fin: "21:00",
     });
   });
 
