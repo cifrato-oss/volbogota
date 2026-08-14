@@ -1,4 +1,14 @@
-import type { Actividad, Centro, Jornada } from "@/types/volbogota";
+import type { Actividad, Centro } from "@/types/volbogota";
+
+/** Reads `cuposPorJornada` for whatever slots the point has, not just AM/PM. */
+function mapCupos(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object") return {};
+  const cupos: Record<string, number> = {};
+  for (const [jornada, valor] of Object.entries(value as Record<string, unknown>)) {
+    cupos[jornada] = Number(valor) || 0;
+  }
+  return cupos;
+}
 
 /**
  * Maps a raw Firestore `centros` document to the client `Centro` shape.
@@ -9,8 +19,6 @@ import type { Actividad, Centro, Jornada } from "@/types/volbogota";
  * malformed import doesn't blank the whole live list.
  */
 export function mapCentro(id: string, data: Record<string, unknown>): Centro {
-  const cupos = (data.cuposPorJornada ?? {}) as Partial<Record<Jornada, unknown>>;
-
   return {
     id,
     nombre: (data.nombre as string | undefined) ?? "",
@@ -20,10 +28,7 @@ export function mapCentro(id: string, data: Record<string, unknown>): Centro {
     horarioOficial: (data.horarioOficial as string | null | undefined) ?? null,
     observaciones: (data.observaciones as string | null | undefined) ?? null,
     actividades: Array.isArray(data.actividades) ? (data.actividades as Actividad[]) : [],
-    cuposPorJornada: {
-      AM: Number(cupos.AM ?? 0) || 0,
-      PM: Number(cupos.PM ?? 0) || 0,
-    },
+    cuposPorJornada: mapCupos(data.cuposPorJornada),
     activo: data.activo === true,
   };
 }

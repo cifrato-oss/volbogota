@@ -70,8 +70,12 @@ export interface Centro {
   observaciones: string | null;
   /** Informational — what happens at the point. Not a form field. */
   actividades: Actividad[];
-  /** A `0` means the point does not operate in that shift. */
-  cuposPorJornada: Record<Jornada, number>;
+  /**
+   * Nominal capacity per shift slot. Keys are whatever the sheet names — not
+   * limited to AM/PM (e.g. "MADRUGADA", "TARDE"). A `0` means the point does
+   * not operate that shift.
+   */
+  cuposPorJornada: Record<string, number>;
   activo: boolean;
 }
 
