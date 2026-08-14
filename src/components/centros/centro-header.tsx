@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { BackButton } from "@/components/shared/back-button";
 import type { Centro } from "@/types/volbogota";
@@ -7,6 +9,27 @@ type CentroHeaderProps = {
   backHref: string;
   backLabel: string;
 };
+
+/** A titled block so each piece of center info reads clearly as what it is. */
+function SeccionInfo({
+  titulo,
+  descripcion,
+  children,
+}: {
+  titulo: string;
+  descripcion: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="space-y-0.5">
+        <h2 className="text-sm font-semibold tracking-tight">{titulo}</h2>
+        <p className="text-muted-foreground text-xs">{descripcion}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
 
 /** Header card for a center's detail page: name, location, hours, map. */
 export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps) {
@@ -54,19 +77,29 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
       </div>
 
       {centro.actividades.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {centro.actividades.map((actividad) => (
-            <Badge key={actividad} variant="secondary">
-              {actividad}
-            </Badge>
-          ))}
-        </div>
+        <SeccionInfo
+          titulo="Actividades"
+          descripcion="Tareas que se realizan en este punto de acopio."
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {centro.actividades.map((actividad) => (
+              <Badge key={actividad} variant="secondary">
+                {actividad}
+              </Badge>
+            ))}
+          </div>
+        </SeccionInfo>
       ) : null}
 
       {centro.observaciones ? (
-        <p className="text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 text-sm">
-          {centro.observaciones}
-        </p>
+        <SeccionInfo
+          titulo="Observaciones"
+          descripcion="Información importante que debes tener en cuenta sobre este punto."
+        >
+          <p className="text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 text-sm">
+            {centro.observaciones}
+          </p>
+        </SeccionInfo>
       ) : null}
     </div>
   );
