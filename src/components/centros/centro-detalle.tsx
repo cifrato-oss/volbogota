@@ -32,7 +32,7 @@ export function CentroDetalle({ centroId }: { centroId: string }) {
 
   return (
     <div className="space-y-8 pb-16">
-      <CentroHeader centro={centro} backHref="/voluntario" backLabel="Volver a centros" />
+      <CentroHeader centro={centro} backHref="/voluntarios" backLabel="Volver a centros" />
 
       {centro.activo ? (
         <ReservaFlow centroId={centro.id} />

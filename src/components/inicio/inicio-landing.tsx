@@ -21,7 +21,7 @@ const OPCIONES: Opcion[] = [
     accent: "border-t-sky-400 hover:border-sky-300",
   },
   {
-    href: "/voluntario",
+    href: "/voluntarios",
     emoji: "🤝",
     titulo: "Quiero ser voluntario",
     cta: "Elegir centro y jornada",
