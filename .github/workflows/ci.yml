@@ -14,9 +14,11 @@ concurrency:
 # before this, lint and tests shared one check, so a failure meant opening the log
 # to find out which of the two it was.
 #
-# The chain is deliberate rather than parallel. Running tests against code that
-# does not typecheck produces failures that describe the wrong problem, and the
-# minute saved is not worth the minutes spent reading them.
+# `lint` and `test` run side by side, and `deploy` waits for both. They were
+# chained at first so a failing suite could not be blamed on code that does not
+# typecheck — worth about forty-five seconds, which measured against a pipeline
+# whose deploy step alone takes six minutes was not worth paying on every merge.
+# The two checks still report separately, so the stage is still named.
 
 jobs:
   lint:
@@ -48,7 +50,6 @@ jobs:
 
   test:
     name: Tests · Build
-    needs: lint
     runs-on: ubuntu-latest
 
     steps:
@@ -79,17 +80,17 @@ jobs:
   # the deploy started in parallel with these checks and did not wait for them, so
   # a commit with failing tests reached production while CI was still running.
   #
-  # `needs: test` is what closes that, and `test` needs `lint`, so nothing reaches
-  # production without both. The cost is wall-clock — these used to overlap and now
-  # they queue — so the rollout starts a few minutes later than it used to. That is
-  # the trade being made on purpose.
+  # `needs: [lint, test]` is what closes that: nothing reaches production unless
+  # both checks are green. The cost is wall-clock — the deploy used to start on
+  # push and now waits for the checks — and that is the trade being made on
+  # purpose.
   #
   # Requires the backend's own rollout policy to be disabled, otherwise both this
   # job and App Hosting deploy the same commit and the second rollout cancels the
   # first for no reason.
   deploy:
     name: Deploy · App Hosting
-    needs: test
+    needs: [lint, test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
@@ -109,8 +110,22 @@ jobs:
           workload_identity_provider: projects/761468343345/locations/global/workloadIdentityPools/github/providers/github-oidc
           service_account: github-deployer@volbogota.iam.gserviceaccount.com
 
+      # `npx --yes` downloads the whole CLI on every run, which is around twenty
+      # seconds of a job that is otherwise waiting. The cache key pins the version
+      # so a bump fetches once and then stops costing anything.
+      - name: Cache firebase-tools
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: firebase-tools-15-${{ runner.os }}
+
       # The rollout builds from the branch on Google's side, so there is nothing to
       # upload from here — this step only asks for it and waits.
+      #
+      # It waits on purpose. Firing and forgetting would end this job in seconds,
+      # and a rollout that then failed would leave the run green and the site
+      # broken, with nobody looking. The five minutes are Google's build; what this
+      # step buys for them is that a broken deploy is red here.
       #
       # The commit goes through the environment rather than into the command line.
       # `github.sha` is a hex digest and safe either way, but a `run:` that
