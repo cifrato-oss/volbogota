@@ -50,6 +50,7 @@ var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 var HOJA_TURNOS = "Turnos";
 var HOJA_DONACIONES = "Donaciones";
+var HOJA_SANGRE = "Banco de Sangre";
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
@@ -86,6 +87,15 @@ var COLUMNAS_QUE_SINCRONIZAN = [
 var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario", "Jornada"];
 
 /**
+ * Columnas de `Banco de Sangre` que, al editarse, sincronizan solas.
+ *
+ * Solo las que cambian lo que un donante decide: si el banco está recibiendo y
+ * qué tipos. Corregir una dirección o un horario no reenvía nada — para eso está
+ * el menú, igual que en `Centros`.
+ */
+var COLUMNAS_QUE_SINCRONIZAN_SANGRE = ["Recibiendo hoy", "Tipo de Sangre", "Activo"];
+
+/**
  * Columnas de `Reservas` que, al editarse, sincronizan solas.
  *
  * Son las dos que un coordinador cambia en la puerta. El resto de la fila la
@@ -96,6 +106,7 @@ var COLUMNAS_QUE_SINCRONIZAN_RESERVAS = ["Asistencia", "Estado"];
 /** Encabezados que identifican cada hoja. */
 var OBLIGATORIAS_CENTROS = ["Dirección", "Cupos AM"];
 var OBLIGATORIAS_TURNOS = ["Fecha", "Cupos totales"];
+var OBLIGATORIAS_SANGRE = ["Banco de Sangre", "Tipo de Sangre"];
 
 /**
  * Único disparador automático: editar una columna que cambia lo que se ofrece.
@@ -118,6 +129,14 @@ function alEditar(e) {
     alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarTurnos);
   } else if (nombre === HOJA_DONACIONES) {
     alEditarDonaciones(e, hoja);
+  } else if (nombre === HOJA_SANGRE) {
+    alEditarHoja(
+      e,
+      hoja,
+      OBLIGATORIAS_SANGRE,
+      COLUMNAS_QUE_SINCRONIZAN_SANGRE,
+      sincronizarBancosSangre,
+    );
   } else if (nombre === HOJA_RESERVAS) {
     alEditarReservas(e, hoja);
   }
@@ -132,7 +151,8 @@ function alEditarHoja(e, hoja, obligatorias, columnasQueSincronizan, sincronizar
 
   if (!tocaAlgunaColumna(mapa, columnasQueSincronizan, primera, ultima)) return;
 
-  var colNombre = mapa.columna("Punto de acopio") || mapa.columna("Centro");
+  var colNombre =
+    mapa.columna("Punto de acopio") || mapa.columna("Centro") || mapa.columna("Banco de Sangre");
   if (!colNombre) return;
 
   var desde = e.range.getRow();
@@ -164,6 +184,7 @@ function onOpen() {
     .addItem("Sincronizar centros", "sincronizarCentros")
     .addItem("Sincronizar turnos", "sincronizarTurnos")
     .addItem("Sincronizar donaciones", "sincronizarDonaciones")
+    .addItem("Sincronizar bancos de sangre", "sincronizarBancosSangre")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
     .addSeparator()
     .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
@@ -402,6 +423,53 @@ function sincronizarDonaciones() {
   if (filas.length === 0) return;
 
   llamar("/api/hooks/sheets/donaciones", { filas: filas });
+}
+
+// --- Banco de sangre ------------------------------------------------------
+
+/**
+ * Manda la hoja `Banco de Sangre` completa.
+ *
+ * Como en las demás, va todo y no solo la fila editada: el backend desactiva los
+ * bancos que ya no aparecen, así que un envío parcial dejaría fuera de servicio
+ * a los que no viajaron.
+ *
+ * Cada envío refresca `actualizadoEn` en el backend, y eso no es un detalle: el
+ * front deriva de ahí el «sin reporte hoy». Un coordinador que abre la hoja y
+ * confirma la lista sin cambiar una celda igual necesita que el envío ocurra —
+ * el valor no cambió, pero el hecho de que alguien lo mirara sí, y eso es lo que
+ * se le está diciendo al donante.
+ */
+function sincronizarBancosSangre() {
+  var hoja = hojaPorNombre(HOJA_SANGRE);
+  var mapa = mapearEncabezados(hoja, OBLIGATORIAS_SANGRE);
+  var colNombre = mapa.columna("Banco de Sangre");
+  var tabla = leerTabla(hoja, mapa);
+  var filas = [];
+
+  for (var i = 0; i < tabla.length; i++) {
+    var nombre = tabla[i].texto(colNombre);
+    if (!nombre) continue;
+
+    filas.push({
+      bancoDeSangre: nombre,
+      direccion: tabla[i].texto(mapa.columna("Dirección")),
+      localidad: tabla[i].texto(mapa.columna("Localidad")),
+      // La columna se llamó "del punto" antes de llamarse "del banco"; aceptar
+      // las dos evita que un renombre vacíe el horario sin que nadie se entere.
+      horarioOficial:
+        tabla[i].texto(mapa.columna("Horario oficial del banco")) ||
+        tabla[i].texto(mapa.columna("Horario oficial del punto")),
+      tipoDeSangre: tabla[i].texto(mapa.columna("Tipo de Sangre")),
+      linkMaps: tabla[i].texto(mapa.columna("Link Google Maps")),
+      recibiendoHoy: tabla[i].texto(mapa.columna("Recibiendo hoy")),
+      activo: tabla[i].texto(mapa.columna("Activo")),
+    });
+  }
+
+  if (filas.length === 0) return;
+
+  llamar("/api/hooks/sheets/sangre", { filas: filas });
 }
 
 // --- Reservas -------------------------------------------------------------
