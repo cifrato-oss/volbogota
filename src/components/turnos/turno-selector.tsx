@@ -14,7 +14,7 @@ import { formatFecha } from "@/lib/format-fecha";
 import { formatNumero } from "@/lib/format-numero";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
-import useTurnos from "@/queries/turnos/useTurnos";
+import useTurnosRealtime from "@/queries/turnos/useTurnosRealtime";
 import type { Jornada, Turno } from "@/types/volbogota";
 
 type TurnoSelectorProps = {
@@ -32,7 +32,7 @@ function capitalizar(texto: string): string {
  * each listing every date with live availability. Pick a date to book it.
  */
 export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSelectorProps) {
-  const { data: turnos, isPending, isError, error, refetch } = useTurnos({ centro: centroId });
+  const { data: turnos, isPending, isError, error, refetch } = useTurnosRealtime(centroId);
 
   const porJornada = useMemo(() => {
     const grouped = new Map<Jornada, Turno[]>(
@@ -79,7 +79,8 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
         if (list.length === 0) return null;
 
         const style = JORNADA_STYLE[jornada];
-        const horario = JORNADA_HORARIO[jornada] ?? list[0]?.horario.etiqueta ?? "";
+        // Show the schedule label straight from Firestore; fall back to the constant.
+        const horario = list[0]?.horario.etiqueta ?? JORNADA_HORARIO[jornada] ?? "";
 
         return (
           <div
