@@ -76,6 +76,14 @@ var COLUMNAS_QUE_SINCRONIZAN = [
  */
 var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario", "Jornada"];
 
+/**
+ * Columnas de `Reservas` que, al editarse, sincronizan solas.
+ *
+ * Son las dos que un coordinador cambia en la puerta. El resto de la fila la
+ * escribe el backend, y `Validación` la escribimos nosotros al contestar.
+ */
+var COLUMNAS_QUE_SINCRONIZAN_RESERVAS = ["Asistencia", "Estado"];
+
 /** Encabezados que identifican cada hoja. */
 var OBLIGATORIAS_CENTROS = ["Dirección", "Cupos AM"];
 var OBLIGATORIAS_TURNOS = ["Fecha", "Cupos totales"];
@@ -85,8 +93,9 @@ var OBLIGATORIAS_TURNOS = ["Fecha", "Cupos totales"];
  *
  * Antes salía en cualquier edición, incluidas las que hace el propio backend al
  * escribir en `Reservas` — eso devolvía esas filas al backend y las marcaba como
- * pendientes, un ida y vuelta que no llevaba a ninguna parte. Ahora hace falta
- * un gesto deliberado, y `Reservas` solo se envía desde el menú.
+ * pendientes, un ida y vuelta que no llevaba a ninguna parte. Ahora cada hoja
+ * declara qué columnas la disparan, y ninguna incluye las que escribe el
+ * backend.
  */
 function alEditar(e) {
   if (!e || !e.range) return;
@@ -100,6 +109,8 @@ function alEditar(e) {
     alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarTurnos);
   } else if (nombre === HOJA_DONACIONES) {
     alEditarDonaciones(e, hoja);
+  } else if (nombre === HOJA_RESERVAS) {
+    alEditarReservas(e, hoja);
   }
 }
 
@@ -385,6 +396,39 @@ function sincronizarDonaciones() {
 }
 
 // --- Reservas -------------------------------------------------------------
+
+/**
+ * Manda solo las filas que el coordinador acaba de tocar.
+ *
+ * A diferencia de `Centros` y `Turnos`, acá no se reenvía la hoja entera: cada
+ * fila abre una transacción de reserva en el backend, así que mandar las mil
+ * por marcar una asistencia sería mucho más caro que releer un tablero.
+ *
+ * Una fila sin `ID` se salta: sin código, el backend la leería como una
+ * inscripción nueva y la crearía. Un renglón a medio escribir no debe nacer
+ * como reserva por haber tocado su celda de asistencia.
+ */
+function alEditarReservas(e, hoja) {
+  var mapa = mapearEncabezados(hoja, ["Nombre completo", "Celular"]);
+
+  var primera = e.range.getColumn();
+  var ultima = primera + e.range.getNumColumns() - 1;
+
+  if (!tocaAlgunaColumna(mapa, COLUMNAS_QUE_SINCRONIZAN_RESERVAS, primera, ultima)) return;
+
+  var colId = mapa.columna("ID");
+  if (!colId) return;
+
+  var desde = e.range.getRow();
+  var hasta = desde + e.range.getNumRows() - 1;
+  var filas = [];
+
+  for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
+    if (normalizar(hoja.getRange(fila, colId).getValue()) !== "") filas.push(fila);
+  }
+
+  if (filas.length > 0) enviarReservas(hoja, mapa, filas);
+}
 
 function sincronizarReservas(fila) {
   var hoja = hojaPorNombre(HOJA_RESERVAS);

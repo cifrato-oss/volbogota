@@ -283,10 +283,11 @@ si aparece `Failed`, ábrelo y el log dice cuál propiedad falta.
 
 Solo disparan solas estas columnas — lo demás se manda desde el menú:
 
-| Hoja      | Columnas que sincronizan al editarlas                                             | A dónde manda               |
-| --------- | --------------------------------------------------------------------------------- | --------------------------- |
-| `Centros` | `Activo`, `Cupos AM`, `Cupos TARDE`, `Cupos PM`, `Cupos MADRUGADA`, `Cupos Noche` | `/api/hooks/sheets/centros` |
-| `Turnos`  | `Cupos totales`, `Horario`, `Jornada`                                             | `/api/hooks/sheets/turnos`  |
+| Hoja       | Columnas que sincronizan al editarlas                                             | A dónde manda                |
+| ---------- | --------------------------------------------------------------------------------- | ---------------------------- |
+| `Centros`  | `Activo`, `Cupos AM`, `Cupos TARDE`, `Cupos PM`, `Cupos MADRUGADA`, `Cupos Noche` | `/api/hooks/sheets/centros`  |
+| `Turnos`   | `Cupos totales`, `Horario`, `Jornada`                                             | `/api/hooks/sheets/turnos`   |
+| `Reservas` | `Asistencia`, `Estado`                                                            | `/api/hooks/sheets/reservas` |
 
 Cada hoja va por su lado y a su propio endpoint. `Centros` describe el punto y su
 capacidad nominal; **`Turnos` es lo único que crea un turno reservable**. Editar
@@ -295,6 +296,11 @@ segundos.
 
 `Reservados` no está y no puede estar: esa columna la escribe el backend, y
 ponerla ahí haría que cada inscripción reenviara el tablero entero.
+
+`Reservas` es la excepción al «se manda la hoja entera»: solo viajan las filas
+que tocaste, porque cada una abre una transacción de reserva en el backend.
+Una fila sin `ID` se salta — sin código, el backend la leería como una
+inscripción nueva y la crearía.
 
 ## 9. Desplegar el Web app de la copia
 
