@@ -308,6 +308,7 @@ async function crearDesdeFila(fila: FilaReserva): Promise<ResultadoFila> {
     edad: fila.edad,
     turnoId: turnoIdDe(fila),
     autorizoDatos: siNoDesdeSheet(fila.autorizoDatos),
+    nombreEmergencia: fila.contactoEmergencia,
     contactoEmergencia: fila.celEmergencia,
     eps: fila.eps,
   });

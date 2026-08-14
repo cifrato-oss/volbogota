@@ -103,16 +103,23 @@ describe("contacto de emergencia y EPS", () => {
   it("los acepta y los recorta", () => {
     const parsed = crearReservaSchema.parse({
       ...base,
+      nombreEmergencia: "  Pedro Pérez  ",
       contactoEmergencia: "  601 555 4433  ",
       eps: "  Sanitas  ",
     });
 
-    expect(parsed).toMatchObject({ contactoEmergencia: "601 555 4433", eps: "Sanitas" });
+    // Nombre y número son columnas distintas (R y S): no se mezclan.
+    expect(parsed).toMatchObject({
+      nombreEmergencia: "Pedro Pérez",
+      contactoEmergencia: "601 555 4433",
+      eps: "Sanitas",
+    });
   });
 
   it("no rompe una reserva que todavía no los manda", () => {
     // El formulario aún no los pide: exigirlos tumbaría cada inscripción.
     expect(crearReservaSchema.parse(base)).toMatchObject({
+      nombreEmergencia: null,
       contactoEmergencia: null,
       eps: null,
     });

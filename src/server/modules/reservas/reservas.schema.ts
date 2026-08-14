@@ -73,7 +73,9 @@ export const crearReservaSchema = z.object({
   autorizoDatos: z.literal(true, {
     error: "Debes autorizar el tratamiento de datos personales.",
   }),
-  /** Sheet column S, `Cel. emergencia`. */
+  /** Sheet column R, `Contacto emergencia` — who to call. */
+  nombreEmergencia: opcionalSchema(60, "El nombre del contacto es demasiado largo."),
+  /** Sheet column S, `Cel. emergencia` — the number to call. */
   contactoEmergencia: opcionalSchema(40, "El contacto de emergencia es demasiado largo."),
   /** Sheet column T, `EPS`. */
   eps: opcionalSchema(80, "El nombre de la EPS es demasiado largo."),
@@ -95,6 +97,7 @@ export const reservaSchema = z.object({
   autorizoDatos: z.boolean(),
   // Nullable and defaulted: bookings taken before these columns existed carry
   // neither, and failing them against the schema would empty the listing.
+  nombreEmergencia: z.string().nullable().default(null),
   contactoEmergencia: z.string().nullable().default(null),
   eps: z.string().nullable().default(null),
   estado: estadoReservaSchema,

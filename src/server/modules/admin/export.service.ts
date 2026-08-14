@@ -40,6 +40,7 @@ const ENCABEZADOS = [
   "Check-in",
   "Check-out",
   "Horas",
+  "Contacto emergencia",
   "Cel. emergencia",
   "EPS",
 ] as const;
@@ -88,6 +89,7 @@ export async function construirFilas(filtros: ExportFiltros = {}): Promise<strin
       reserva.checkIn ?? "",
       reserva.checkOut ?? "",
       reserva.horas === null ? "" : String(reserva.horas).replace(".", ","),
+      reserva.nombreEmergencia ?? "",
       reserva.contactoEmergencia ?? "",
       reserva.eps ?? "",
     ];

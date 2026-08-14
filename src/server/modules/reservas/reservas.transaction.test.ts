@@ -49,6 +49,7 @@ function input(overrides: Partial<CrearReservaInput> = {}): CrearReservaInput {
     edad: 30,
     turnoId: TURNO_ID,
     autorizoDatos: true,
+    nombreEmergencia: null,
     contactoEmergencia: null,
     eps: null,
     ...overrides,

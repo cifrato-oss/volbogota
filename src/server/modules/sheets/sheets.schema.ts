@@ -141,6 +141,8 @@ export const filaReservaSchema = z.object({
   fechaJornada: textoOpcional,
   jornada: textoOpcional,
   autorizoDatos: textoOpcional,
+  /** Sheet column R, `Contacto emergencia`. */
+  contactoEmergencia: textoOpcional,
   /** Sheet column S, `Cel. emergencia`. */
   celEmergencia: textoOpcional,
   /** Sheet column T, `EPS`. */
