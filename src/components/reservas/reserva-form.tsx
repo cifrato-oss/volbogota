@@ -28,6 +28,9 @@ const FIELD_NAMES: readonly (keyof ReservaFormValues)[] = [
   "apellido",
   "celular",
   "edad",
+  "eps",
+  "nombreEmergencia",
+  "contactoEmergencia",
   "autorizoDatos",
 ];
 
@@ -48,7 +51,16 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
     formState: { errors },
   } = useForm<ReservaFormValues>({
     resolver: zodResolver(reservaFormSchema),
-    defaultValues: { nombre: "", apellido: "", celular: "", edad: "", autorizoDatos: false },
+    defaultValues: {
+      nombre: "",
+      apellido: "",
+      celular: "",
+      edad: "",
+      eps: "",
+      nombreEmergencia: "",
+      contactoEmergencia: "",
+      autorizoDatos: false,
+    },
     mode: "onTouched",
   });
 
@@ -65,6 +77,9 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
         apellido: values.apellido,
         celular: values.celular,
         edad: Number(values.edad),
+        eps: values.eps,
+        nombreEmergencia: values.nombreEmergencia,
+        contactoEmergencia: values.contactoEmergencia,
         turnoId: turno.id,
         autorizoDatos: true,
       },
@@ -102,6 +117,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
           <Input
             id="nombre"
             autoComplete="given-name"
+            placeholder="Ana María"
             aria-invalid={Boolean(errors.nombre)}
             {...register("nombre")}
           />
@@ -111,6 +127,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
           <Input
             id="apellido"
             autoComplete="family-name"
+            placeholder="Ramírez Gómez"
             aria-invalid={Boolean(errors.apellido)}
             {...register("apellido")}
           />
@@ -124,9 +141,10 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
         >
           <Input
             id="celular"
-            inputMode="tel"
+            inputMode="numeric"
             autoComplete="tel-national"
             placeholder="3001234567"
+            maxLength={10}
             aria-invalid={Boolean(errors.celular)}
             {...register("celular")}
           />
@@ -139,11 +157,63 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
             inputMode="numeric"
             min={18}
             max={110}
+            placeholder="25"
             aria-invalid={Boolean(errors.edad)}
             {...register("edad")}
           />
         </FormField>
       </div>
+
+      <FormField
+        label="EPS"
+        htmlFor="eps"
+        error={errors.eps?.message}
+        hint="Tu entidad promotora de salud."
+      >
+        <Input
+          id="eps"
+          autoComplete="off"
+          placeholder="Sura, Sanitas, Nueva EPS…"
+          aria-invalid={Boolean(errors.eps)}
+          {...register("eps")}
+        />
+      </FormField>
+
+      <fieldset className="space-y-3 border-0 p-0">
+        <legend className="text-sm font-medium">Contacto de emergencia</legend>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <FormField
+            label="Nombre"
+            htmlFor="nombreEmergencia"
+            error={errors.nombreEmergencia?.message}
+          >
+            <Input
+              id="nombreEmergencia"
+              autoComplete="off"
+              placeholder="María Ramírez"
+              aria-invalid={Boolean(errors.nombreEmergencia)}
+              {...register("nombreEmergencia")}
+            />
+          </FormField>
+
+          <FormField
+            label="Celular"
+            htmlFor="contactoEmergencia"
+            error={errors.contactoEmergencia?.message}
+            hint="Puede ser celular o fijo."
+          >
+            <Input
+              id="contactoEmergencia"
+              inputMode="numeric"
+              autoComplete="off"
+              placeholder="3001234567"
+              maxLength={10}
+              aria-invalid={Boolean(errors.contactoEmergencia)}
+              {...register("contactoEmergencia")}
+            />
+          </FormField>
+        </div>
+      </fieldset>
 
       <div className="space-y-1.5">
         <Controller
