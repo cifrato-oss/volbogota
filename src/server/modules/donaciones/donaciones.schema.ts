@@ -5,19 +5,24 @@ import { slugify } from "@/server/modules/catalogo/catalogo.schema";
 /**
  * Domain vocabulary for the "Quiero donar" flow.
  *
- * Mirrors `catalogo.schema`: the spreadsheet's `Catálogo` sheet is the
- * authority on which items exist (few, stable, synced by import), and its
- * `Necesidades` sheet is the authority on which of them are needed at each
- * point right now (56 items × 6 points, edited in real time by coordinators).
+ * Mirrors `catalogo.schema`. Unlike `Centros`, the spreadsheet has no separate
+ * catalogue sheet: its single `Donaciones` tab is the authority on both which
+ * items exist (the `Categoría`/`Elemento` columns) and which of them are
+ * needed at each point right now (one column per point, edited in real time
+ * by coordinators) — `sincronizarDonacionesDesdeSheet` derives both from it.
  */
 
-/** The five categories the programme collects. A closed set, like `ACTIVIDADES`. */
+/** The nine categories the programme collects. A closed set, like `ACTIVIDADES`. */
 export const CATEGORIAS_DONACION = [
   "Alimentos",
-  "Elementos de aseo",
-  "Elementos de cocina",
-  "Elementos para el hogar",
-  "Materiales de construcción",
+  "Insumos médicos",
+  "Aseo",
+  "Bebé",
+  "Mascotas",
+  "Hogar",
+  "Cocina",
+  "Construcción",
+  "Ropa",
 ] as const;
 export const categoriaDonacionSchema = z.enum(CATEGORIAS_DONACION, {
   error: () => `La categoría debe ser una de: ${CATEGORIAS_DONACION.join(", ")}.`,

@@ -67,3 +67,19 @@ export async function hayNecesidades(): Promise<boolean> {
   const snapshot = await getDb().collection(COLLECTIONS.necesidades).limit(1).get();
   return !snapshot.empty;
 }
+
+/** Upserts the catalogue — what the sheet sync derives from `Donaciones` on every edit. */
+export async function guardarElementosEnLote(elementos: ElementoDonacion[]): Promise<void> {
+  const db = getDb();
+
+  for (let inicio = 0; inicio < elementos.length; inicio += LIMITE_LOTE) {
+    const lote = db.batch();
+
+    for (const elemento of elementos.slice(inicio, inicio + LIMITE_LOTE)) {
+      const { id, ...data } = elemento;
+      lote.set(db.collection(COLLECTIONS.catalogoDonaciones).doc(id), data, { merge: true });
+    }
+
+    await lote.commit();
+  }
+}

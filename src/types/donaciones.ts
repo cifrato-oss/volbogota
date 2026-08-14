@@ -5,10 +5,14 @@
 
 export type CategoriaDonacion =
   | "Alimentos"
-  | "Elementos de aseo"
-  | "Elementos de cocina"
-  | "Elementos para el hogar"
-  | "Materiales de construcción";
+  | "Insumos médicos"
+  | "Aseo"
+  | "Bebé"
+  | "Mascotas"
+  | "Hogar"
+  | "Cocina"
+  | "Construcción"
+  | "Ropa";
 
 /** Need state. `NO_APLICA` = this item isn't collected at this point. */
 export type EstadoNecesidad = "SE_NECESITA" | "SUFICIENTE" | "NO_APLICA";

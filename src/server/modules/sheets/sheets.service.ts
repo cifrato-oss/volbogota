@@ -14,11 +14,16 @@ import {
   type SincronizacionCatalogo,
   type SincronizacionTurnos,
 } from "@/server/modules/catalogo/catalogo.service";
-import { guardarNecesidadesEnLote } from "@/server/modules/donaciones/donaciones.repository";
+import {
+  guardarElementosEnLote,
+  guardarNecesidadesEnLote,
+} from "@/server/modules/donaciones/donaciones.repository";
 import {
   buildElementoId,
   buildNecesidadId,
   categoriaDonacionSchema,
+  type CategoriaDonacion,
+  type ElementoDonacion,
   type Necesidad,
 } from "@/server/modules/donaciones/donaciones.schema";
 import { crearReservaSchema, type Reserva } from "@/server/modules/reservas/reservas.schema";
@@ -395,20 +400,25 @@ export async function sincronizarReservasDesdeSheet(
 // --- Donaciones -------------------------------------------------------------
 
 /**
- * Applies a `Donaciones` edit: one status cell, one centre × item pair.
+ * Applies a `Donaciones` edit: the catalogue of items and one status cell per
+ * centre × item pair.
  *
- * Unlike `Centros`, this sheet does not own the catalogue of items or of
- * points — both already live in Firestore, one seeded by `import-excel`, the
- * other synced from its own sheet — so a cell naming either one wrong is
- * reported back and skipped, the same way a bad `Turnos` row is, instead of
- * being treated as a reason to reject cells that were typed correctly.
+ * Unlike `Centros`, this sheet owns the catalogue too — there is no separate
+ * `Catálogo` tab, only `Categoría`/`Elemento` columns on the same rows that
+ * carry each point's status — so every sync derives both from the one payload.
+ * `orden` follows the row order the sheet already presents, restarting per
+ * category. A cell naming an unknown point, or holding a word the dropdown
+ * does not use, is reported back and skipped, the same way a bad `Turnos` row
+ * is, instead of being treated as a reason to reject cells typed correctly.
  */
 export async function sincronizarDonacionesDesdeSheet(
   input: SincronizarDonacionesInput,
-): Promise<{ necesidades: number; rechazadas: FilaDonacionRechazada[] }> {
+): Promise<{ elementos: number; necesidades: number; rechazadas: FilaDonacionRechazada[] }> {
   const centros = await findCentros(false);
   const nombrePorCentroId = new Map(centros.map((centro) => [centro.id, centro.nombre]));
 
+  const elementos = new Map<string, ElementoDonacion>();
+  const ordenPorCategoria = new Map<CategoriaDonacion, number>();
   const necesidades: Necesidad[] = [];
   const rechazadas: FilaDonacionRechazada[] = [];
   const ahora = new Date().toISOString();
@@ -425,6 +435,18 @@ export async function sincronizarDonacionesDesdeSheet(
 
     const categoria = categoriaParsed.data;
     const elementoId = buildElementoId(categoria, fila.elemento);
+
+    if (!elementos.has(elementoId)) {
+      const orden = ordenPorCategoria.get(categoria) ?? 0;
+      ordenPorCategoria.set(categoria, orden + 1);
+      elementos.set(elementoId, {
+        id: elementoId,
+        categoria,
+        orden,
+        nombre: fila.elemento,
+        mensaje: null,
+      });
+    }
 
     for (const [nombreCentro, textoEstado] of Object.entries(fila.estados)) {
       // A blank cell means the pair has not been touched, not "not needed" —
@@ -465,16 +487,20 @@ export async function sincronizarDonacionesDesdeSheet(
     }
   }
 
-  if (necesidades.length === 0) {
-    throw badRequest("Ninguna celda del rango enviado se pudo aplicar.");
+  if (elementos.size === 0) {
+    throw badRequest("Ninguna fila del rango enviado se pudo leer.");
   }
 
-  await guardarNecesidadesEnLote(necesidades);
+  await Promise.all([
+    guardarElementosEnLote([...elementos.values()]),
+    necesidades.length > 0 ? guardarNecesidadesEnLote(necesidades) : Promise.resolve(),
+  ]);
 
-  logger.info("Necesidades sincronizadas desde la hoja", {
+  logger.info("Donaciones sincronizadas desde la hoja", {
+    elementos: elementos.size,
     necesidades: necesidades.length,
     rechazadas: rechazadas.length,
   });
 
-  return { necesidades: necesidades.length, rechazadas };
+  return { elementos: elementos.size, necesidades: necesidades.length, rechazadas };
 }
