@@ -1,4 +1,4 @@
-import type { EstadoTurno, Jornada, Turno } from "@/types/volbogota";
+import type { EstadoTurno, Turno } from "@/types/volbogota";
 
 /** `{nombre, celular}` in Firestore; the client only surfaces the name. */
 function coordinadorToString(value: unknown): string | null {
@@ -30,7 +30,7 @@ export function mapTurno(id: string, data: Record<string, unknown>): Turno {
     centroNombre: (data.centroNombre as string | undefined) ?? "",
     fecha: (data.fecha as string | undefined) ?? "",
     diaSemana: (data.diaSemana as string | undefined) ?? "",
-    jornada: (data.jornada as Jornada) ?? "AM",
+    jornada: (data.jornada as string | undefined) ?? "",
     horario: {
       inicio: (horario.inicio as string | undefined) ?? "",
       fin: (horario.fin as string | undefined) ?? "",

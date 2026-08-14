@@ -64,7 +64,8 @@ export default function useTurnosRealtime(centroId: string | undefined) {
           .sort(
             (a, b) =>
               a.fecha.localeCompare(b.fecha) ||
-              (a.jornada === b.jornada ? 0 : a.jornada === "AM" ? -1 : 1),
+              a.horario.inicio.localeCompare(b.horario.inicio) ||
+              a.jornada.localeCompare(b.jornada, "es"),
           );
         setEstado({ data: turnos, isPending: false, isError: false, error: null });
       },
