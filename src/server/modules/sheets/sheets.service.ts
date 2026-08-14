@@ -5,10 +5,13 @@ import {
   slugify,
   type Actividad,
   type Centro,
+  type TurnoDeHoja,
 } from "@/server/modules/catalogo/catalogo.schema";
 import {
   sincronizarCatalogo,
+  sincronizarTurnos,
   type SincronizacionCatalogo,
+  type SincronizacionTurnos,
 } from "@/server/modules/catalogo/catalogo.service";
 import { crearReservaSchema, type Reserva } from "@/server/modules/reservas/reservas.schema";
 import {
@@ -22,6 +25,9 @@ import {
 import {
   estadoDesdeSheet,
   estadoHaciaSheet,
+  fechaDesdeSheet,
+  horarioDesdeSheet,
+  jornadaDesdeSheet,
   partirNombreCompleto,
   siNoDesdeSheet,
   turnoIdDesdeColumnas,
@@ -30,9 +36,12 @@ import {
 import type {
   FilaCentro,
   FilaReserva,
+  FilaTurno,
+  FilaTurnoRechazada,
   ResultadoFila,
   SincronizarCentrosInput,
   SincronizarReservasInput,
+  SincronizarTurnosInput,
 } from "./sheets.schema";
 
 /**
@@ -47,6 +56,12 @@ import type {
  *   verdict so a coordinator sees which one failed and why, in the sheet's own
  *   `Validación` column, instead of losing a whole batch to one typo.
  */
+
+/** What a coordinator should read in the sheet when a row could not be applied. */
+function mensajeDe(error: unknown): string {
+  if (isAppError(error)) return error.message;
+  return error instanceof Error ? error.message : "Error inesperado.";
+}
 
 // --- Centros --------------------------------------------------------------
 
@@ -97,24 +112,112 @@ function aCentro(fila: FilaCentro): Centro {
   };
 }
 
+/**
+ * Applies a `Centros` edit, together with the board that overrides it.
+ *
+ * The board travels in the same payload on purpose. Rebuilding the shifts from
+ * the centres alone would reset every capacity the `Turnos` sheet had authorised
+ * for a single day — correcting an address would quietly undo an approved
+ * overbooking. Sending both halves means one rebuild that cannot disagree with
+ * itself; a sheet that does not send the board behaves exactly as before.
+ */
 export async function sincronizarCentrosDesdeSheet(
   input: SincronizarCentrosInput,
-): Promise<SincronizacionCatalogo> {
+): Promise<SincronizacionCatalogo & { rechazadas: FilaTurnoRechazada[] }> {
   const centros = input.filas.filter(esFilaDePunto).map(aCentro);
 
   if (centros.length === 0) {
     throw badRequest("Ninguna fila del rango enviado es un punto de acopio.");
   }
 
-  const resultado = await sincronizarCatalogo(centros, input.fechas);
+  const tablero = leerTablero(input.turnos ?? []);
+  const resultado = await sincronizarCatalogo(centros, input.fechas, tablero.turnos);
+  const rechazadas = tablero.conDesconocidos(resultado.centrosDesconocidos);
 
   logger.info("Catálogo sincronizado desde la hoja", {
     centros: resultado.centros,
     turnos: resultado.turnos,
     desactivados: resultado.desactivados,
+    rechazadas: rechazadas.length,
   });
 
-  return resultado;
+  return { ...resultado, rechazadas };
+}
+
+// --- Turnos ---------------------------------------------------------------
+
+function aTurnoDeHoja(fila: FilaTurno): TurnoDeHoja {
+  return {
+    // The sheet names the point the way `Centros` writes it, and the slug is
+    // what turns that into an id — the same route `Reservas` takes.
+    centroId: slugify(fila.puntoDeAcopio),
+    fecha: fechaDesdeSheet(fila.fecha),
+    jornada: jornadaDesdeSheet(fila.jornada),
+    horario: fila.horario ? horarioDesdeSheet(fila.horario) : null,
+    cuposTotales: fila.cuposTotales,
+  };
+}
+
+/**
+ * Reads the board, keeping each unreadable row aside instead of throwing.
+ *
+ * Same rule as the reservations sync: a typo in one date must not stop the other
+ * eighty-three shifts from being updated, so a bad row becomes a verdict for its
+ * own `Validación` cell.
+ */
+function leerTablero(filas: FilaTurno[]) {
+  const turnos: TurnoDeHoja[] = [];
+  const rechazadas: FilaTurnoRechazada[] = [];
+  const filasDelCentro = new Map<string, number[]>();
+
+  for (const fila of filas) {
+    try {
+      const turno = aTurnoDeHoja(fila);
+      turnos.push(turno);
+      filasDelCentro.set(turno.centroId, [
+        ...(filasDelCentro.get(turno.centroId) ?? []),
+        fila.fila,
+      ]);
+    } catch (error) {
+      rechazadas.push({ fila: fila.fila, motivo: mensajeDe(error) });
+    }
+  }
+
+  /** Turns the ids the catalogue did not know back into the rows that named them. */
+  function conDesconocidos(centrosDesconocidos: string[]): FilaTurnoRechazada[] {
+    const desconocidas = centrosDesconocidos.flatMap((centroId) =>
+      (filasDelCentro.get(centroId) ?? []).map((fila) => ({
+        fila,
+        motivo: `El punto de acopio no está en la hoja Centros (${centroId}).`,
+      })),
+    );
+
+    return [...rechazadas, ...desconocidas].sort((a, b) => a.fila - b.fila);
+  }
+
+  return { turnos, rechazadas, conDesconocidos };
+}
+
+/** Applies the `Turnos` board to Firestore, without touching the catalogue. */
+export async function sincronizarTurnosDesdeSheet(
+  input: SincronizarTurnosInput,
+): Promise<SincronizacionTurnos & { rechazadas: FilaTurnoRechazada[] }> {
+  const tablero = leerTablero(input.filas);
+
+  if (tablero.turnos.length === 0) {
+    throw badRequest("Ninguna fila del tablero de turnos se pudo leer.");
+  }
+
+  const resultado = await sincronizarTurnos(tablero.turnos);
+  const rechazadas = tablero.conDesconocidos(resultado.centrosDesconocidos);
+
+  logger.info("Turnos sincronizados desde la hoja", {
+    filas: input.filas.length,
+    turnos: resultado.turnos,
+    rechazadas: rechazadas.length,
+  });
+
+  return { ...resultado, rechazadas };
 }
 
 // --- Reservas -------------------------------------------------------------
@@ -238,11 +341,7 @@ async function procesarFila(fila: FilaReserva): Promise<ResultadoFila> {
   } catch (error) {
     // One bad row must not take the batch down with it. The message goes back
     // to the sheet's Validación column, which is where a coordinator looks.
-    const validacion = isAppError(error)
-      ? error.message
-      : error instanceof Error
-        ? error.message
-        : "Error inesperado.";
+    const validacion = mensajeDe(error);
 
     logger.warn("Fila de reservas rechazada", { fila: fila.fila, validacion });
 

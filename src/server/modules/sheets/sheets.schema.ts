@@ -53,6 +53,36 @@ export const filaCentroSchema = z.object({
 });
 export type FilaCentro = z.infer<typeof filaCentroSchema>;
 
+/**
+ * A row of the `Turnos` sheet.
+ *
+ * This is the sheet's authority over a single shift: which point, which day,
+ * which slot, at what hours and for how many volunteers. `Cupos totales` may
+ * hold a formula that looks the figure up in `Centros` or a number typed over
+ * it; either way the cell arrives here as its computed value, which is what
+ * makes one column carry both the nominal figure and the exception to it.
+ */
+export const filaTurnoSchema = z.object({
+  /** 1-based row number in the sheet, so a rejection can name it. */
+  fila: z.number().int().positive(),
+  /** The point's display name, exactly as `Centros` writes it. */
+  puntoDeAcopio: z.string().trim().min(1, "El punto de acopio es obligatorio."),
+  fecha: z.string().trim().min(1, "La fecha es obligatoria."),
+  jornada: z.string().trim().min(1, "La jornada es obligatoria."),
+  /** Empty falls back to the shift's default schedule. */
+  horario: textoOpcional,
+  cuposTotales: cuposSchema,
+});
+export type FilaTurno = z.infer<typeof filaTurnoSchema>;
+
+export const sincronizarTurnosSchema = z.object({
+  filas: z.array(filaTurnoSchema).min(1, "No llegó ninguna fila."),
+});
+export type SincronizarTurnosInput = z.infer<typeof sincronizarTurnosSchema>;
+
+/** Why a `Turnos` row could not be applied, for the coordinator who typed it. */
+export type FilaTurnoRechazada = { fila: number; motivo: string };
+
 export const sincronizarCentrosSchema = z.object({
   filas: z.array(filaCentroSchema).min(1, "No llegó ninguna fila."),
   /**
@@ -61,6 +91,11 @@ export const sincronizarCentrosSchema = z.object({
    * already in Firestore are reused.
    */
   fechas: z.array(fechaSchema).optional(),
+  /**
+   * The `Turnos` board, so one rebuild sees both halves of the truth. Optional:
+   * a sheet that does not send it gets the plain centre-driven catalogue.
+   */
+  turnos: z.array(filaTurnoSchema).optional(),
 });
 export type SincronizarCentrosInput = z.infer<typeof sincronizarCentrosSchema>;
 

@@ -15,9 +15,10 @@ vi.mock("@/server/db/firestore", () => ({
   getDb: () => db,
 }));
 
-const { sincronizarCentrosDesdeSheet, sincronizarReservasDesdeSheet } =
+const { sincronizarCentrosDesdeSheet, sincronizarReservasDesdeSheet, sincronizarTurnosDesdeSheet } =
   await import("./sheets.service");
-const { sincronizarCentrosSchema, sincronizarReservasSchema } = await import("./sheets.schema");
+const { sincronizarCentrosSchema, sincronizarReservasSchema, sincronizarTurnosSchema } =
+  await import("./sheets.schema");
 
 // Through the schema, exactly as the route does: Apps Script sends every cell
 // as text, and the coercion is part of what these tests are checking.
@@ -27,6 +28,23 @@ function sincronizarCentros(body: unknown) {
 
 function sincronizarReservas(body: unknown) {
   return sincronizarReservasDesdeSheet(sincronizarReservasSchema.parse(body));
+}
+
+function sincronizarTurnos(body: unknown) {
+  return sincronizarTurnosDesdeSheet(sincronizarTurnosSchema.parse(body));
+}
+
+/** A row of the `Turnos` board, as Apps Script reads it. */
+function filaTurno(overrides: Record<string, unknown> = {}) {
+  return {
+    fila: 2,
+    puntoDeAcopio: "Punto Usaquén",
+    fecha: "13/08/2026",
+    jornada: "AM",
+    horario: null,
+    cuposTotales: "150",
+    ...overrides,
+  };
 }
 
 const FECHAS = ["2026-08-13", "2026-08-14"];
@@ -241,6 +259,164 @@ describe("sincronizarCentrosDesdeSheet", () => {
 
     expect(resultado.fechas).toEqual(FECHAS);
     expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 80 });
+  });
+});
+
+describe("sincronizarTurnosDesdeSheet", () => {
+  beforeEach(async () => {
+    await sincronizarCentros({ filas: [filaCentro()], fechas: FECHAS });
+  });
+
+  it("lets the board authorise more capacity than the point's nominal figure", async () => {
+    // This is the whole point of the board: 300 on Thursday at a point whose
+    // `Centros` row says 150, without touching the other days.
+    const resultado = await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    expect(resultado.rechazadas).toEqual([]);
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 150 });
+  });
+
+  it("reverts a shift to the nominal capacity when its row is deleted", async () => {
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    // The row is gone from the board; another row keeps the batch non-empty.
+    await sincronizarTurnos({ filas: [filaTurno({ jornada: "PM", cuposTotales: "150" })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 150 });
+  });
+
+  it("opens a night the point's nominal capacity leaves closed", async () => {
+    await sincronizarTurnos({
+      filas: [filaTurno({ jornada: "Noche", cuposTotales: "80", horario: "7 p.m. a 11 p.m." })],
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_noche")).toMatchObject({
+      cuposTotales: 80,
+      estado: "ABIERTO",
+      horario: { inicio: "19:00", fin: "23:00", etiqueta: "7 p.m. a 11 p.m." },
+    });
+  });
+
+  it("opens a day the programme's calendar does not cover", async () => {
+    const resultado = await sincronizarTurnos({ filas: [filaTurno({ fecha: "20/08/2026" })] });
+
+    expect(resultado.fechas).toContain("2026-08-20");
+    expect(db.peek("turnos/punto-usaquen_2026-08-20_am")).toMatchObject({ cuposTotales: 150 });
+  });
+
+  it("never wipes bookings already taken", async () => {
+    db.seed("turnos/punto-usaquen_2026-08-13_am", {
+      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
+      reservados: 40,
+    });
+
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+      cuposTotales: 300,
+      reservados: 40,
+    });
+  });
+
+  it("applies capacity as written even below what is already booked", async () => {
+    db.seed("turnos/punto-usaquen_2026-08-13_am", {
+      ...db.peek("turnos/punto-usaquen_2026-08-13_am"),
+      reservados: 120,
+    });
+
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "100" })] });
+
+    // Visibly oversold beats silently dropping volunteers who already booked.
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+      cuposTotales: 100,
+      reservados: 120,
+    });
+  });
+
+  it("rejects the bad row and applies the rest of the board", async () => {
+    const resultado = await sincronizarTurnos({
+      filas: [
+        filaTurno({ fila: 2, cuposTotales: "300" }),
+        filaTurno({ fila: 3, fecha: "13 de agosto" }),
+        filaTurno({ fila: 4, jornada: "Madrugada" }),
+        filaTurno({ fila: 5, jornada: "PM", horario: "por la mañana" }),
+      ],
+    });
+
+    expect(resultado.rechazadas.map((r) => r.fila)).toEqual([3, 4, 5]);
+    expect(resultado.rechazadas[0]?.motivo).toMatch(/no entiendo la fecha/i);
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
+  });
+
+  it("names the row whose point is not in the catalogue", async () => {
+    const resultado = await sincronizarTurnos({
+      filas: [filaTurno({ fila: 7, puntoDeAcopio: "Estadio El Campin" })],
+    });
+
+    expect(resultado.rechazadas).toEqual([
+      { fila: 7, motivo: expect.stringContaining("estadio-el-campin") },
+    ]);
+  });
+
+  it("refuses a batch in which no row could be read", async () => {
+    await expect(
+      sincronizarTurnos({ filas: [filaTurno({ jornada: "Madrugada" })] }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("survives an edit to Centros when the board travels with it", async () => {
+    // The board is what authorises 300 for one day. Rebuilding the shifts from
+    // the centres alone would quietly undo it on the next address correction.
+    const tablero = [filaTurno({ cuposTotales: "300" })];
+
+    await sincronizarTurnos({ filas: tablero });
+    await sincronizarCentros({
+      filas: [filaCentro({ localidad: "Usaquén (corregido)" })],
+      fechas: FECHAS,
+      turnos: tablero,
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 300 });
+  });
+
+  it("reads a formula row and a hard-typed row from the same column", async () => {
+    // The sheet sends computed values, so `Cupos totales` carries the figure
+    // looked up in `Centros` and the one typed over it without distinction.
+    await sincronizarCentros({
+      filas: [filaCentro()],
+      fechas: FECHAS,
+      turnos: [
+        filaTurno({ fila: 2, cuposTotales: "150" }), // = INDEX(Centros!…)
+        filaTurno({ fila: 3, fecha: "14/08/2026", cuposTotales: "400" }), // typed over
+      ],
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 150 });
+    expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 400 });
+  });
+
+  it("reports a board row the Centros payload does not contain", async () => {
+    const resultado = await sincronizarCentros({
+      filas: [filaCentro()],
+      fechas: FECHAS,
+      turnos: [filaTurno({ fila: 9, puntoDeAcopio: "Estadio El Campin" })],
+    });
+
+    expect(resultado.rechazadas).toEqual([
+      { fila: 9, motivo: expect.stringContaining("estadio-el-campin") },
+    ]);
+  });
+
+  it("keeps a retired point's shifts closed whatever the board says", async () => {
+    await sincronizarCentros({ filas: [filaCentro({ activo: "No" })], fechas: FECHAS });
+
+    await sincronizarTurnos({ filas: [filaTurno({ cuposTotales: "300" })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({
+      centroActivo: false,
+      estado: "CERRADO",
+    });
   });
 });
 

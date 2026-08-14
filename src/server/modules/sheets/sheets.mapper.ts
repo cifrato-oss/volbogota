@@ -18,6 +18,7 @@ import {
   JORNADAS,
   buildTurnoId,
   slugify,
+  type Horario,
   type Jornada,
 } from "@/server/modules/catalogo/catalogo.schema";
 import { ESTADOS_RESERVA, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
@@ -49,10 +50,9 @@ export function fechaHaciaSheet(iso: string): string {
 /**
  * The sheet's `Jornada` column, case- and accent-insensitive.
  *
- * The evening shift no longer exists, but the sheet's dropdown and its older
- * `Turnos` rows still offer `Noche`. Such a row is rejected here with its own
- * verdict for the `Validación` column instead of being quietly booked into a
- * shift the programme no longer runs.
+ * Anything outside the programme's shifts — a typo, or a slot someone invented
+ * in the dropdown — is rejected here with its own verdict for the `Validación`
+ * column instead of being quietly booked into a shift that does not run.
  */
 export function jornadaDesdeSheet(valor: string): Jornada {
   const normalizada = normalizar(valor).toUpperCase();
@@ -63,6 +63,59 @@ export function jornadaDesdeSheet(valor: string): Jornada {
   }
 
   return jornada;
+}
+
+/** The range separators a coordinator actually types between two times. */
+const SEPARADOR_HORARIO = /\s*(?:-|–|—|\ba\b)\s*/;
+
+/**
+ * The `Turnos` sheet's `Horario` column — `8:00 a.m. - 2:00 p.m.`, `08:00-14:00`,
+ * `7 p.m. a 10 p.m.`.
+ *
+ * The label is kept verbatim because it is what the sheet chose to display and
+ * what a volunteer will read; only `inicio` and `fin` are normalised to 24-hour
+ * time, which is what sorting and comparing need. A row whose schedule cannot be
+ * read is rejected rather than silently falling back to the default: a shift
+ * running at a different hour than the sheet says is worse than a flagged row.
+ */
+export function horarioDesdeSheet(valor: string): Horario {
+  const etiqueta = valor.trim();
+
+  // Dots go first so `a.m.` cannot be mistaken for the `a` that separates a
+  // range: `8:00 a.m. - 2:00 p.m.` would otherwise split at the meridiem.
+  const partes = etiqueta.replace(/\./g, "").split(SEPARADOR_HORARIO).filter(Boolean);
+
+  if (partes.length !== 2) {
+    throw badRequest(
+      `No entiendo el horario "${valor}". Usa "8:00 a.m. - 2:00 p.m." o "08:00-14:00".`,
+    );
+  }
+
+  const [inicio = "", fin = ""] = partes;
+
+  return { inicio: horaDesdeSheet(inicio, valor), fin: horaDesdeSheet(fin, valor), etiqueta };
+}
+
+/** `2:00 pm` → `14:00`. The meridiem is optional; without it the hour is 24-hour. */
+function horaDesdeSheet(parte: string, horarioCompleto: string): string {
+  const texto = parte.toLowerCase().replace(/\s+/g, "");
+  const match = /^(\d{1,2})(?::(\d{2}))?(am|pm|m)?$/.exec(texto);
+
+  if (!match) {
+    throw badRequest(`No entiendo la hora "${parte}" del horario "${horarioCompleto}".`);
+  }
+
+  const [, crudaHora = "", minutos = "00", meridiano] = match;
+  let hora = Number(crudaHora);
+
+  if (meridiano === "pm" && hora < 12) hora += 12;
+  if (meridiano === "am" && hora === 12) hora = 0;
+  // `12 m.` is noon in Colombian usage, which 24-hour time already spells 12.
+  if (hora > 23 || Number(minutos) > 59) {
+    throw badRequest(`La hora "${parte}" del horario "${horarioCompleto}" no existe.`);
+  }
+
+  return `${String(hora).padStart(2, "0")}:${minutos}`;
 }
 
 const ETIQUETA_JORNADA_SHEET: Record<Jornada, string> = {
