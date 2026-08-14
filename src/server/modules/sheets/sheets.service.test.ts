@@ -661,7 +661,10 @@ describe("sincronizarReservasDesdeSheet", () => {
 describe("sincronizarDonacionesDesdeSheet", () => {
   beforeEach(async () => {
     await sincronizarCentros({
-      filas: [filaCentro({ puntoDeAcopio: "Cruz Roja" }), filaCentro({ puntoDeAcopio: "CC Unicentro" })],
+      filas: [
+        filaCentro({ puntoDeAcopio: "Cruz Roja" }),
+        filaCentro({ puntoDeAcopio: "CC Unicentro" }),
+      ],
       fechas: FECHAS,
     });
   });
@@ -756,10 +759,7 @@ describe("sincronizarDonacionesDesdeSheet", () => {
 
   it("rejects an unknown category without failing the rest of the batch", async () => {
     const resultado = await sincronizarDonaciones({
-      filas: [
-        filaDonacion({ fila: 6, categoria: "Electrodomésticos" }),
-        filaDonacion({ fila: 7 }),
-      ],
+      filas: [filaDonacion({ fila: 6, categoria: "Electrodomésticos" }), filaDonacion({ fila: 7 })],
     });
 
     expect(resultado.necesidades).toBe(1);

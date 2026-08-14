@@ -416,7 +416,10 @@ export async function sincronizarDonacionesDesdeSheet(
   for (const fila of input.filas) {
     const categoriaParsed = categoriaDonacionSchema.safeParse(fila.categoria);
     if (!categoriaParsed.success) {
-      rechazadas.push({ fila: fila.fila, motivo: `La categoría "${fila.categoria}" no es válida.` });
+      rechazadas.push({
+        fila: fila.fila,
+        motivo: `La categoría "${fila.categoria}" no es válida.`,
+      });
       continue;
     }
 
