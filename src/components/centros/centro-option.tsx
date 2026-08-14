@@ -72,16 +72,22 @@ export function CentroOption({ centro, href, mostrarCupos = true }: CentroOption
 
         {mostrarCupos ? (
           <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
-            {JORNADAS_VOLUNTARIADO.map((jornada) => (
-              <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
-                <dt className="text-muted-foreground text-[11px]">
-                  <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
-                </dt>
-                <dd className="font-medium tabular-nums">
-                  {formatNumero(centro.cuposPorJornada[jornada] ?? 0)}
-                </dd>
-              </div>
-            ))}
+            {JORNADAS_VOLUNTARIADO.map((jornada) => {
+              const cupos = centro.cuposPorJornada[jornada] ?? 0;
+              return (
+                <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
+                  <dt className="text-muted-foreground text-[11px]">
+                    <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
+                  </dt>
+                  <dd className="font-medium tabular-nums">
+                    {formatNumero(cupos)}{" "}
+                    <span className="text-muted-foreground text-[11px] font-normal">
+                      {cupos === 1 ? "cupo" : "cupos"}
+                    </span>
+                  </dd>
+                </div>
+              );
+            })}
           </dl>
         ) : null}
       </div>
