@@ -6,7 +6,7 @@ import { siteConfig } from "@/config/site";
 export function SiteHeader() {
   return (
     <header className="border-primary/10 bg-primary/5 border-b">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4">
         <Link
           href="/"
           className="flex items-center gap-3"
@@ -40,7 +40,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <span className="bg-primary/10 text-primary inline-flex w-fit items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
+        <span className="bg-primary/10 text-primary inline-flex w-fit shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm">
           <span aria-hidden>📅</span>
           <span className="sm:hidden">{siteConfig.eventLabel}</span>
           <span className="hidden sm:inline">{siteConfig.eventLabelLong}</span>
