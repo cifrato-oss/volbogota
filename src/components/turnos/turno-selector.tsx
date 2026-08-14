@@ -93,7 +93,7 @@ export function TurnoSelector({
               <span aria-hidden>{style.emoji}</span> Jornada {JORNADA_LABEL[jornada]}
             </div>
 
-            <div className="mt-3 space-y-2">
+            <div className="scroll-turnos mt-3 max-h-96 space-y-2 overflow-y-auto overscroll-contain pr-1 pl-0.5 sm:max-h-none sm:overflow-visible sm:px-0">
               {list.map((turno) => {
                 const disabled = turno.agotado || turno.estado !== "ABIERTO";
                 const selected = turno.id === selectedTurnoId;
