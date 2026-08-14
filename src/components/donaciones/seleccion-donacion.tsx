@@ -9,13 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsIndicator, TabsList, TabsPanel, TabsTab } from "@/components/ui/tabs";
 import { CATEGORIAS_DONACION } from "@/constants/donaciones";
@@ -118,7 +111,7 @@ function ListaElementos({
       {categoria.mensaje ? (
         <p className="text-muted-foreground text-xs">{categoria.mensaje}</p>
       ) : null}
-      <ul className="divide-border divide-y overflow-hidden rounded-xl border">
+      <ul className="scroll-turnos divide-border max-h-96 divide-y overflow-y-auto rounded-xl border">
         {categoria.elementos.map((elemento) => {
           const seleccionable = elemento.semaforo === "ROJO";
           const checked = interactivo && Boolean(seleccionados[elemento.elementoId]);
@@ -316,35 +309,8 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
         value={categoriaActiva}
         onValueChange={(value) => setCategoria(value as CategoriaDonacion)}
       >
-        {/* Mobile: a select stands in for the tabs. */}
-        <div className="md:hidden">
-          <Label htmlFor="categoria-donacion" className="sr-only">
-            Categoría
-          </Label>
-          <Select
-            value={categoriaActiva}
-            onValueChange={(value) => setCategoria(value as CategoriaDonacion)}
-          >
-            <SelectTrigger id="categoria-donacion" aria-label="Categoría">
-              <SelectValue placeholder="Selecciona una categoría" />
-            </SelectTrigger>
-            <SelectContent>
-              {categorias.map((cat) => (
-                <SelectItem key={cat.categoria} value={cat.categoria}>
-                  <span className="flex items-center">
-                    {cat.categoria}
-                    {conteoPorCategoria[cat.categoria] ? (
-                      <CountPill>{conteoPorCategoria[cat.categoria]!}</CountPill>
-                    ) : null}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Desktop: real tabs. */}
-        <TabsList aria-label="Categorías de donación" className="hidden md:flex">
+        {/* Category tabs — on mobile too; the list scrolls horizontally. */}
+        <TabsList aria-label="Categorías de donación">
           {categorias.map((cat) => (
             <TabsTab key={cat.categoria} value={cat.categoria}>
               {cat.categoria}
