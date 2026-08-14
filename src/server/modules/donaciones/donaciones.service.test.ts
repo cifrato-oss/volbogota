@@ -45,8 +45,8 @@ const arroz: ElementoDonacion = {
 };
 
 const jabon: ElementoDonacion = {
-  id: "elementos-de-aseo-jabon-de-bano",
-  categoria: "Elementos de aseo",
+  id: "aseo-jabon-de-bano",
+  categoria: "Aseo",
   orden: 1,
   nombre: "Jabón de baño",
   mensaje: null,
@@ -80,7 +80,7 @@ describe("listarNecesidadesDeCentro", () => {
     const resultado = await listarNecesidadesDeCentro("cruz-roja");
 
     expect(resultado.centroId).toBe("cruz-roja");
-    expect(resultado.categorias).toHaveLength(5); // the five fixed categories, even when empty
+    expect(resultado.categorias).toHaveLength(9); // the nine fixed categories, even when empty
 
     const alimentos = resultado.categorias.find((c) => c.categoria === "Alimentos");
     expect(alimentos).toMatchObject({
@@ -96,9 +96,7 @@ describe("listarNecesidadesDeCentro", () => {
       },
     ]);
 
-    const construccion = resultado.categorias.find(
-      (c) => c.categoria === "Materiales de construcción",
-    );
+    const construccion = resultado.categorias.find((c) => c.categoria === "Construcción");
     expect(construccion).toMatchObject({ necesita: false, elementos: [] });
   });
 

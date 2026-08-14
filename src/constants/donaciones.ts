@@ -3,10 +3,14 @@ import type { CategoriaDonacion, EstadoNecesidad, Semaforo } from "@/types/donac
 /** Display order for the donation categories. */
 export const CATEGORIAS_DONACION: readonly CategoriaDonacion[] = [
   "Alimentos",
-  "Elementos de aseo",
-  "Elementos de cocina",
-  "Elementos para el hogar",
-  "Materiales de construcción",
+  "Insumos médicos",
+  "Aseo",
+  "Bebé",
+  "Mascotas",
+  "Hogar",
+  "Cocina",
+  "Construcción",
+  "Ropa",
 ] as const;
 
 /** Badge color for each need state (mirrors the server's mapping). */

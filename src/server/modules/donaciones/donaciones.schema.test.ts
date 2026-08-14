@@ -24,8 +24,8 @@ function necesidad(overrides: Partial<Necesidad> = {}): Necesidad {
 describe("buildElementoId", () => {
   it("folds category and name into a stable, ASCII id", () => {
     expect(buildElementoId("Alimentos", "Arroz blanco")).toBe("alimentos-arroz-blanco");
-    expect(buildElementoId("Materiales de construcción", "Zinc arquitectónico")).toBe(
-      "materiales-de-construccion-zinc-arquitectonico",
+    expect(buildElementoId("Construcción", "Zinc arquitectónico")).toBe(
+      "construccion-zinc-arquitectonico",
     );
   });
 });

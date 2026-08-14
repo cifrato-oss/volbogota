@@ -277,7 +277,10 @@ async function leerDonaciones(): Promise<FilaDonacion[]> {
 }
 
 /** Pulls the donation semaphore and applies it through the same path the hook uses. */
-export async function importarNecesidadesDesdeCsv(): Promise<{ necesidades: number }> {
+export async function importarNecesidadesDesdeCsv(): Promise<{
+  elementos: number;
+  necesidades: number;
+}> {
   if (!env.sheetId) {
     throw new Error("Falta SHEET_ID: sin él no hay hoja que leer.");
   }
@@ -286,11 +289,12 @@ export async function importarNecesidadesDesdeCsv(): Promise<{ necesidades: numb
   const input = sincronizarDonacionesSchema.parse({ filas });
   const resultado = await sincronizarDonacionesDesdeSheet(input);
 
-  logger.info("Necesidades importadas desde el CSV de la hoja", {
+  logger.info("Donaciones importadas desde el CSV de la hoja", {
+    elementos: resultado.elementos,
     necesidades: resultado.necesidades,
   });
 
-  return { necesidades: resultado.necesidades };
+  return { elementos: resultado.elementos, necesidades: resultado.necesidades };
 }
 
 const ESPERA_TRAS_FALLO_NECESIDADES_MS = 30_000;

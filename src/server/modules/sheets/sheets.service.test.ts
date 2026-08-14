@@ -672,6 +672,7 @@ describe("sincronizarDonacionesDesdeSheet", () => {
   it("writes the need for the point the cell named", async () => {
     const resultado = await sincronizarDonaciones({ filas: [filaDonacion()] });
 
+    expect(resultado.elementos).toBe(1);
     expect(resultado.necesidades).toBe(1);
     expect(resultado.rechazadas).toEqual([]);
     expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
@@ -680,6 +681,36 @@ describe("sincronizarDonacionesDesdeSheet", () => {
       categoria: "Alimentos",
       elemento: "Arroz blanco",
       estado: "SE_NECESITA",
+    });
+  });
+
+  it("derives the catalogue from the same row, since the sheet has no separate Catálogo tab", async () => {
+    await sincronizarDonaciones({
+      filas: [filaDonacion(), filaDonacion({ fila: 6, elemento: "Frijol" })],
+    });
+
+    expect(db.peek("catalogoDonaciones/alimentos-arroz-blanco")).toMatchObject({
+      categoria: "Alimentos",
+      orden: 0,
+      nombre: "Arroz blanco",
+      mensaje: null,
+    });
+    expect(db.peek("catalogoDonaciones/alimentos-frijol")).toMatchObject({
+      categoria: "Alimentos",
+      orden: 1,
+      nombre: "Frijol",
+    });
+  });
+
+  it("writes the catalogue item even when no centre's cell could be applied", async () => {
+    const resultado = await sincronizarDonaciones({
+      filas: [filaDonacion({ estados: { "Cruz Roja": null } })],
+    });
+
+    expect(resultado.elementos).toBe(1);
+    expect(resultado.necesidades).toBe(0);
+    expect(db.peek("catalogoDonaciones/alimentos-arroz-blanco")).toMatchObject({
+      nombre: "Arroz blanco",
     });
   });
 
@@ -768,9 +799,9 @@ describe("sincronizarDonacionesDesdeSheet", () => {
     ]);
   });
 
-  it("refuses a batch in which no cell could be applied", async () => {
+  it("refuses a batch in which no row could be read at all", async () => {
     await expect(
-      sincronizarDonaciones({ filas: [filaDonacion({ estados: { "Cruz Roja": null } })] }),
+      sincronizarDonaciones({ filas: [filaDonacion({ categoria: "Electrodomésticos" })] }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
