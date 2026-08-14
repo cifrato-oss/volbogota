@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckmarkCircle02Icon, GiftIcon } from "@hugeicons/core-free-icons";
+import { Alert02Icon, CheckmarkCircle02Icon, GiftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
@@ -75,6 +75,25 @@ function CountPill({ children }: { children: number }) {
       </span>
       <span className="sr-only">{children} seleccionados</span>
     </span>
+  );
+}
+
+/** Handling reminder shown only at the top of the Alimentos list. */
+function AvisoAlimentos() {
+  return (
+    <div
+      role="note"
+      className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+    >
+      <HugeiconsIcon
+        icon={Alert02Icon}
+        className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
+      />
+      <p className="text-pretty">
+        <strong className="font-semibold">Recuerda:</strong> revisa siempre las fechas de
+        vencimiento. Tacha el código de barras del producto y escríbele encima “donación”.
+      </p>
+    </div>
   );
 }
 
@@ -323,7 +342,8 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
         {/* Shared panels drive a proper tab/tabpanel relationship on desktop and
             still render the active category's items on mobile. */}
         {categorias.map((cat) => (
-          <TabsPanel key={cat.categoria} value={cat.categoria}>
+          <TabsPanel key={cat.categoria} value={cat.categoria} className="space-y-3">
+            {cat.categoria === "Alimentos" ? <AvisoAlimentos /> : null}
             <ListaElementos categoria={cat} seleccionados={seleccionados} onToggle={alternar} />
           </TabsPanel>
         ))}

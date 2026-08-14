@@ -30,9 +30,11 @@ export function CentroHeader({ centro, backHref, backLabel }: CentroHeaderProps)
               </p>
             ) : null}
             {centro.horarioOficial ? (
-              <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+              <p className="ring-primary/20 bg-primary/10 text-primary mt-1 flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ring-1 ring-inset">
                 <span aria-hidden>🕒</span>
-                <span>{centro.horarioOficial}</span>
+                <span>
+                  <span className="font-normal opacity-80">Horario:</span> {centro.horarioOficial}
+                </span>
               </p>
             ) : null}
           </div>
