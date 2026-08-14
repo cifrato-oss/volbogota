@@ -98,6 +98,23 @@ async function descargar(hoja: string): Promise<string[][]> {
 }
 
 /**
+ * The day a board row runs, preferring the one inside `ID_Turno`.
+ *
+ * The published CSV renders `Fecha` in the sheet's display locale, which on the
+ * live board is `8/15/2026` — month first, and indistinguishable from a
+ * day-first date once the day is under 13. `ID_Turno` already carries the same
+ * day in ISO, so it is the unambiguous source; the column is only the fallback
+ * for a board that has no id yet. Apps Script does not need this: it reads the
+ * cell as a Date and formats it itself.
+ */
+function fechaDeLaFila(idTurno: string | undefined, fecha: string | undefined): string | undefined {
+  const [, delId] = (idTurno ?? "").split("|");
+  if (delId && /^\d{4}-\d{2}-\d{2}$/.test(delId.trim())) return delId.trim();
+
+  return fecha?.trim();
+}
+
+/**
  * The `Turnos` board, one row per shift — the same shape the live hook sends.
  *
  * A row this cannot read is skipped rather than thrown: the board carries
@@ -110,11 +127,13 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
   const encabezado = filas[indiceEncabezado] ?? [];
 
   const columnas = {
+    idTurno: indiceDe(encabezado, "ID_Turno"),
     puntoDeAcopio: indiceDe(encabezado, "Punto de acopio"),
     fecha: indiceDe(encabezado, "Fecha"),
     dia: indiceDe(encabezado, "Día"),
     jornada: indiceDe(encabezado, "Jornada"),
     horario: indiceDe(encabezado, "Horario"),
+    estadoCupo: indiceDe(encabezado, "Estado del cupo"),
     cuposTotales: indiceDe(encabezado, "Cupos totales"),
   };
 
@@ -127,8 +146,8 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
   for (let fila = indiceEncabezado + 1; fila < filas.length; fila += 1) {
     const valores = filas[fila] ?? [];
     const punto = valores[columnas.puntoDeAcopio]?.trim();
-    const fecha = valores[columnas.fecha]?.trim();
     const jornada = valores[columnas.jornada]?.trim();
+    const fecha = fechaDeLaFila(valores[columnas.idTurno], valores[columnas.fecha]);
 
     // A half-filled row does not describe a shift yet.
     if (!punto || !fecha || !jornada) continue;
@@ -141,6 +160,7 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
       jornada,
       dia: valores[columnas.dia]?.trim() || null,
       horario: valores[columnas.horario]?.trim() || null,
+      estadoCupo: valores[columnas.estadoCupo]?.trim() || null,
       cuposTotales: valores[columnas.cuposTotales]?.trim() || "0",
     });
   }
@@ -158,7 +178,10 @@ async function leerCentros(): Promise<Record<string, string>[]> {
     localidad: indiceDe(encabezado, "Localidad"),
     horarioOficial: indiceDe(encabezado, "Horario oficial"),
     cuposAm: indiceDe(encabezado, "Cupos AM"),
+    cuposTarde: indiceDe(encabezado, "Cupos TARDE"),
     cuposPm: indiceDe(encabezado, "Cupos PM"),
+    cuposMadrugada: indiceDe(encabezado, "Cupos MADRUGADA"),
+    cuposNoche: indiceDe(encabezado, "Cupos Noche"),
     actividades: indiceDe(encabezado, "Actividades"),
     linkMaps: indiceDe(encabezado, "Link"),
     activo: indiceDe(encabezado, "Activo"),

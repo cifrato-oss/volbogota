@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTurnoId,
   construirTurnos,
+  resolverCentroId,
   slugify,
   toTurnoPublico,
   type Centro,
@@ -30,10 +31,12 @@ function centro(overrides: Partial<Centro> = {}): Centro {
 function fila(overrides: Partial<TurnoDeHoja> = {}): TurnoDeHoja {
   return {
     centroId: "vive-claro",
+    puntoDeAcopio: "Vive Claro",
     fecha: "2026-08-13",
     jornada: "AM",
     dia: null,
     horario: null,
+    abierto: null,
     cuposTotales: 150,
     ...overrides,
   };
@@ -63,6 +66,41 @@ describe("slugify", () => {
     expect(slugify("Estadio El Campín")).toBe("estadio-el-campin");
     expect(slugify("U. Jorge Tadeo Lozano")).toBe("u-jorge-tadeo-lozano");
     expect(slugify("CC Nuestro Bogotá")).toBe("cc-nuestro-bogota");
+  });
+
+  it("reads a dotted abbreviation as the same point", () => {
+    // `Turnos` writes `C.C. Unicentro` where `Centros` writes `CC Unicentro`.
+    expect(slugify("C.C. Unicentro")).toBe(slugify("CC Unicentro"));
+  });
+});
+
+describe("resolverCentroId", () => {
+  const conocidos = new Set(["cc-unicentro", "cruz-roja", "estadio-el-campin"]);
+
+  it("matches a point spelled with dots", () => {
+    expect(resolverCentroId("C.C. Unicentro", conocidos)).toBe("cc-unicentro");
+  });
+
+  it("drops a trailing venue qualifier the catalogue does not carry", () => {
+    expect(resolverCentroId("Cruz Roja – Sede Administrativa", conocidos)).toBe("cruz-roja");
+    expect(resolverCentroId("Cruz Roja - Sede Norte", conocidos)).toBe("cruz-roja");
+  });
+
+  it("prefers the exact name when the catalogue holds both", () => {
+    const ambos = new Set(["cruz-roja", "cruz-roja-sede-administrativa"]);
+
+    expect(resolverCentroId("Cruz Roja – Sede Administrativa", ambos)).toBe(
+      "cruz-roja-sede-administrativa",
+    );
+  });
+
+  it("does not strip a numbered venue, which is a different point", () => {
+    // `Estadio El Campín 3` has no qualifier dash: it must not collapse.
+    expect(resolverCentroId("Estadio El Campín 3", conocidos)).toBeNull();
+  });
+
+  it("answers null for a point nothing resolves to", () => {
+    expect(resolverCentroId("Coliseo Inventado", conocidos)).toBeNull();
   });
 });
 
@@ -133,8 +171,26 @@ describe("construirTurnos", () => {
     expect(turnos[0]).toMatchObject({ centroActivo: false, estado: "CERRADO" });
   });
 
+  it("attaches a qualified spelling to the point the catalogue has", () => {
+    const turnos = construirTurnos(
+      [centro({ id: "cruz-roja", nombre: "Cruz Roja" })],
+      [
+        fila({
+          centroId: "cruz-roja-sede-administrativa",
+          puntoDeAcopio: "Cruz Roja – Sede Administrativa",
+        }),
+      ],
+    );
+
+    expect(turnos).toHaveLength(1);
+    expect(turnos[0]).toMatchObject({ centroId: "cruz-roja", id: "cruz-roja_2026-08-13_am" });
+  });
+
   it("ignores a row whose point is not in the catalogue", () => {
-    const turnos = construirTurnos([centro()], [fila(), fila({ centroId: "no-existe" })]);
+    const turnos = construirTurnos(
+      [centro()],
+      [fila(), fila({ centroId: "no-existe", puntoDeAcopio: "No Existe" })],
+    );
 
     expect(turnos).toHaveLength(1);
     expect(turnos.every((t) => t.centroId === "vive-claro")).toBe(true);

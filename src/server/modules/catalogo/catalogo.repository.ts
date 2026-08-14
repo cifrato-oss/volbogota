@@ -185,20 +185,31 @@ export async function refrescarCentroEnTurnos(centros: Centro[]): Promise<number
 }
 
 /**
- * Closes shifts the board no longer lists.
+ * Closes shifts the board no longer lists, for the points it actually described.
  *
  * Apps Script sends the whole `Turnos` sheet on every edit, so a shift missing
  * from the payload is one a coordinator deleted. It is closed rather than
  * deleted because a reservation may still point at it — the same reasoning
  * `desactivarCentrosAusentes` applies to a retired point.
+ *
+ * Scoped to the points present in the accepted rows on purpose. A row this sync
+ * could not read is not a row the board dropped: when `Turnos` spelled a point
+ * `C.C. Unicentro` and `Centros` spelled it `CC Unicentro`, every row for it was
+ * rejected and closing on absence took all thirty-nine of its shifts down. The
+ * way to retire a point is its `Activo` column, which reaches its shifts through
+ * `refrescarCentroEnTurnos`.
  */
-export async function cerrarTurnosAusentes(idsVigentes: string[]): Promise<string[]> {
+export async function cerrarTurnosAusentes(turnos: Turno[]): Promise<string[]> {
   const db = getDb();
-  const vigentes = new Set(idsVigentes);
+  const vigentes = new Set(turnos.map((turno) => turno.id));
+  const centrosDescritos = new Set(turnos.map((turno) => turno.centroId));
   const snapshot = await db.collection(COLLECTIONS.turnos).get();
 
   const ausentes = snapshot.docs.filter(
-    (doc) => !vigentes.has(doc.id) && doc.data().estado !== "CERRADO",
+    (doc) =>
+      !vigentes.has(doc.id) &&
+      centrosDescritos.has(String(doc.data().centroId ?? "")) &&
+      doc.data().estado !== "CERRADO",
   );
 
   if (ausentes.length === 0) return [];
@@ -206,10 +217,9 @@ export async function cerrarTurnosAusentes(idsVigentes: string[]): Promise<strin
   const batch = db.batch();
 
   for (const doc of ausentes) {
-    batch.update(db.collection(COLLECTIONS.turnos).doc(doc.id), {
-      estado: "CERRADO",
-      cuposTotales: 0,
-    });
+    // Only the state. Zeroing the capacity threw away what the shift held, and
+    // a shift that comes back to the board would have nothing to restore from.
+    batch.update(db.collection(COLLECTIONS.turnos).doc(doc.id), { estado: "CERRADO" });
   }
 
   await batch.commit();

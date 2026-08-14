@@ -258,6 +258,8 @@ function leerTablero() {
       dia: tabla[i].texto(mapa.columna("Día")),
       // Vacío: el backend usa el horario por defecto de la jornada.
       horario: tabla[i].texto(mapa.columna("Horario")),
+      // Vacío no cierra nada: la fórmula no está arrastrada hasta abajo.
+      estadoCupo: tabla[i].texto(mapa.columna("Estado del cupo")),
       cuposTotales: tabla[i].texto(mapa.columna("Cupos totales")),
     });
   }

@@ -18,9 +18,16 @@ import { z } from "zod";
  */
 export type Jornada = string;
 
-/** `  madrugada  1 ` → `MADRUGADA 1`: one spelling per slot, whoever typed it. */
+/**
+ * `  madrugada  1 ` → `MADRUGADA 1`: one spelling per slot, whoever typed it.
+ *
+ * Accents survive on purpose. This value goes back into the sheet's `ID_Turno`,
+ * which is matched literally on that side: folding `MAÑANA` to `MANANA` would
+ * build an id no row has, and the `Reservados` write-back would land nowhere.
+ * The document id stays ASCII regardless — `buildTurnoId` slugs it.
+ */
 export function normalizarJornada(valor: string): Jornada {
-  return valor.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().replace(/\s+/g, " ").toUpperCase();
+  return valor.trim().replace(/\s+/g, " ").toUpperCase();
 }
 
 export const jornadaSchema = z
@@ -188,6 +195,8 @@ export function diaSemanaDe(fecha: string): string {
  */
 export type TurnoDeHoja = {
   centroId: string;
+  /** The point's display name, kept so a qualified spelling can still resolve. */
+  puntoDeAcopio: string;
   fecha: string;
   jornada: Jornada;
   /**
@@ -198,6 +207,11 @@ export type TurnoDeHoja = {
   dia: string | null;
   /** Null when the row leaves the column empty: `HORARIOS` decides. */
   horario: Horario | null;
+  /**
+   * What the board's `Estado del cupo` says: open, closed, or nothing at all.
+   * Null is the common case and leaves capacity to decide.
+   */
+  abierto: boolean | null;
   cuposTotales: number;
 };
 
@@ -216,10 +230,12 @@ export type TurnoDeHoja = {
  */
 export function construirTurnos(centros: Centro[], filas: TurnoDeHoja[]): Turno[] {
   const porId = new Map(centros.map((centro) => [centro.id, centro]));
+  const conocidos = new Set(porId.keys());
   const turnos = new Map<string, Turno>();
 
   for (const fila of filas) {
-    const centro = porId.get(fila.centroId);
+    const centroId = resolverCentroId(fila.puntoDeAcopio, conocidos);
+    const centro = centroId ? porId.get(centroId) : undefined;
     // A row naming a point that is not in the catalogue is reported back to the
     // sheet by the sync; here it simply has no centre to hang off.
     if (!centro) continue;
@@ -264,18 +280,55 @@ function armarTurno(centro: Centro, fila: TurnoDeHoja, horario: Horario): Turno 
     centroActivo: centro.activo,
     cuposTotales,
     reservados: 0,
-    estado: centro.activo && cuposTotales > 0 ? "ABIERTO" : "CERRADO",
+    // Capacity is the hard gate; the board's column can only close on top of
+    // it. A blank cell decides nothing, which is how a row with cupos and no
+    // formula dragged down stays open.
+    estado: centro.activo && cuposTotales > 0 && fila.abierto !== false ? "ABIERTO" : "CERRADO",
     coordinador: centro.coordinador,
   };
 }
 
-/** `Vive Claro` → `vive-claro`. Accents are folded so ids stay ASCII. */
+/**
+ * `Vive Claro` → `vive-claro`. Accents are folded so ids stay ASCII.
+ *
+ * Dots are dropped rather than turned into separators: they mark an
+ * abbreviation, so `C.C. Unicentro` and `CC Unicentro` are the same point and
+ * have to reach the same id. `U. Jorge Tadeo Lozano` lands identically either
+ * way, so no id already in Firestore moves.
+ */
 export function slugify(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/\./g, "")
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+/** The dash a sheet uses to qualify a venue: `Cruz Roja – Sede Administrativa`. */
+const CALIFICADOR = /\s+[–—-]\s+/;
+
+/**
+ * The catalogue id a board row's point name refers to.
+ *
+ * Exact first. Only when that finds nothing does it retry without the trailing
+ * qualifier, which is how `Cruz Roja – Sede Administrativa` reaches the `Cruz
+ * Roja` that `Centros` lists. The order matters: a catalogue holding both the
+ * long and the short name keeps them apart, because the long one matches
+ * exactly and never falls back.
+ *
+ * Null when neither resolves — the row is then reported to its `Validación`
+ * cell rather than silently attached to the wrong point.
+ */
+export function resolverCentroId(nombre: string, conocidos: Set<string>): string | null {
+  const exacto = slugify(nombre);
+  if (conocidos.has(exacto)) return exacto;
+
+  const [base] = nombre.split(CALIFICADOR);
+  if (!base || base === nombre) return null;
+
+  const sinCalificador = slugify(base);
+  return conocidos.has(sinCalificador) ? sinCalificador : null;
 }

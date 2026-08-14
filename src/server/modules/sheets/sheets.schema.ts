@@ -78,6 +78,11 @@ export const filaTurnoSchema = z.object({
   dia: textoOpcional,
   /** Empty falls back to the shift's default schedule. */
   horario: textoOpcional,
+  /**
+   * The board's `Estado del cupo`. Blank on most rows — the formula is not
+   * dragged to the bottom — so it only overrides when it actually says something.
+   */
+  estadoCupo: textoOpcional,
   cuposTotales: cuposSchema,
 });
 export type FilaTurno = z.infer<typeof filaTurnoSchema>;
