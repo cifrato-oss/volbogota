@@ -84,7 +84,8 @@ export interface Turno {
   /** ISO date (YYYY-MM-DD). */
   fecha: string;
   diaSemana: string;
-  jornada: Jornada;
+  /** Shift period as stored in Firestore — not limited to AM/PM (e.g. "TARDE 1"). */
+  jornada: string;
   /** Nominal schedule of the shift. */
   horario: Horario;
   /** The point's real opening hours, denormalized. Prefer this when showing times. */
