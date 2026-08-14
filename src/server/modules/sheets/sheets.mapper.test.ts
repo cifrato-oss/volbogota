@@ -194,11 +194,11 @@ describe("estadoNecesidadDesdeSheet", () => {
   it("reads the dropdown's three words for the semaphore", () => {
     expect(estadoNecesidadDesdeSheet("Se necesita")).toBe("SE_NECESITA");
     expect(estadoNecesidadDesdeSheet("No se necesita")).toBe("SUFICIENTE");
-    expect(estadoNecesidadDesdeSheet("No aplica")).toBe("NO_APLICA");
+    expect(estadoNecesidadDesdeSheet("No se recibe")).toBe("NO_APLICA");
   });
 
   it("is case- and accent-insensitive", () => {
-    expect(estadoNecesidadDesdeSheet("NO APLICA")).toBe("NO_APLICA");
+    expect(estadoNecesidadDesdeSheet("NO SE RECIBE")).toBe("NO_APLICA");
     expect(estadoNecesidadDesdeSheet("se necesita")).toBe("SE_NECESITA");
   });
 

@@ -249,12 +249,12 @@ export const ESTADOS_SHEET = ESTADOS_RESERVA.map(estadoHaciaSheet);
 /**
  * The `Donaciones` sheet's status dropdown, in the sheet's own words rather
  * than the domain's screaming-snake ones. The sheet's own legend: "Rojo = se
- * necesita · Verde = ya hay suficiente · Gris = no aplica en ese punto."
+ * necesita · Verde = no se necesita · Gris = no se recibe."
  */
 const ESTADO_NECESIDAD_DESDE_SHEET: Record<string, EstadoNecesidad> = {
   "se necesita": "SE_NECESITA",
   "no se necesita": "SUFICIENTE",
-  "no aplica": "NO_APLICA",
+  "no se recibe": "NO_APLICA",
 };
 
 /** `null` for a value the dropdown does not use, rather than throwing: one bad

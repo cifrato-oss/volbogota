@@ -705,7 +705,7 @@ describe("sincronizarDonacionesDesdeSheet", () => {
 
   it("maps the grey state to NO_APLICA", async () => {
     await sincronizarDonaciones({
-      filas: [filaDonacion({ estados: { "Cruz Roja": "No aplica" } })],
+      filas: [filaDonacion({ estados: { "Cruz Roja": "No se recibe" } })],
     });
 
     expect(db.peek("necesidades/cruz-roja_alimentos-arroz-blanco")).toMatchObject({
