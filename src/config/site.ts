@@ -12,7 +12,7 @@ export const siteConfig = {
   nav: [
     { label: "Inicio", href: "/" },
     { label: "Donar", href: "/donar" },
-    { label: "Ser voluntario", href: "/voluntario" },
+    { label: "Ser voluntario", href: "/voluntarios" },
   ],
 } as const;
 

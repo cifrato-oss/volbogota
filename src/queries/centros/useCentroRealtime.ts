@@ -20,7 +20,7 @@ const INICIAL: Estado = { data: null, isPending: true, isError: false, error: nu
 /**
  * A single collection center by id, read live from Firestore.
  *
- * Powers both the volunteer detail (`/centros/[id]`) and the donation detail
+ * Powers both the volunteer detail (`/voluntarios/[id]`) and the donation detail
  * (`/donar/[id]`): it subscribes to just that one doc and re-renders on any
  * edit. Inactive centers are still returned (the detail views decide what to do
  * with `activo`); a missing doc surfaces as an error, like the old 404. Disabled

@@ -6,12 +6,12 @@ export const metadata: Metadata = {
   title: "Quiero ser voluntario",
 };
 
-export default function VoluntarioPage() {
+export default function VoluntariosPage() {
   return (
     <ElegirCentro
       titulo="Elige un centro y reserva tu cupo"
       descripcion="Selecciona la fecha y hora que mejor se ajuste a tu disponibilidad."
-      hrefBase="/centros"
+      hrefBase="/voluntarios"
     />
   );
 }
