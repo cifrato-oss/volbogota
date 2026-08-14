@@ -117,6 +117,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
           <Input
             id="nombre"
             autoComplete="given-name"
+            placeholder="Ana María"
             aria-invalid={Boolean(errors.nombre)}
             {...register("nombre")}
           />
@@ -126,6 +127,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
           <Input
             id="apellido"
             autoComplete="family-name"
+            placeholder="Ramírez Gómez"
             aria-invalid={Boolean(errors.apellido)}
             {...register("apellido")}
           />
@@ -139,9 +141,10 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
         >
           <Input
             id="celular"
-            inputMode="tel"
+            inputMode="numeric"
             autoComplete="tel-national"
             placeholder="3001234567"
+            maxLength={10}
             aria-invalid={Boolean(errors.celular)}
             {...register("celular")}
           />
@@ -154,6 +157,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
             inputMode="numeric"
             min={18}
             max={110}
+            placeholder="25"
             aria-invalid={Boolean(errors.edad)}
             {...register("edad")}
           />
@@ -186,6 +190,7 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
             <Input
               id="nombreEmergencia"
               autoComplete="off"
+              placeholder="María Ramírez"
               aria-invalid={Boolean(errors.nombreEmergencia)}
               {...register("nombreEmergencia")}
             />
@@ -199,9 +204,10 @@ export function ReservaForm({ turno, turnoLleno = false, onSuccess }: ReservaFor
           >
             <Input
               id="contactoEmergencia"
-              inputMode="tel"
+              inputMode="numeric"
               autoComplete="off"
               placeholder="3001234567"
+              maxLength={10}
               aria-invalid={Boolean(errors.contactoEmergencia)}
               {...register("contactoEmergencia")}
             />
