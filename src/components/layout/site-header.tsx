@@ -38,11 +38,13 @@ export function SiteHeader() {
               className="h-7 w-auto sm:h-8"
             />
           </span>
-          <span className="hidden leading-tight sm:block">
-            <span className="font-heading block text-lg font-bold tracking-tight">
+          <span className="min-w-0 leading-tight">
+            <span className="font-heading block text-base font-bold tracking-tight sm:text-lg">
               {siteConfig.name}
             </span>
-            <span className="text-muted-foreground block text-xs">Centros de Acopio Oficiales</span>
+            <span className="text-muted-foreground hidden text-xs sm:block">
+              Centros de Acopio Oficiales
+            </span>
           </span>
         </Link>
 
