@@ -190,11 +190,16 @@ export function ReservaForm({ turno, onSuccess }: ReservaFormProps) {
       ) : null}
 
       <div className="space-y-2">
-        <Button type="submit" size="lg" disabled={mutation.isPending || !turno}>
+        <Button
+          type="submit"
+          size="lg"
+          disabled={mutation.isPending || !turno}
+          className="flex w-full sm:mx-auto sm:max-w-xs"
+        >
           {mutation.isPending ? "Enviando…" : "Reservar cupo"}
         </Button>
         {!turno ? (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-xs sm:text-center">
             Selecciona un turno arriba para habilitar la reserva.
           </p>
         ) : null}
