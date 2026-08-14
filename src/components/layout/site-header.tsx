@@ -11,7 +11,7 @@ export function SiteHeader() {
   const pathname = usePathname() ?? "";
 
   return (
-    <header className="border-primary/10 bg-primary/5 border-b">
+    <header className="border-primary/10 sticky top-0 z-40 border-b bg-[color-mix(in_oklab,var(--primary)_6%,var(--background))]">
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:py-4">
         <Link
           href="/"
