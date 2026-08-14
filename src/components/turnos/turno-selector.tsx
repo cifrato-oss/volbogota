@@ -24,8 +24,10 @@ type TurnoSelectorProps = {
 type Columna = {
   jornada: string;
   turnos: Turno[];
-  /** Every shift closed (`estado !== "ABIERTO"`) — collapse it and push it last. */
-  cerrada: boolean;
+  /** No shift bookable — all full or all closed. Collapse it and push it last. */
+  sinDisponibles: boolean;
+  /** All shifts closed (vs merely full) — decides the collapse message. */
+  todosCerrados: boolean;
 };
 
 function capitalizar(texto: string): string {
@@ -35,8 +37,8 @@ function capitalizar(texto: string): string {
 /**
  * Shift picker for volunteers. One card per jornada present in Firestore — there
  * can be more than AM/PM (e.g. "TARDE 1") — laid out in a two-column grid,
- * ordered by start time. A jornada whose shifts are all closed drops to the end
- * and collapses to a single message instead of listing them.
+ * ordered by start time. A jornada with no bookable shifts (all full or all
+ * closed) drops to the end and collapses to a single message.
  */
 export function TurnoSelector({
   turnos,
@@ -70,14 +72,15 @@ export function TurnoSelector({
           return {
             jornada,
             turnos: lista,
-            cerrada: lista.every((turno) => turno.estado !== "ABIERTO"),
+            sinDisponibles: lista.every((turno) => turno.agotado || turno.estado !== "ABIERTO"),
+            todosCerrados: lista.every((turno) => turno.estado !== "ABIERTO"),
             minInicio,
           };
         })
-        // Open jornadas first (earliest start first); fully-closed ones last.
+        // Bookable jornadas first (earliest start first); unavailable ones last.
         .sort(
           (a, b) =>
-            Number(a.cerrada) - Number(b.cerrada) ||
+            Number(a.sinDisponibles) - Number(b.sinDisponibles) ||
             a.minInicio.localeCompare(b.minInicio) ||
             a.jornada.localeCompare(b.jornada, "es"),
         )
@@ -119,9 +122,11 @@ export function TurnoSelector({
               {columna.jornada ? `Jornada ${columna.jornada}` : "Sin jornada"}
             </div>
 
-            {columna.cerrada ? (
+            {columna.sinDisponibles ? (
               <p className="text-muted-foreground mt-3 rounded-lg border border-dashed px-4 py-6 text-center text-sm">
-                Todos los turnos están cerrados.
+                {columna.todosCerrados
+                  ? "Todos los turnos están cerrados."
+                  : "No hay cupos disponibles."}
               </p>
             ) : (
               <div
