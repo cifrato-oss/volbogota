@@ -8,10 +8,6 @@ import type { TurnosQuery } from "@/types/volbogota";
  */
 export const queryKeys = {
   catalogos: ["catalogos"] as const,
-  centros: {
-    all: ["centros"] as const,
-    detail: (id: string) => ["centros", "detail", id] as const,
-  },
   turnos: {
     all: ["turnos"] as const,
     list: (query: TurnosQuery = {}) => ["turnos", "list", query] as const,

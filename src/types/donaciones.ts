@@ -40,3 +40,31 @@ export interface NecesidadesDeCentro {
   centroNombre: string;
   categorias: NecesidadesCategoria[];
 }
+
+/**
+ * Donation intent — what a donor commits to bringing to a center.
+ * Mirrors the payload/response of `POST /api/donaciones/solicitudes`.
+ */
+
+/** One item a donor picked, carried across category tabs by its `elementoId`. */
+export interface SolicitudDonacionItem {
+  elementoId: string;
+  categoria: CategoriaDonacion;
+  elemento: string;
+}
+
+/** Body sent to `POST /api/donaciones/solicitudes`. */
+export interface SolicitudDonacionInput {
+  centroId: string;
+  items: SolicitudDonacionItem[];
+}
+
+/** Confirmation the endpoint returns once the intent is registered. */
+export interface SolicitudDonacionConfirmacion {
+  /** Human-friendly reference, e.g. `DON-7QK2M9`. */
+  codigo: string;
+  centroId: string;
+  totalItems: number;
+  /** ISO datetime the request was received. */
+  recibidoEn: string;
+}
