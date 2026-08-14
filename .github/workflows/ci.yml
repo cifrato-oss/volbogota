@@ -100,6 +100,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      # Only to ask which pull request a commit came from, for the Slack message.
+      pull-requests: read
 
     steps:
       - uses: actions/checkout@v4
@@ -131,7 +133,74 @@ jobs:
       # `github.sha` is a hex digest and safe either way, but a `run:` that
       # interpolates event data directly is the habit that later gets copied onto a
       # field an attacker controls.
+      # `continue-on-error` so the Slack step runs on a failure too, and the output
+      # is kept so that message can carry the actual error. The job is failed again
+      # at the end — a red deploy has to stay red here as well, not only in Slack.
       - name: Roll out main
+        id: rollout
+        continue-on-error: true
         env:
           SHA: ${{ github.sha }}
-        run: npx --yes firebase-tools@15 apphosting:rollouts:create volbogota --git-commit "$SHA" --force --project volbogota
+        run: |
+          set -o pipefail
+          npx --yes firebase-tools@15 apphosting:rollouts:create volbogota \
+            --git-commit "$SHA" --force --project volbogota 2>&1 | tee /tmp/rollout.log
+
+      # Slack is meant to be enough on its own: whoever reads it should not have to
+      # open GitHub or the Google console to know what happened. So the message
+      # carries the commit, who pushed it, and on a failure the tail of the actual
+      # error — the run link is there for the rest, not for the basics.
+      #
+      # Every value goes through the environment and into `jq --arg`. A commit
+      # message is attacker-controlled text: interpolated into a shell command it is
+      # a command, and pasted into JSON it breaks the payload with one quote.
+      #
+      # A missing webhook logs and moves on. This should not be the reason a deploy
+      # is reported as broken.
+      - name: Avisar a Slack
+        if: always()
+        env:
+          WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          RESULTADO: ${{ steps.rollout.outcome }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          MENSAJE: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Falta el secreto SLACK_WEBHOOK_URL. No se envía nada."
+            exit 0
+          fi
+
+          TITULO=$(head -1 <<< "$MENSAJE")
+
+          # Which pull request this commit came from. Asked of the API rather than
+          # parsed out of "Merge pull request #28 from …", so it also works if the
+          # repo ever switches to squash merges, where that line does not exist.
+          #
+          # A direct push to main has no pull request, and neither does a failing
+          # API call. Both end with an empty link and a message that still makes
+          # sense — this is the nice-to-have, not the point.
+          PR=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/pulls" \
+                 --jq '.[0] | "<\(.html_url)|#\(.number) \(.title)>"' 2>/dev/null || true)
+          [ "$PR" = "null" ] && PR=""
+          [ -n "$PR" ] && PR=$(printf '\n%s' "$PR")
+
+          if [ "$RESULTADO" = "success" ]; then
+            TEXTO=$(printf '✅ *Deploy en producción*\n<https://centrosdeacopiobogota.org|centrosdeacopiobogota.org> · `%s` · %s\n> %s%s' \
+              "${SHA:0:7}" "$ACTOR" "$TITULO" "$PR")
+          else
+            ERROR=$(tail -n 12 /tmp/rollout.log 2>/dev/null | grep -v '^npm warn' | tail -n 6)
+            TEXTO=$(printf '❌ *Deploy fallido — producción sigue en la versión anterior*\n`%s` · %s\n> %s%s\n\n```\n%s\n```\n<%s|Ver la corrida>' \
+              "${SHA:0:7}" "$ACTOR" "$TITULO" "$PR" "${ERROR:-sin salida}" "$RUN_URL")
+          fi
+
+          jq -n --arg t "$TEXTO" '{text: $t, mrkdwn: true}' \
+            | curl -sS -X POST -H 'Content-Type: application/json' --data @- "$WEBHOOK"
+
+      - name: Fallar si el rollout falló
+        if: steps.rollout.outcome != 'success'
+        run: |
+          echo "El rollout no terminó bien. Detalle arriba, en 'Roll out main'."
+          exit 1
