@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 
 import { getFirebaseDb } from "@/lib/firebase-client";
 import type { BancoSangreVista, TipoSangre } from "@/types/sangre";
-import { reportoHoy, TIPOS_SANGRE } from "@/types/sangre";
+import { TIPOS_SANGRE } from "@/types/sangre";
 
 type Estado = {
   data: BancoSangreVista[] | null;
@@ -21,7 +21,6 @@ function mapear(docs: Array<{ id: string; data: Record<string, unknown> }>): Ban
       // Keep only what the app knows how to render, in canonical order, so two
       // banks accepting the same types never look different.
       const tipos = TIPOS_SANGRE.filter((tipo) => crudos.includes(tipo));
-      const actualizadoEn = (doc.data.actualizadoEn as string | null | undefined) ?? null;
 
       return {
         id: doc.id,
@@ -32,9 +31,10 @@ function mapear(docs: Array<{ id: string; data: Record<string, unknown> }>): Ban
         linkMaps: (doc.data.linkMaps as string | null | undefined) ?? null,
         tiposQueRecibe: tipos as TipoSangre[],
         resumenTipos: (doc.data.resumenTipos as string | null | undefined) ?? null,
+        // `actualizadoEn` stays in Firestore and stays out of here: it records
+        // when our sync ran, not when anyone confirmed anything. It is worth
+        // having to debug a sync; it is not worth showing to a donor.
         recibiendoHoy: doc.data.recibiendoHoy !== false,
-        actualizadoEn,
-        reportoHoy: reportoHoy(actualizadoEn),
       };
     })
     .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));

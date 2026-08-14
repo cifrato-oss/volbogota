@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
 import {
   filtrarPorTipo,
-  horaEnBogota,
   TIPOS_SANGRE,
   type BancoSangreVista,
   type SeleccionTipo,
@@ -18,10 +17,10 @@ import {
 /**
  * The blood donation flow.
  *
- * The whole screen exists because this list goes stale within the hour: what a
- * bank accepts at seven is not what it accepts at noon. So every card carries
- * the time it was last confirmed, and a bank that has not reported today says so
- * instead of showing yesterday's answer as if it were current.
+ * The whole screen exists because a bank does not take every type every day, and
+ * a donor has no way to know which before travelling across the city. So each
+ * card answers two things the sheet actually asserts — is this point drawing
+ * blood today, and which types — and nothing it does not.
  *
  * The donor's blood type never leaves this component. It is React state, not a
  * URL parameter and not `localStorage`, and the filter runs here against the
@@ -41,10 +40,10 @@ export function DonarSangre() {
   // each group so the list does not reshuffle on every snapshot.
   const visibles = [...filtrarPorTipo(bancos, seleccion)].sort((a, b) => {
     const rango = (banco: BancoSangreVista) => {
-      if (!banco.reportoHoy) return 2;
       if (!banco.recibiendoHoy) return 3;
       if (seleccion && banco.tiposQueRecibe.includes(seleccion)) return 0;
-      return 1;
+      if (banco.tiposQueRecibe.length === 0) return 1;
+      return 2;
     };
     return rango(a) - rango(b) || a.nombre.localeCompare(b.nombre, "es");
   });
@@ -153,8 +152,8 @@ export function DonarSangre() {
           </div>
         ) : visibles.length === 0 ? (
           <p className="text-muted-foreground bg-muted/40 rounded-2xl border p-5 text-sm text-pretty">
-            Ningún punto reportó hoy que esté recibiendo tu tipo. Eso no significa que no puedan
-            recibirte: confirma por WhatsApp antes de desplazarte.
+            Ningún punto está recibiendo tu tipo hoy. Eso no significa que no puedan recibirte:
+            llama al punto antes de desplazarte.
           </p>
         ) : (
           <ul className="space-y-3">
@@ -169,10 +168,10 @@ export function DonarSangre() {
 }
 
 function TarjetaBanco({ banco, seleccion }: { banco: BancoSangreVista; seleccion: SeleccionTipo }) {
-  // A bank that reported today and accepts the chosen type is the one to walk
-  // into, so it gets the border. Everything else stays quiet.
+  // A bank that is receiving and lists the chosen type is the one to walk into,
+  // so it gets the border. Everything else stays quiet.
   const recibeElTuyo = Boolean(
-    seleccion && banco.reportoHoy && banco.tiposQueRecibe.includes(seleccion),
+    seleccion && banco.recibiendoHoy && banco.tiposQueRecibe.includes(seleccion),
   );
 
   return (
@@ -193,17 +192,17 @@ function TarjetaBanco({ banco, seleccion }: { banco: BancoSangreVista; seleccion
       <Estado banco={banco} seleccion={seleccion} recibeElTuyo={recibeElTuyo} />
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {banco.reportoHoy ? (
-          <p className="text-muted-foreground font-mono text-[11px] tracking-wide uppercase">
-            Actualizado {horaEnBogota(banco.actualizadoEn)}
-          </p>
+        {/* Comes straight from the sheet and answers the question that follows
+            "can they take me" — until what time. */}
+        {banco.horarioOficial ? (
+          <p className="text-muted-foreground text-xs tabular-nums">{banco.horarioOficial}</p>
         ) : null}
 
         {/*
           The sheet already carries a Maps link per bank, and a Maps listing shows
           the venue's own phone. That covers what a donor needs when a point has
-          not reported — how to get there, and how to ask — without the sheet
-          growing a column someone has to keep current.
+          not listed its types — how to get there, and how to ask — without the
+          sheet growing a column someone has to keep current.
         */}
         {banco.linkMaps ? (
           <a
@@ -232,20 +231,6 @@ function Estado({
   const base =
     "inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold tracking-wide uppercase";
 
-  if (!banco.reportoHoy) {
-    return (
-      <div className="space-y-1.5">
-        <span className={cn(base, "bg-muted text-muted-foreground")}>
-          <span aria-hidden>●</span> Sin reporte hoy
-        </span>
-        <p className="text-muted-foreground text-xs text-pretty">
-          Este punto no confirmó hoy qué tipos está recibiendo. Puede que reciba el tuyo — confirma
-          antes de desplazarte.
-        </p>
-      </div>
-    );
-  }
-
   if (!banco.recibiendoHoy) {
     return (
       <span className={cn(base, "bg-muted text-muted-foreground")}>
@@ -258,11 +243,20 @@ function Estado({
   // donor can still go, they just cannot know in advance whether they match.
   if (banco.tiposQueRecibe.length === 0) {
     return (
-      <span
-        className={cn(base, "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300")}
-      >
-        <span aria-hidden>●</span> Recibiendo · tipos sin confirmar
-      </span>
+      <div className="space-y-1.5">
+        <span
+          className={cn(
+            base,
+            "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+          )}
+        >
+          <span aria-hidden>●</span> Recibiendo · tipos sin confirmar
+        </span>
+        <p className="text-muted-foreground text-xs text-pretty">
+          Este punto no ha dicho qué tipos está recibiendo. Puede que reciba el tuyo — confirma
+          antes de desplazarte.
+        </p>
+      </div>
     );
   }
 

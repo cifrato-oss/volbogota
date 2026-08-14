@@ -16,12 +16,28 @@ export type TipoSangre = (typeof TIPOS_SANGRE)[number];
  * shows every bank instead of none, because a donor who does not know their type
  * can still donate — they get told at the door.
  *
+ * A single type and not a set: a person has one. Offering multiple selection
+ * would model something that does not exist, and with a handful of banks on one
+ * screen the picker is not there to shorten the list anyway — it is there to say
+ * which of them is useful to this person.
+ *
  * This value lives in React state and nowhere else. Not in `localStorage`, not
  * in the URL, not in a request. A blood type is sensitive health data under Ley
  * 1581, and the screen promises in writing that it is discarded on exit.
  */
 export type SeleccionTipo = TipoSangre | null;
 
+/**
+ * A blood bank as the screen shows it.
+ *
+ * Everything here is asserted by a person in the spreadsheet. There is
+ * deliberately no freshness field: the only timestamp available is the moment
+ * our own sync wrote to Firestore, which says nothing about whether a
+ * coordinator confirmed anything. Showing it as "actualizado 8:12 a.m." dressed
+ * a machine's clock up as a human's answer, and derived a "sin reporte hoy"
+ * state the sheet never claims. `Recibiendo hoy` is that claim, and a person
+ * maintains it.
+ */
 export type BancoSangreVista = {
   id: string;
   nombre: string;
@@ -34,56 +50,16 @@ export type BancoSangreVista = {
   resumenTipos: string | null;
   /** Whether the bank is drawing blood at all today. */
   recibiendoHoy: boolean;
-  actualizadoEn: string | null;
-  /** Whether the bank confirmed its list today, in Bogotá time. */
-  reportoHoy: boolean;
 };
-
-/**
- * Whether a timestamp falls on today's date in Bogotá.
- *
- * This is what turns a stored timestamp into the "sin reporte hoy" state, so it
- * has to be Bogotá's day and not the browser's: a donor abroad checking on a
- * relative's behalf should see the same thing a donor in Bogotá sees.
- */
-export function reportoHoy(actualizadoEn: string | null | undefined): boolean {
-  if (!actualizadoEn) return false;
-
-  const fecha = new Date(actualizadoEn);
-  if (Number.isNaN(fecha.getTime())) return false;
-
-  const enBogota = (valor: Date) =>
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Bogota",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(valor);
-
-  return enBogota(fecha) === enBogota(new Date());
-}
-
-/** `2026-08-14T12:12:00Z` → `7:12 a.m.`, the way the card shows it. */
-export function horaEnBogota(actualizadoEn: string | null | undefined): string | null {
-  if (!actualizadoEn) return null;
-
-  const fecha = new Date(actualizadoEn);
-  if (Number.isNaN(fecha.getTime())) return null;
-
-  return new Intl.DateTimeFormat("es-CO", {
-    timeZone: "America/Bogota",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(fecha);
-}
 
 /**
  * Which banks to show for a given selection.
  *
- * Runs in the browser, always. A bank that has not reported today is kept rather
- * than hidden: the card says so and points at its Maps listing, which is more
- * useful to a donor than a shorter list that quietly drops options.
+ * Runs in the browser, always. Two kinds of bank survive a filter that does not
+ * match them, and both on purpose: one that is closed today, because a donor
+ * choosing between a handful of points is better served by a complete picture
+ * than by a shorter list that drops options without saying so; and one that is
+ * open but has not listed its types, because "we did not say" is not "no".
  */
 export function filtrarPorTipo(
   bancos: BancoSangreVista[],
@@ -93,10 +69,8 @@ export function filtrarPorTipo(
 
   return bancos.filter(
     (banco) =>
-      // Kept when nobody has answered, or when the answer includes this type.
-      // A bank that said "no" today is kept too — the card says so, and a donor
-      // deciding between five points is better served by a complete picture than
-      // by a shorter list that drops options without explaining.
-      !banco.reportoHoy || !banco.recibiendoHoy || banco.tiposQueRecibe.includes(seleccion),
+      !banco.recibiendoHoy ||
+      banco.tiposQueRecibe.length === 0 ||
+      banco.tiposQueRecibe.includes(seleccion),
   );
 }
