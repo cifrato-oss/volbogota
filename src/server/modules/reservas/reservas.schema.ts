@@ -101,6 +101,13 @@ export const reservaSchema = z.object({
   contactoEmergencia: z.string().nullable().default(null),
   eps: z.string().nullable().default(null),
   estado: estadoReservaSchema,
+  /**
+   * Whether the volunteer showed up, as a coordinator marked it in the sheet's
+   * `Asistencia` column. Independent of `estado`: a booking can be `CONFIRMADO`
+   * and still have no attendance recorded, and null means "not marked yet"
+   * rather than "did not show up".
+   */
+  asistio: z.boolean().nullable().default(null),
   creadoEn: z.string(),
   checkIn: z.string().nullable(),
   checkOut: z.string().nullable(),

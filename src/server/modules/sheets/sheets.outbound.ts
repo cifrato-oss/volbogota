@@ -6,7 +6,6 @@ import type { Jornada, Turno } from "@/server/modules/catalogo/catalogo.schema";
 import type { Reserva } from "@/server/modules/reservas/reservas.schema";
 
 import {
-  asistenciaHaciaSheet,
   estadoHaciaSheet,
   fechaHaciaSheet,
   jornadaHaciaSheet,
@@ -51,12 +50,6 @@ type FilaSaliente = {
   /** Sheet column T. */
   eps: string;
   estado: string;
-  /**
-   * Sheet column N. The board dropped `Check-in`, `Check-out` and `Horas`, so
-   * attendance reaches it as one yes/no. The times themselves stay in Firestore
-   * and in the admin CSV, which is where the hours are actually counted.
-   */
-  asistencia: string;
   validacion: string;
 };
 
@@ -76,9 +69,8 @@ function aFilaSaliente(reserva: Reserva): FilaSaliente {
     celEmergencia: reserva.contactoEmergencia ?? "",
     eps: reserva.eps ?? "",
     estado: estadoHaciaSheet(reserva.estado),
-    // Blank until it is settled: an empty cell reads as "not marked yet",
-    // while "No" would claim the volunteer failed to show up.
-    asistencia: asistenciaHaciaSheet(reserva.estado),
+    // `Asistencia` is not here on purpose: coordinators type that column at the
+    // door, so writing it would overwrite what they marked.
     validacion: "OK",
   };
 }

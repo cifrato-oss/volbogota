@@ -430,6 +430,8 @@ function enviarReservas(hoja, mapa, numerosDeFila) {
       celEmergencia: leer(hoja, fila, mapa.columna("Cel. emergencia")),
       eps: leer(hoja, fila, mapa.columna("EPS")),
       estado: leer(hoja, fila, mapa.columna("Estado")),
+      // La digitan los coordinadores en la puerta: solo se lee, nunca se escribe.
+      asistencia: leer(hoja, fila, mapa.columna("Asistencia")),
     });
   }
 
@@ -569,7 +571,6 @@ function escribirReservas(reservas) {
     escribirCelda(hoja, mapa, fila, "Cel. emergencia", reserva.celEmergencia);
     escribirCelda(hoja, mapa, fila, "EPS", reserva.eps);
     escribirCelda(hoja, mapa, fila, "Estado", reserva.estado);
-    escribirCelda(hoja, mapa, fila, "Asistencia", reserva.asistencia);
     escribirCelda(hoja, mapa, fila, "Validación", reserva.validacion);
 
     escritas++;

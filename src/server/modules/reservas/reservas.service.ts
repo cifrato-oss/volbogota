@@ -3,7 +3,12 @@ import { logger } from "@/server/lib/logger";
 import { findCentroById } from "@/server/modules/catalogo/catalogo.repository";
 import { etiquetaJornada } from "@/server/modules/catalogo/catalogo.schema";
 
-import { buscarReservaPorCodigo, cambiarEstado, registrarHora } from "./reservas.admin.repository";
+import {
+  buscarReservaPorCodigo,
+  cambiarEstado,
+  registrarAsistencia,
+  registrarHora,
+} from "./reservas.admin.repository";
 import { buscarReservaDeCelularEnTurno, crearReservaEnTransaccion } from "./reservas.repository";
 import type {
   ConfirmacionReserva,
@@ -90,6 +95,13 @@ export async function actualizarEstadoReserva(
   estado: EstadoReserva,
 ): Promise<Reserva> {
   return cambiarEstado(codigo, estado);
+}
+
+export async function registrarAsistenciaReserva(
+  codigo: string,
+  asistio: boolean,
+): Promise<Reserva> {
+  return registrarAsistencia(codigo, asistio);
 }
 
 export async function registrarHoraReserva(

@@ -34,10 +34,12 @@ import {
   crearReserva,
   encontrarReserva,
   encontrarReservaDeCelular,
+  registrarAsistenciaReserva,
   registrarHoraReserva,
 } from "@/server/modules/reservas/reservas.service";
 
 import {
+  asistenciaDesdeSheet,
   estadoCupoDesdeSheet,
   estadoDesdeSheet,
   estadoHaciaSheet,
@@ -283,6 +285,11 @@ async function aplicarEstadoYHoras(reserva: Reserva, fila: FilaReserva): Promise
     if (estado !== actual.estado) {
       actual = await actualizarEstadoReserva(actual.codigo, estado);
     }
+  }
+
+  const asistio = asistenciaDesdeSheet(fila.asistencia);
+  if (asistio !== null && asistio !== actual.asistio) {
+    actual = await registrarAsistenciaReserva(actual.codigo, asistio);
   }
 
   if (fila.checkIn && fila.checkIn !== actual.checkIn) {

@@ -30,6 +30,7 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     celular: "3001234567",
     edad: 30,
     autorizoDatos: true,
+    asistio: null,
     nombreEmergencia: null,
     contactoEmergencia: null,
     eps: null,
@@ -131,26 +132,14 @@ describe("empujarReservasAlSheet", () => {
     expect(loEnviado(fetchMock).cuerpo.reservas[0].fechaRegistro).toBe("13/08/2026 09:05");
   });
 
-  it("leaves Asistencia empty while the shift has not been settled", async () => {
+  it("never writes Asistencia: coordinators type that column themselves", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
 
-    await empujarReservasAlSheet([reserva({ estado: "RESERVADO" })]);
+    await empujarReservasAlSheet([reserva({ estado: "ASISTIO", asistio: true })]);
 
-    // A `No` here would claim the volunteer failed to show up.
-    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({ asistencia: "" });
-  });
-
-  it.each([
-    ["ASISTIO", "Sí"],
-    ["NO_ASISTIO", "No"],
-  ] as const)("marks Asistencia as %s once attendance is settled", async (estado, esperado) => {
-    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
-    vi.stubGlobal("fetch", fetchMock);
-
-    await empujarReservasAlSheet([reserva({ estado })]);
-
-    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({ asistencia: esperado });
+    // Pushing it would overwrite what a coordinator marked at the door.
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).not.toHaveProperty("asistencia");
   });
 
   it("no longer sends the columns the board dropped", async () => {

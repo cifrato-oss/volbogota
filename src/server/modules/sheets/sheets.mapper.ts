@@ -210,17 +210,24 @@ export function estadoHaciaSheet(estado: EstadoReserva): string {
 }
 
 /**
- * The board's `Asistencia` column, derived from the booking's state.
+ * The board's `Asistencia` column, read inbound only.
  *
- * Null while the shift has not been settled: an empty cell reads as "not marked
- * yet", where a `No` would claim the volunteer failed to show up. The column
- * replaced `Check-in`, `Check-out` and `Horas`, which the board dropped — those
- * still live in Firestore and in the admin export, where hours are counted.
+ * Coordinators type it at the door, so it flows sheet → backend and never the
+ * other way; writing it would overwrite what they marked. It replaced
+ * `Check-in`, `Check-out` and `Horas`, which the board dropped.
+ *
+ * Null for a blank cell: not marked yet is not the same as did not show up.
+ * It is also independent of `Estado` — a booking can be `Confirmado` and still
+ * have no attendance recorded.
  */
-export function asistenciaHaciaSheet(estado: EstadoReserva): string {
-  if (estado === "ASISTIO") return "Sí";
-  if (estado === "NO_ASISTIO") return "No";
-  return "";
+export function asistenciaDesdeSheet(valor: string | null | undefined): boolean | null {
+  if (!valor) return null;
+
+  const texto = normalizar(valor).toLowerCase();
+  if (["si", "sí", "yes", "asistio", "asistió", "x", "1", "true"].includes(texto)) return true;
+  if (["no", "false", "0", "no asistio", "no asistió"].includes(texto)) return false;
+
+  return null;
 }
 
 /** The sheet's yes/no columns. Anything not recognisably "yes" is false. */

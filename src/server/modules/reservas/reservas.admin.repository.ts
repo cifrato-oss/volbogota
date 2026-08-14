@@ -83,6 +83,26 @@ function normalizar(valor: string): string {
  * sign up again for the same shift. Doing the two writes outside a transaction
  * would leak seats every time one of them failed.
  */
+/**
+ * Records what a coordinator marked in the sheet's `Asistencia` column.
+ *
+ * No state machine and no transition rules: attendance is an observation, not a
+ * lifecycle. It is stored beside `estado` rather than folded into it, because
+ * the two answer different questions — whether the booking is still valid, and
+ * whether the person actually turned up.
+ */
+export async function registrarAsistencia(codigo: string, asistio: boolean): Promise<Reserva> {
+  const db = getDb();
+  const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);
+
+  const snap = await reservaRef.get();
+  if (!snap.exists) throw notFound("La reserva no existe.");
+
+  await reservaRef.update({ asistio });
+
+  return { ...parseReserva(snap), asistio };
+}
+
 export async function cambiarEstado(codigo: string, nuevo: EstadoReserva): Promise<Reserva> {
   const db = getDb();
   const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);

@@ -148,6 +148,8 @@ export const filaReservaSchema = z.object({
   /** Sheet column T, `EPS`. */
   eps: textoOpcional,
   estado: textoOpcional,
+  /** Sheet column N, `Asistencia`. Typed by a coordinator; read-only for us. */
+  asistencia: textoOpcional,
   /** `HH:MM`. */
   checkIn: textoOpcional,
   checkOut: textoOpcional,
