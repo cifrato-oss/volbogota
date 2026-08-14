@@ -34,10 +34,6 @@ export function InicioLanding() {
   return (
     <div className="flex min-h-[70vh] flex-col justify-center gap-10 py-8">
       <header className="mx-auto max-w-2xl space-y-4 text-center">
-        <span className="bg-primary/10 text-primary inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
-          <span aria-hidden>📍</span>
-          {siteConfig.eventLabel} · Bogotá
-        </span>
         <h1 className="font-heading text-4xl font-bold tracking-tight text-balance sm:text-5xl">
           {siteConfig.name}
         </h1>
