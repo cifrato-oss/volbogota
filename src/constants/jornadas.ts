@@ -13,12 +13,6 @@ export const JORNADA_LABEL: Record<Jornada, string> = {
   PM: "PM",
 };
 
-/** Fixed schedule per shift, taken from the spreadsheet. */
-export const JORNADA_HORARIO: Record<Jornada, string> = {
-  AM: "8:00 a.m. - 2:00 p.m.",
-  PM: "1:00 p.m. - 5:00 p.m.",
-};
-
 type JornadaStyle = {
   emoji: string;
   /** Colored top accent for the shift column. */

@@ -4,12 +4,7 @@ import { useMemo } from "react";
 
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  JORNADA_HORARIO,
-  JORNADA_LABEL,
-  JORNADA_STYLE,
-  JORNADAS_VOLUNTARIADO,
-} from "@/constants/jornadas";
+import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
 import { formatFecha } from "@/lib/format-fecha";
 import { formatNumero } from "@/lib/format-numero";
 import { getErrorMessage } from "@/lib/get-error-message";
@@ -88,19 +83,14 @@ export function TurnoSelector({
         if (list.length === 0) return null;
 
         const style = JORNADA_STYLE[jornada];
-        // Show the schedule label straight from Firestore; fall back to the constant.
-        const horario = list[0]?.horario.etiqueta ?? JORNADA_HORARIO[jornada] ?? "";
 
         return (
           <div
             key={jornada}
             className={cn("bg-card rounded-2xl border border-t-4 p-4", style.topBorder)}
           >
-            <div className="text-center">
-              <div className="text-lg font-semibold tracking-tight">
-                <span aria-hidden>{style.emoji}</span> Jornada {JORNADA_LABEL[jornada]}
-              </div>
-              <div className="text-muted-foreground text-sm">{horario}</div>
+            <div className="text-center text-lg font-semibold tracking-tight">
+              <span aria-hidden>{style.emoji}</span> Jornada {JORNADA_LABEL[jornada]}
             </div>
 
             <div className="mt-3 space-y-2">
@@ -129,9 +119,15 @@ export function TurnoSelector({
                       disabled && "hover:border-border cursor-not-allowed opacity-50",
                     )}
                   >
-                    <span className="flex items-center gap-1.5 font-medium">
-                      <span aria-hidden>📅</span>
-                      {capitalizar(formatFecha(turno.fecha))}
+                    <span className="flex flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5 font-medium">
+                        <span aria-hidden>📅</span>
+                        {capitalizar(formatFecha(turno.fecha))}
+                      </span>
+                      <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <span aria-hidden>🕐</span>
+                        {turno.horario.etiqueta}
+                      </span>
                     </span>
                     <span
                       className={cn(
