@@ -81,8 +81,12 @@ export function DonarSangre() {
                 type="button"
                 aria-pressed={activo}
                 onClick={() => {
-                  setSeleccion(tipo);
-                  setEligio(true);
+                  // Volver a tocar el tipo activo lo suelta. Es el único camino
+                  // de vuelta a la lista completa, y un botón que se ve
+                  // presionado promete justamente eso.
+                  const yaEstaba = eligio && seleccion === tipo;
+                  setSeleccion(yaEstaba ? null : tipo);
+                  setEligio(!yaEstaba);
                 }}
                 className={cn(
                   "rounded-xl border px-3 py-3 text-base font-semibold transition-colors",

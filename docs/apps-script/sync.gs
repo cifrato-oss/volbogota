@@ -50,7 +50,17 @@ var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 var HOJA_TURNOS = "Turnos";
 var HOJA_DONACIONES = "Donaciones";
-var HOJA_SANGRE = "Banco de Sangre";
+/**
+ * La pestaña de bancos, por sus dos nombres.
+ *
+ * Se llama «Bancos de Sangre» en plural, pero su primera columna es «Banco de
+ * Sangre» en singular, y confundirlas cuesta caro: con el nombre equivocado
+ * `alEditar` no reconoce la hoja y el menú lanza «no encontré la hoja», sin que
+ * nada más se rompa — el módulo simplemente no sincroniza nunca.
+ *
+ * Aceptar los dos evita que un renombre en cualquier dirección lo apague.
+ */
+var HOJAS_SANGRE = ["Bancos de Sangre", "Banco de Sangre"];
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
@@ -129,7 +139,7 @@ function alEditar(e) {
     alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarTurnos);
   } else if (nombre === HOJA_DONACIONES) {
     alEditarDonaciones(e, hoja);
-  } else if (nombre === HOJA_SANGRE) {
+  } else if (esHojaDeSangre(nombre)) {
     alEditarHoja(
       e,
       hoja,
@@ -440,8 +450,28 @@ function sincronizarDonaciones() {
  * el valor no cambió, pero el hecho de que alguien lo mirara sí, y eso es lo que
  * se le está diciendo al donante.
  */
+function esHojaDeSangre(nombre) {
+  for (var i = 0; i < HOJAS_SANGRE.length; i++) {
+    if (normalizar(nombre) === normalizar(HOJAS_SANGRE[i])) return true;
+  }
+
+  return false;
+}
+
+/** La pestaña de bancos, con cualquiera de sus dos nombres. */
+function hojaDeSangre() {
+  var libroActual = libro();
+
+  for (var i = 0; i < HOJAS_SANGRE.length; i++) {
+    var hoja = libroActual.getSheetByName(HOJAS_SANGRE[i]);
+    if (hoja) return hoja;
+  }
+
+  throw new Error("No encontré la hoja de bancos ('" + HOJAS_SANGRE.join("' ni '") + "').");
+}
+
 function sincronizarBancosSangre() {
-  var hoja = hojaPorNombre(HOJA_SANGRE);
+  var hoja = hojaDeSangre();
   var mapa = mapearEncabezados(hoja, OBLIGATORIAS_SANGRE);
   var colNombre = mapa.columna("Banco de Sangre");
   var tabla = leerTabla(hoja, mapa);
