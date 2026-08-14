@@ -1,7 +1,7 @@
 import { ArrowRight, Clock, MapPin } from "lucide-react";
 import Link from "next/link";
 
-import { JORNADA_LABEL, JORNADA_STYLE, JORNADAS_VOLUNTARIADO } from "@/constants/jornadas";
+import { emojiJornada, etiquetaJornada, jornadasConCupos } from "@/lib/jornada-ui";
 import { formatNumero } from "@/lib/format-numero";
 import { cn } from "@/lib/utils";
 import type { Centro } from "@/types/volbogota";
@@ -38,6 +38,8 @@ function EstadoActivo({ activo }: { activo: boolean }) {
 /** A center in the picker. Tapping it navigates straight to the center page. */
 export function CentroOption({ centro, href, mostrarCupos = true }: CentroOptionProps) {
   const ubicacion = [centro.localidad, centro.direccion].filter(Boolean).join(" · ");
+  // Only the slots that actually have capacity, ordered by time of day.
+  const jornadas = mostrarCupos ? jornadasConCupos(centro.cuposPorJornada) : [];
 
   return (
     <Link
@@ -70,25 +72,26 @@ export function CentroOption({ centro, href, mostrarCupos = true }: CentroOption
 
         <EstadoActivo activo={centro.activo} />
 
-        {mostrarCupos ? (
-          <dl className="mt-auto grid grid-cols-2 gap-2 text-center">
-            {JORNADAS_VOLUNTARIADO.map((jornada) => {
-              const cupos = centro.cuposPorJornada[jornada] ?? 0;
-              return (
-                <div key={jornada} className="bg-muted/50 rounded-lg px-2 py-1.5">
-                  <dt className="text-muted-foreground text-[11px]">
-                    <span aria-hidden>{JORNADA_STYLE[jornada].emoji}</span> {JORNADA_LABEL[jornada]}
+        {jornadas.length > 0 ? (
+          <div className="mt-auto space-y-1.5">
+            <p className="text-muted-foreground text-[11px] font-medium">Cupos por jornada</p>
+            <dl className="flex flex-wrap gap-1.5">
+              {jornadas.map(({ jornada, cupos }) => (
+                <div
+                  key={jornada}
+                  className="bg-muted/60 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs"
+                >
+                  <dt className="text-muted-foreground flex items-center gap-1">
+                    <span aria-hidden>{emojiJornada(jornada)}</span>
+                    {etiquetaJornada(jornada)}
                   </dt>
-                  <dd className="font-medium tabular-nums">
-                    {formatNumero(cupos)}{" "}
-                    <span className="text-muted-foreground text-[11px] font-normal">
-                      {cupos === 1 ? "cupo" : "cupos"}
-                    </span>
+                  <dd className="text-foreground font-semibold tabular-nums">
+                    {formatNumero(cupos)}
                   </dd>
                 </div>
-              );
-            })}
-          </dl>
+              ))}
+            </dl>
+          </div>
         ) : null}
       </div>
     </Link>
