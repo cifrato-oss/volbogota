@@ -14,11 +14,14 @@ import { formatFecha } from "@/lib/format-fecha";
 import { formatNumero } from "@/lib/format-numero";
 import { getErrorMessage } from "@/lib/get-error-message";
 import { cn } from "@/lib/utils";
-import useTurnosRealtime from "@/queries/turnos/useTurnosRealtime";
 import type { Jornada, Turno } from "@/types/volbogota";
 
 type TurnoSelectorProps = {
-  centroId: string;
+  turnos: Turno[];
+  isPending: boolean;
+  isError: boolean;
+  error: unknown;
+  onRetry: () => void;
   selectedTurnoId: string | null;
   onSelect: (turno: Turno) => void;
 };
@@ -31,9 +34,15 @@ function capitalizar(texto: string): string {
  * Shift picker for volunteers. Two columns — Mañana and Noche (no afternoon) —
  * each listing every date with live availability. Pick a date to book it.
  */
-export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSelectorProps) {
-  const { data: turnos, isPending, isError, error, refetch } = useTurnosRealtime(centroId);
-
+export function TurnoSelector({
+  turnos,
+  isPending,
+  isError,
+  error,
+  onRetry,
+  selectedTurnoId,
+  onSelect,
+}: TurnoSelectorProps) {
   const porJornada = useMemo(() => {
     const grouped = new Map<Jornada, Turno[]>(
       JORNADAS_VOLUNTARIADO.map((jornada) => [jornada, []]),
@@ -48,7 +57,7 @@ export function TurnoSelector({ centroId, selectedTurnoId, onSelect }: TurnoSele
   }, [turnos]);
 
   if (isError) {
-    return <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />;
+    return <ErrorState message={getErrorMessage(error)} onRetry={onRetry} />;
   }
 
   if (isPending) {
