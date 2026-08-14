@@ -1,7 +1,8 @@
 import { env } from "@/server/config/env";
 import { badRequest } from "@/server/http/errors";
 import { logger } from "@/server/lib/logger";
-import type { Jornada } from "@/server/modules/catalogo/catalogo.schema";
+import { findTurnoById } from "@/server/modules/catalogo/catalogo.repository";
+import type { Jornada, Turno } from "@/server/modules/catalogo/catalogo.schema";
 import type { Reserva } from "@/server/modules/reservas/reservas.schema";
 
 import {
@@ -102,8 +103,8 @@ export type ResultadoEmpuje = {
 const TIMEOUT_MS = 8000;
 
 /** Todo fallo se registra: un push que no llega no puede ser invisible. */
-function fallo(reservas: number, error: string): ResultadoEmpuje {
-  logger.warn("No se pudo empujar a la hoja", { reservas, motivo: error });
+function fallo(filas: number, error: string): ResultadoEmpuje {
+  logger.warn("No se pudo empujar a la hoja", { filas, motivo: error });
   return { enviadas: 0, ok: false, error };
 }
 
@@ -115,7 +116,31 @@ function fallo(reservas: number, error: string): ResultadoEmpuje {
  * whatever did not make it.
  */
 export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<ResultadoEmpuje> {
-  if (reservas.length === 0) return { enviadas: 0, ok: true, error: null };
+  return enviarAlSheet({ reservas: reservas.map(aFilaSaliente) }, reservas.length);
+}
+
+/**
+ * Writes each shift's live `reservados` back into the `Turnos` sheet.
+ *
+ * Only that column travels: `Disponibles`, `% Ocupación` and `Estado del cupo`
+ * are formulas over it, so the sheet recalculates them and there is no second
+ * copy of the arithmetic to drift.
+ */
+export async function empujarTurnosAlSheet(turnos: Turno[]): Promise<ResultadoEmpuje> {
+  const filas = turnos.map((turno) => ({
+    idTurno: turnoIdHaciaSheet(turno.centroNombre, turno.fecha, turno.jornada),
+    reservados: turno.reservados,
+  }));
+
+  return enviarAlSheet({ turnos: filas }, filas.length);
+}
+
+/** The one POST both directions share: same web app, same envelope, same failure contract. */
+async function enviarAlSheet(
+  carga: Record<string, unknown>,
+  cantidad: number,
+): Promise<ResultadoEmpuje> {
+  if (cantidad === 0) return { enviadas: 0, ok: true, error: null };
 
   const url = env.sheetsWebhookUrl;
   const token = env.sheetsHookToken;
@@ -132,7 +157,7 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
     const respuesta = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, reservas: reservas.map(aFilaSaliente) }),
+      body: JSON.stringify({ token, ...carga }),
       signal: control.signal,
       // Apps Script answers the web-app URL with a redirect to a script.google
       // host, so following it is required to get the real response.
@@ -140,7 +165,7 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
     });
 
     if (!respuesta.ok) {
-      return fallo(reservas.length, `La hoja respondió ${respuesta.status}.`);
+      return fallo(cantidad, `La hoja respondió ${respuesta.status}.`);
     }
 
     /**
@@ -157,19 +182,19 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
       confirmacion = JSON.parse(texto) as { success?: boolean; error?: string };
     } catch {
       return fallo(
-        reservas.length,
+        cantidad,
         "La hoja respondió algo que no es JSON. Suele ser un doPost que revienta, " +
           "un despliegue en una versión vieja, o 'Quién tiene acceso' distinto de 'Cualquiera'.",
       );
     }
 
     if (!confirmacion.success) {
-      return fallo(reservas.length, confirmacion.error ?? "La hoja rechazó el envío.");
+      return fallo(cantidad, confirmacion.error ?? "La hoja rechazó el envío.");
     }
 
-    logger.info("Reservas empujadas a la hoja", { reservas: reservas.length });
+    logger.info("Empujado a la hoja", { filas: cantidad });
 
-    return { enviadas: reservas.length, ok: true, error: null };
+    return { enviadas: cantidad, ok: true, error: null };
   } catch (error) {
     const motivo =
       error instanceof Error && error.name === "AbortError"
@@ -178,7 +203,7 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
           ? error.message
           : "Error inesperado.";
 
-    return fallo(reservas.length, motivo);
+    return fallo(cantidad, motivo);
   } finally {
     // Left pending, the timer keeps the event loop alive well past the response.
     clearTimeout(timeout);
@@ -195,6 +220,18 @@ export async function empujarReservasAlSheet(reservas: Reserva[]): Promise<Resul
  */
 export async function notificarReservaAlSheet(reserva: Reserva): Promise<void> {
   await empujarReservasAlSheet([reserva]);
+}
+
+/**
+ * Same fire-and-forget contract, for the shift's capacity.
+ *
+ * The counter is read back from the store instead of taken from the caller: the
+ * booking transaction owns `reservados`, so re-reading is what keeps the sheet
+ * honest when two volunteers book the same shift at once.
+ */
+export async function notificarTurnoAlSheet(turnoId: string): Promise<void> {
+  const turno = await findTurnoById(turnoId);
+  if (turno) await empujarTurnosAlSheet([turno]);
 }
 
 /** Guards the push endpoint against a request with nothing to send. */

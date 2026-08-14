@@ -8,23 +8,32 @@ import { z } from "zod";
  * what lives in Firestore once imported, not the raw spreadsheet columns.
  */
 
-/** Shifts run twice a day at every centre: morning and afternoon. */
-export const JORNADAS = ["AM", "PM"] as const;
+/** Morning and afternoon everywhere; evening only where the point opens at night. */
+export const JORNADAS = ["AM", "PM", "NOCHE"] as const;
 export const jornadaSchema = z.enum(JORNADAS, {
   error: () => `La jornada debe ser una de: ${JORNADAS.join(", ")}.`,
 });
 export type Jornada = z.infer<typeof jornadaSchema>;
 
-/** Fixed schedule per shift, taken from the spreadsheet. */
-export const HORARIOS: Record<Jornada, { inicio: string; fin: string; etiqueta: string }> = {
+export const horarioSchema = z.object({
+  inicio: z.string(),
+  fin: z.string(),
+  etiqueta: z.string(),
+});
+export type Horario = z.infer<typeof horarioSchema>;
+
+/** Default schedule per shift, used when a `Turnos` row does not state its own. */
+export const HORARIOS: Record<Jornada, Horario> = {
   AM: { inicio: "08:00", fin: "14:00", etiqueta: "8:00 a.m. - 2:00 p.m." },
   PM: { inicio: "13:00", fin: "17:00", etiqueta: "1:00 p.m. - 5:00 p.m." },
+  NOCHE: { inicio: "19:00", fin: "22:00", etiqueta: "7:00 p.m. - 10:00 p.m." },
 };
 
 /** Label used in the spreadsheet and in the UI. */
 export const ETIQUETA_JORNADA: Record<Jornada, string> = {
   AM: "AM",
   PM: "PM",
+  NOCHE: "Noche",
 };
 
 export const ACTIVIDADES = ["Empaque", "Clasificación", "Carga y descarga"] as const;
@@ -64,7 +73,12 @@ export const centroSchema = z.object({
    */
   observaciones: z.string().nullable(),
   actividades: z.array(actividadSchema),
-  cuposPorJornada: z.record(jornadaSchema, z.number().int().nonnegative()),
+  /**
+   * Partial on purpose: a point that never opens at night has no `NOCHE` key,
+   * and the centres already stored carry only `AM`/`PM`. Requiring every shift
+   * would fail them all against the schema and empty the catalogue.
+   */
+  cuposPorJornada: z.partialRecord(jornadaSchema, z.number().int().nonnegative()),
   activo: z.boolean(),
   coordinador: coordinadorSchema.nullable(),
 });
@@ -77,11 +91,7 @@ export const turnoSchema = z.object({
   fecha: fechaSchema,
   diaSemana: z.string(),
   jornada: jornadaSchema,
-  horario: z.object({
-    inicio: z.string(),
-    fin: z.string(),
-    etiqueta: z.string(),
-  }),
+  horario: horarioSchema,
   /**
    * The point's published opening hours, copied here so a caller listing shifts
    * does not have to fetch the centre to know when the door is actually open.
@@ -136,40 +146,95 @@ export function diaSemanaDe(fecha: string): string {
 }
 
 /**
- * One shift per centre × date × slot, mirroring the `Turnos` sheet.
+ * A row of the `Turnos` sheet, once its columns have been understood.
  *
- * Shared by the spreadsheet import and the sync hook so that "capacity 0 means
- * the point does not open in that shift" is decided in exactly one place. The
- * sheet's own instructions are explicit that those shifts must not be bookable.
+ * `centroId` is the slug of the point's display name, which is how the sheet
+ * refers to it — the same derivation `Reservas` uses. Renaming a point in the
+ * sheet therefore produces a different id and orphans its shifts; the fix is an
+ * explicit id column on both sheets, deliberately deferred.
  */
-export function construirTurnos(centros: Centro[], fechas: string[]): Turno[] {
-  const turnos: Turno[] = [];
+export type TurnoDeHoja = {
+  centroId: string;
+  fecha: string;
+  jornada: Jornada;
+  /** Null when the row leaves the column empty: `HORARIOS` decides. */
+  horario: Horario | null;
+  cuposTotales: number;
+};
+
+/**
+ * The programme's shifts: one per centre × date × slot, overridden by `Turnos`.
+ *
+ * `Centros` states each point's nominal capacity per shift, and the product of
+ * centres, dates and slots is what that implies. But nominal capacity cannot say
+ * that El Campín takes 300 on Thursday and 150 on Friday, or that a point opens
+ * at night on one day only — so a row of the `Turnos` sheet wins over the
+ * product for the shift it names, and creates that shift when the product does
+ * not reach it at all, which is how a date outside the calendar gets opened.
+ *
+ * Capacity 0 still means the point does not open in that shift, whichever side
+ * states it: the sheet's own instructions are explicit that it must not be
+ * bookable. Dropping a row from `Turnos` is therefore not a deletion — the shift
+ * reverts to the nominal capacity `Centros` gives it.
+ */
+export function construirTurnos(
+  centros: Centro[],
+  fechas: string[],
+  filas: TurnoDeHoja[] = [],
+): Turno[] {
+  const porId = new Map(centros.map((centro) => [centro.id, centro]));
+  const turnos = new Map<string, Turno>();
 
   for (const centro of centros) {
     for (const fecha of fechas) {
       for (const jornada of JORNADAS) {
-        const cupos = centro.cuposPorJornada[jornada] ?? 0;
-
-        turnos.push({
-          id: buildTurnoId(centro.id, fecha, jornada),
-          centroId: centro.id,
-          centroNombre: centro.nombre,
+        const turno = armarTurno(
+          centro,
           fecha,
-          diaSemana: diaSemanaDe(fecha),
           jornada,
-          horario: HORARIOS[jornada],
-          horarioOficialCentro: centro.horarioOficial,
-          centroActivo: centro.activo,
-          cuposTotales: cupos,
-          reservados: 0,
-          estado: centro.activo && cupos > 0 ? "ABIERTO" : "CERRADO",
-          coordinador: centro.coordinador,
-        });
+          centro.cuposPorJornada[jornada] ?? 0,
+          null,
+        );
+        turnos.set(turno.id, turno);
       }
     }
   }
 
-  return turnos;
+  for (const fila of filas) {
+    const centro = porId.get(fila.centroId);
+    // A row naming a point that is not in the catalogue is reported back to the
+    // sheet by the sync; here it simply has no centre to hang off.
+    if (!centro) continue;
+
+    const turno = armarTurno(centro, fila.fecha, fila.jornada, fila.cuposTotales, fila.horario);
+    turnos.set(turno.id, turno);
+  }
+
+  return [...turnos.values()];
+}
+
+function armarTurno(
+  centro: Centro,
+  fecha: string,
+  jornada: Jornada,
+  cuposTotales: number,
+  horario: Horario | null,
+): Turno {
+  return {
+    id: buildTurnoId(centro.id, fecha, jornada),
+    centroId: centro.id,
+    centroNombre: centro.nombre,
+    fecha,
+    diaSemana: diaSemanaDe(fecha),
+    jornada,
+    horario: horario ?? HORARIOS[jornada],
+    horarioOficialCentro: centro.horarioOficial,
+    centroActivo: centro.activo,
+    cuposTotales,
+    reservados: 0,
+    estado: centro.activo && cuposTotales > 0 ? "ABIERTO" : "CERRADO",
+    coordinador: centro.coordinador,
+  };
 }
 
 /** `Vive Claro` → `vive-claro`. Accents are folded so ids stay ASCII. */

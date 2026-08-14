@@ -85,7 +85,7 @@ export async function findTurnoById(id: string): Promise<Turno | null> {
 }
 
 function jornadaOrder(jornada: Jornada): number {
-  return { AM: 0, PM: 1 }[jornada];
+  return { AM: 0, PM: 1, NOCHE: 2 }[jornada];
 }
 
 export type CatalogoGuardado = { centros: number; turnos: number };

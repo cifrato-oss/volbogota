@@ -5,6 +5,7 @@ import {
   estadoHaciaSheet,
   fechaDesdeSheet,
   fechaHaciaSheet,
+  horarioDesdeSheet,
   jornadaDesdeSheet,
   nombreCompletoHaciaSheet,
   partirNombreCompleto,
@@ -47,13 +48,51 @@ describe("jornadas", () => {
     expect(jornadaDesdeSheet("pm")).toBe("PM");
   });
 
-  it("rejects anything outside the two slots", () => {
+  it("rejects anything outside the three slots", () => {
     expect(() => jornadaDesdeSheet("Madrugada")).toThrowError(/no es válida/i);
   });
 
-  it("rejects the retired evening shift the sheet's dropdown still offers", () => {
-    // Such a row must come back with a verdict, not book a shift that is gone.
-    expect(() => jornadaDesdeSheet("Noche")).toThrowError(/no es válida/i);
+  it("reads the evening shift the sheet labels 'Noche'", () => {
+    expect(jornadaDesdeSheet("Noche")).toBe("NOCHE");
+    expect(jornadaDesdeSheet(" noche ")).toBe("NOCHE");
+  });
+});
+
+describe("horarioDesdeSheet", () => {
+  it("reads the format the sheet already writes", () => {
+    expect(horarioDesdeSheet("8:00 a.m. - 2:00 p.m.")).toEqual({
+      inicio: "08:00",
+      fin: "14:00",
+      etiqueta: "8:00 a.m. - 2:00 p.m.",
+    });
+  });
+
+  it("reads 24-hour ranges without a meridiem", () => {
+    expect(horarioDesdeSheet("08:00-14:00")).toMatchObject({ inicio: "08:00", fin: "14:00" });
+    expect(horarioDesdeSheet("19:00 – 22:00")).toMatchObject({ inicio: "19:00", fin: "22:00" });
+  });
+
+  it("accepts 'a' as the separator and hours without minutes", () => {
+    expect(horarioDesdeSheet("7 p.m. a 10 p.m.")).toMatchObject({ inicio: "19:00", fin: "22:00" });
+  });
+
+  it("keeps the sheet's label verbatim, because that is what a volunteer reads", () => {
+    expect(horarioDesdeSheet("  8:00 am - 2:00 pm  ").etiqueta).toBe("8:00 am - 2:00 pm");
+  });
+
+  it("puts midnight and noon on the right side of the clock", () => {
+    expect(horarioDesdeSheet("12:00 a.m. - 12:00 p.m.")).toMatchObject({
+      inicio: "00:00",
+      fin: "12:00",
+    });
+  });
+
+  it("refuses a schedule it cannot read instead of falling back to the default", () => {
+    // A shift running at a different hour than the sheet says is worse than a
+    // row a coordinator can see was rejected.
+    expect(() => horarioDesdeSheet("por la mañana")).toThrowError(/no entiendo el horario/i);
+    expect(() => horarioDesdeSheet("8:00 - 25:00")).toThrowError(/no existe/i);
+    expect(() => horarioDesdeSheet("8:00 - 14:70")).toThrowError(/no existe/i);
   });
 });
 

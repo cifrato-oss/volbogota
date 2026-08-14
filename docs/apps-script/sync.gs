@@ -44,19 +44,32 @@
 
 var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
+var HOJA_TURNOS = "Turnos";
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
  *
- * Son las tres que cambian lo que la web ofrece: si el punto sigue autorizado y
+ * Son las que cambian lo que la web ofrece: si el punto sigue autorizado y
  * cuántos cupos tiene en cada jornada. Dirección, localidad u observaciones no
  * están acá a propósito — corregir una tilde no tiene por qué reenviar el
  * catálogo entero; para eso está el menú.
  */
-var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM"];
+var COLUMNAS_QUE_SINCRONIZAN = ["Activo", "Cupos AM", "Cupos PM", "Cupos Noche"];
 
 /**
- * Único disparador automático: editar una de esas columnas en `Centros`.
+ * Columnas de `Turnos` que, al editarse, sincronizan solas.
+ *
+ * `Reservados` no está y no puede estar: esa columna la escribe el backend, y
+ * ponerla acá haría que cada reserva reenviara el tablero entero.
+ */
+var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario"];
+
+/** Encabezados que identifican cada hoja. */
+var OBLIGATORIAS_CENTROS = ["Dirección", "Cupos AM"];
+var OBLIGATORIAS_TURNOS = ["Fecha", "Cupos totales"];
+
+/**
+ * Único disparador automático: editar una columna que cambia lo que se ofrece.
  *
  * Antes salía en cualquier edición, incluidas las que hace el propio backend al
  * escribir en `Reservas` — eso devolvía esas filas al backend y las marcaba como
@@ -67,15 +80,23 @@ function alEditar(e) {
   if (!e || !e.range) return;
 
   var hoja = e.range.getSheet();
-  if (hoja.getName() !== HOJA_CENTROS) return;
+  var nombre = hoja.getName();
 
-  var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
+  if (nombre === HOJA_CENTROS) {
+    alEditarHoja(e, hoja, OBLIGATORIAS_CENTROS, COLUMNAS_QUE_SINCRONIZAN, sincronizarHojas);
+  } else if (nombre === HOJA_TURNOS) {
+    alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarHojas);
+  }
+}
+
+function alEditarHoja(e, hoja, obligatorias, columnasQueSincronizan, sincronizar) {
+  var mapa = mapearEncabezados(hoja, obligatorias);
 
   // Un pegado abarca varias celdas: basta con que el rango toque una columna.
   var primera = e.range.getColumn();
   var ultima = primera + e.range.getNumColumns() - 1;
 
-  if (!tocaAlgunaColumna(mapa, primera, ultima)) return;
+  if (!tocaAlgunaColumna(mapa, columnasQueSincronizan, primera, ultima)) return;
 
   var colNombre = mapa.columna("Punto de acopio") || mapa.columna("Centro");
   if (!colNombre) return;
@@ -87,15 +108,15 @@ function alEditar(e) {
   // sea un punto, porque debajo de la tabla viven las notas al pie.
   for (var fila = Math.max(desde, mapa.encabezado + 1); fila <= hasta; fila++) {
     if (normalizar(hoja.getRange(fila, colNombre).getValue()) !== "") {
-      sincronizarCentros();
+      sincronizar();
       return;
     }
   }
 }
 
-function tocaAlgunaColumna(mapa, primera, ultima) {
-  for (var i = 0; i < COLUMNAS_QUE_SINCRONIZAN.length; i++) {
-    var columna = mapa.columna(COLUMNAS_QUE_SINCRONIZAN[i]);
+function tocaAlgunaColumna(mapa, columnas, primera, ultima) {
+  for (var i = 0; i < columnas.length; i++) {
+    var columna = mapa.columna(columnas[i]);
     if (columna && columna >= primera && columna <= ultima) return true;
   }
 
@@ -106,16 +127,26 @@ function tocaAlgunaColumna(mapa, primera, ultima) {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu("VolBogotá")
-    .addItem("Sincronizar centros", "sincronizarCentros")
+    .addItem("Sincronizar centros y turnos", "sincronizarHojas")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
     .addSeparator()
     .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
     .addToUi();
 }
 
-// --- Centros --------------------------------------------------------------
+// --- Centros y turnos -----------------------------------------------------
 
-function sincronizarCentros() {
+/**
+ * Manda las dos hojas juntas, edite el coordinador la que edite.
+ *
+ * `Centros` da la capacidad nominal de cada jornada y `Turnos` la autoridad
+ * sobre un turno concreto, así que ninguna de las dos describe el programa por
+ * su cuenta: reconstruir desde una sola pisaría lo que dice la otra. Editar un
+ * punto releía los turnos y editar un turno releía los puntos, que es lo mismo
+ * que mandarlas siempre juntas — y así el backend hace una sola reconstrucción
+ * que no puede contradecirse a sí misma.
+ */
+function sincronizarHojas() {
   var hoja = hojaPorNombre(HOJA_CENTROS);
   var mapa = mapearEncabezados(hoja, ["Dirección", "Cupos AM"]);
   var filas = [];
@@ -131,6 +162,8 @@ function sincronizarCentros() {
       horarioOficial: leer(hoja, fila, mapa.columna("Horario oficial del punto")),
       cuposAm: leer(hoja, fila, mapa.columna("Cupos AM")),
       cuposPm: leer(hoja, fila, mapa.columna("Cupos PM")),
+      // Ausente en las hojas que no reinstauraron la noche: el backend la toma como 0.
+      cuposNoche: leer(hoja, fila, mapa.columna("Cupos Noche")),
       actividades: leer(hoja, fila, mapa.columna("Actividades habilitadas")),
       linkMaps: leer(hoja, fila, mapa.columna("Link Google Maps")),
       activo: leer(hoja, fila, mapa.columna("Activo")),
@@ -140,9 +173,17 @@ function sincronizarCentros() {
 
   if (filas.length === 0) return;
 
+  var tablero = leerTablero();
+
   // El backend descarta la fila TOTAL y las notas al pie; acá las mandamos
   // todas para no duplicar esa regla en dos sitios.
-  llamar("/api/hooks/sheets/centros", { filas: filas, fechas: fechasDelPrograma() });
+  var respuesta = llamar("/api/hooks/sheets/centros", {
+    filas: filas,
+    fechas: fechasDelPrograma(),
+    turnos: tablero.filas,
+  });
+
+  if (tablero.hoja) escribirValidacionTurnos(tablero, respuesta);
 }
 
 /** Las fechas salen de la hoja Listas; si no están, el backend usa las ya cargadas. */
@@ -159,6 +200,91 @@ function fechasDelPrograma() {
   }
 
   return fechas.length > 0 ? fechas : undefined;
+}
+
+/**
+ * Lee el tablero completo.
+ *
+ * Va entero y no solo la fila editada: el backend reconstruye desde lo que
+ * reciba, y una fila borrada tiene que poder volver al cupo nominal.
+ *
+ * Devuelve `hoja: null` si el libro todavía no tiene `Turnos` o si no se le
+ * reconocen los encabezados: eso deja la sincronización de `Centros` andando
+ * igual que antes en un libro que aún no montó el tablero.
+ *
+ * `Cupos totales` puede traer una fórmula que busca la capacidad en `Centros` o
+ * un número escrito encima; acá llega el valor calculado en los dos casos, que
+ * es lo que permite que una sola columna cargue lo nominal y la excepción.
+ */
+function leerTablero() {
+  var hoja = libro().getSheetByName(HOJA_TURNOS);
+  if (!hoja) return { hoja: null, mapa: null, filas: [] };
+
+  var mapa;
+  try {
+    mapa = mapearEncabezados(hoja, OBLIGATORIAS_TURNOS);
+  } catch (error) {
+    Logger.log("La hoja Turnos no tiene los encabezados esperados: " + error);
+    return { hoja: null, mapa: null, filas: [] };
+  }
+
+  var colPunto = mapa.columna("Punto de acopio") || mapa.columna("Centro");
+  var filas = [];
+
+  for (var fila = mapa.encabezado + 1; fila <= hoja.getLastRow(); fila++) {
+    var punto = leer(hoja, fila, colPunto);
+    var fecha = leer(hoja, fila, mapa.columna("Fecha"));
+    var jornada = leer(hoja, fila, mapa.columna("Jornada"));
+
+    // Una fila a medio llenar todavía no describe un turno. No es un error: es
+    // el renglón que un coordinador acaba de empezar a escribir.
+    if (!punto || !fecha || !jornada) continue;
+
+    filas.push({
+      fila: fila,
+      puntoDeAcopio: punto,
+      fecha: fecha,
+      jornada: jornada,
+      // Vacío: el backend usa el horario por defecto de la jornada.
+      horario: leer(hoja, fila, mapa.columna("Horario")),
+      cuposTotales: leer(hoja, fila, mapa.columna("Cupos totales")),
+    });
+  }
+
+  return { hoja: hoja, mapa: mapa, filas: filas };
+}
+
+/**
+ * Deja en `Validación` por qué una fila no se aplicó.
+ *
+ * La columna es opcional: si el tablero no la tiene, el veredicto queda en el
+ * log y el resto de la sincronización sigue igual.
+ */
+function escribirValidacionTurnos(tablero, respuesta) {
+  var hoja = tablero.hoja;
+  var mapa = tablero.mapa;
+  var filas = tablero.filas;
+
+  if (!mapa.columna("Validación")) return;
+
+  // Igual que en `Reservas`: si el backend no contestó, no se pisa la celda con
+  // un veredicto que no tenemos.
+  if (!respuesta || !respuesta.success) {
+    Logger.log("El backend no respondió; no se escribe la validación de los turnos.");
+    return;
+  }
+
+  var rechazadas = respuesta.data.rechazadas || [];
+  var motivos = {};
+
+  for (var i = 0; i < rechazadas.length; i++) {
+    motivos[rechazadas[i].fila] = rechazadas[i].motivo;
+  }
+
+  for (var j = 0; j < filas.length; j++) {
+    var numero = filas[j].fila;
+    escribirCelda(hoja, mapa, numero, "Validación", motivos[numero] || "OK");
+  }
 }
 
 // --- Reservas -------------------------------------------------------------
@@ -287,7 +413,8 @@ function doPost(e) {
     }
 
     var reservas = cuerpo.reservas || [];
-    if (reservas.length === 0) {
+    var turnos = cuerpo.turnos || [];
+    if (reservas.length === 0 && turnos.length === 0) {
       return respuesta({ success: true, data: { escritas: 0 } });
     }
 
@@ -297,7 +424,10 @@ function doPost(e) {
     candado.waitLock(20000);
 
     try {
-      var escritas = escribirReservas(reservas);
+      var escritas = 0;
+      if (reservas.length) escritas += escribirReservas(reservas);
+      if (turnos.length) escritas += escribirTurnos(turnos);
+
       return respuesta({ success: true, data: { escritas: escritas } });
     } finally {
       candado.releaseLock();
@@ -350,6 +480,48 @@ function escribirReservas(reservas) {
 }
 
 /** Código de reserva → número de fila, para no recorrer la hoja por cada una. */
+/**
+ * Refleja en `Turnos` el contador que lleva el backend.
+ *
+ * Solo viaja `Reservados`: disponibles, ocupación y estado son fórmulas sobre
+ * esa celda, así que la hoja los recalcula y no hay una segunda copia de la
+ * aritmética que se pueda desfasar.
+ */
+function escribirTurnos(turnos) {
+  var hoja = hojaPorNombre(HOJA_TURNOS);
+  var mapa = mapearEncabezados(hoja, ["ID_Turno", "Reservados"]);
+  var indice = indicePorIdTurno(hoja, mapa);
+  var escritas = 0;
+
+  for (var i = 0; i < turnos.length; i++) {
+    // Un turno que el tablero no tiene no se agrega: esa hoja la arma ella sola
+    // desde `Centros`, y una fila suelta al final le rompería las fórmulas.
+    var fila = indice[String(turnos[i].idTurno || "").trim()];
+    if (!fila) continue;
+
+    escribirCelda(hoja, mapa, fila, "Reservados", turnos[i].reservados);
+    escritas++;
+  }
+
+  return escritas;
+}
+
+function indicePorIdTurno(hoja, mapa) {
+  var colId = mapa.columna("ID_Turno");
+  var indice = {};
+  if (!colId || hoja.getLastRow() <= mapa.encabezado) return indice;
+
+  var alto = hoja.getLastRow() - mapa.encabezado;
+  var valores = hoja.getRange(mapa.encabezado + 1, colId, alto, 1).getValues();
+
+  for (var i = 0; i < valores.length; i++) {
+    var id = String(valores[i][0] || "").trim();
+    if (id) indice[id] = mapa.encabezado + 1 + i;
+  }
+
+  return indice;
+}
+
 function indicePorCodigo(hoja, mapa) {
   var colId = mapa.columna("ID");
   var indice = {};

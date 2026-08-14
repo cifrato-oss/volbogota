@@ -17,6 +17,7 @@ import {
   construirTurnos,
   toTurnoPublico,
   type Centro,
+  type TurnoDeHoja,
   type TurnoPublico,
 } from "./catalogo.schema";
 
@@ -71,6 +72,8 @@ export type SincronizacionCatalogo = {
   /** Points that disappeared from the sheet and were retired. */
   desactivados: string[];
   fechas: string[];
+  /** Points a board row named that the catalogue does not have. */
+  centrosDesconocidos: string[];
 };
 
 /**
@@ -86,26 +89,71 @@ export type SincronizacionCatalogo = {
 export async function sincronizarCatalogo(
   centros: Centro[],
   fechas?: string[],
+  filas: TurnoDeHoja[] = [],
 ): Promise<SincronizacionCatalogo> {
-  const fechasEfectivas = fechas?.length ? [...new Set(fechas)].sort() : await fechasVigentes();
-  const turnos = construirTurnos(centros, fechasEfectivas);
+  const fechasEfectivas = await fechasEfectivasDe(fechas, filas);
+  const turnos = construirTurnos(centros, fechasEfectivas, filas);
 
   const guardado = await guardarCatalogo(centros, turnos);
   const desactivados = await desactivarCentrosAusentes(centros.map((centro) => centro.id));
 
-  return { ...guardado, desactivados, fechas: fechasEfectivas };
+  return {
+    ...guardado,
+    desactivados,
+    fechas: fechasEfectivas,
+    centrosDesconocidos: desconocidos(centros, filas),
+  };
 }
 
-/** The dates already in play, so a capacity edit need not restate the calendar. */
-async function fechasVigentes(): Promise<string[]> {
-  const turnos = await findTurnos();
-  const fechas = [...new Set(turnos.map((turno) => turno.fecha))].sort();
+function desconocidos(centros: Centro[], filas: TurnoDeHoja[]): string[] {
+  const conocidos = new Set(centros.map((centro) => centro.id));
+  return [...new Set(filas.map((f) => f.centroId).filter((id) => !conocidos.has(id)))];
+}
 
-  if (fechas.length === 0) {
+export type SincronizacionTurnos = {
+  turnos: number;
+  fechas: string[];
+  /** Points a row named that the catalogue does not have, for the sheet to flag. */
+  centrosDesconocidos: string[];
+};
+
+/**
+ * Applies an edit to the `Turnos` board, where the sheet states shifts one by one.
+ *
+ * The whole board is rebuilt, not just the rows that arrived: that is what makes
+ * deleting a row mean "back to the capacity `Centros` gives it" instead of
+ * leaving a shift frozen at a number nobody can see any more. Points are read
+ * from Firestore rather than taken from the payload, because this hook moves
+ * capacity around — it must never retire a point the way a `Centros` sync can.
+ */
+export async function sincronizarTurnos(filas: TurnoDeHoja[]): Promise<SincronizacionTurnos> {
+  const centros = await findCentros(false);
+  const fechas = await fechasEfectivasDe(undefined, filas);
+  const turnos = construirTurnos(centros, fechas, filas);
+
+  const guardado = await guardarCatalogo([], turnos);
+
+  return { turnos: guardado.turnos, fechas, centrosDesconocidos: desconocidos(centros, filas) };
+}
+
+/**
+ * The calendar to build over: what was sent, or what is already loaded, plus any
+ * day a board row opens that neither covers.
+ */
+async function fechasEfectivasDe(fechas: string[] | undefined, filas: TurnoDeHoja[]) {
+  const base = fechas?.length ? fechas : await fechasCargadas();
+  const efectivas = [...new Set([...base, ...filas.map((f) => f.fecha)])].sort();
+
+  if (efectivas.length === 0) {
     throw badRequest("No hay turnos cargados todavía: manda las fechas del programa.");
   }
 
-  return fechas;
+  return efectivas;
+}
+
+async function fechasCargadas(): Promise<string[]> {
+  const turnos = await findTurnos();
+  return [...new Set(turnos.map((turno) => turno.fecha))];
 }
 
 /** Everything the booking form needs to populate its selects. */
