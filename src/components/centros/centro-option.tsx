@@ -73,8 +73,8 @@ export function CentroOption({ centro, href, mostrarCupos = true }: CentroOption
         <EstadoActivo activo={centro.activo} />
 
         {jornadas.length > 0 ? (
-          <div className="border-border mt-auto space-y-1.5 border-t pt-3">
-            <p className="text-muted-foreground text-[11px] font-medium">Cupos por jornada</p>
+          <div className="border-border -mx-4 mt-auto space-y-1.5 border-t px-4 pt-3">
+            <p className="text-muted-foreground text-xs font-medium">Cupos por jornada</p>
             <dl className="flex flex-wrap gap-1.5">
               {jornadas.map(({ jornada, cupos }) => (
                 <div
