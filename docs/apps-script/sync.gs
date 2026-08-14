@@ -54,10 +54,18 @@ var HOJA_DONACIONES = "Donaciones";
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
  *
- * Son las que cambian lo que la web ofrece: si el punto sigue autorizado y
- * cuántos cupos tiene en cada jornada. Dirección, localidad u observaciones no
- * están acá a propósito — corregir una tilde no tiene por qué reenviar el
- * catálogo entero; para eso está el menú.
+ * Son las que cambian lo que el voluntario ve: si el punto sigue autorizado,
+ * cuántos cupos tiene en cada jornada, y qué le advierte el punto antes de que
+ * se desplace.
+ *
+ * `Observaciones` entró después. Estaba fuera cuando editar un cupo releía el
+ * tablero entero y costaba veinte segundos, así que corregir una tilde no valía
+ * ese precio; ahora esta hoja va sola a su endpoint y sale barato. Además es
+ * texto operativo que cambia en caliente — un horario que se corrió, un punto
+ * que pide llevar marcador — y no sirve de nada si tarda en publicarse.
+ *
+ * Dirección, localidad y link siguen fuera: se corrigen una vez y la web no
+ * cambia de comportamiento por ellos. Para eso está el menú.
  */
 var COLUMNAS_QUE_SINCRONIZAN = [
   "Activo",
@@ -66,6 +74,7 @@ var COLUMNAS_QUE_SINCRONIZAN = [
   "Cupos PM",
   "Cupos MADRUGADA",
   "Cupos Noche",
+  "Observaciones",
 ];
 
 /**

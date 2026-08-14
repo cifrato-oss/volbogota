@@ -283,11 +283,11 @@ si aparece `Failed`, ábrelo y el log dice cuál propiedad falta.
 
 Solo disparan solas estas columnas — lo demás se manda desde el menú:
 
-| Hoja       | Columnas que sincronizan al editarlas                                             | A dónde manda                |
-| ---------- | --------------------------------------------------------------------------------- | ---------------------------- |
-| `Centros`  | `Activo`, `Cupos AM`, `Cupos TARDE`, `Cupos PM`, `Cupos MADRUGADA`, `Cupos Noche` | `/api/hooks/sheets/centros`  |
-| `Turnos`   | `Cupos totales`, `Horario`, `Jornada`                                             | `/api/hooks/sheets/turnos`   |
-| `Reservas` | `Asistencia`, `Estado`                                                            | `/api/hooks/sheets/reservas` |
+| Hoja       | Columnas que sincronizan al editarlas                                                              | A dónde manda                |
+| ---------- | -------------------------------------------------------------------------------------------------- | ---------------------------- |
+| `Centros`  | `Activo`, `Cupos AM`, `Cupos TARDE`, `Cupos PM`, `Cupos MADRUGADA`, `Cupos Noche`, `Observaciones` | `/api/hooks/sheets/centros`  |
+| `Turnos`   | `Cupos totales`, `Horario`, `Jornada`                                                              | `/api/hooks/sheets/turnos`   |
+| `Reservas` | `Asistencia`, `Estado`                                                                             | `/api/hooks/sheets/reservas` |
 
 Cada hoja va por su lado y a su propio endpoint. `Centros` describe el punto y su
 capacidad nominal; **`Turnos` es lo único que crea un turno reservable**. Editar
