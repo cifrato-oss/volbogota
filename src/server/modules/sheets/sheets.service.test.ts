@@ -105,9 +105,8 @@ function filaReserva(overrides: Record<string, unknown> = {}) {
     fechaJornada: null,
     jornada: null,
     autorizoDatos: "Sí",
+    asistencia: null,
     estado: null,
-    checkIn: null,
-    checkOut: null,
     ...overrides,
   };
 }
@@ -614,29 +613,6 @@ describe("sincronizarReservasDesdeSheet", () => {
     expect(db.peek(`reservas/${codigo}`)).toMatchObject({ estado: "CONFIRMADO" });
   });
 
-  it("marks attendance from a check-in typed at the gate", async () => {
-    const primera = await sincronizarReservas({ filas: [filaReserva()] });
-    const codigo = primera.resultados[0]?.codigo ?? "";
-
-    const { resultados } = await sincronizarReservas({
-      filas: [filaReserva({ codigo, checkIn: "08:05" })],
-    });
-
-    expect(resultados[0]?.estado).toBe("Asistió");
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ checkIn: "08:05", estado: "ASISTIO" });
-  });
-
-  it("computes donated hours from a check-out", async () => {
-    const primera = await sincronizarReservas({ filas: [filaReserva()] });
-    const codigo = primera.resultados[0]?.codigo ?? "";
-
-    await sincronizarReservas({
-      filas: [filaReserva({ codigo, checkIn: "08:05", checkOut: "14:00" })],
-    });
-
-    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ horas: 5.92 });
-  });
-
   it("releases the seat when the sheet cancels a reservation", async () => {
     const primera = await sincronizarReservas({ filas: [filaReserva()] });
     const codigo = primera.resultados[0]?.codigo ?? "";
@@ -669,6 +645,51 @@ describe("sincronizarReservasDesdeSheet", () => {
 
     expect(creadas).toBe(1);
     expect(resultados[0]?.codigo).toMatch(/^VB-/);
+  });
+});
+
+describe("asistencia desde la hoja", () => {
+  beforeEach(async () => {
+    await sincronizarCentros({ filas: [filaCentro()] });
+    await sincronizarTurnos({ filas: [filaTurno()] });
+  });
+
+  it.each([
+    ["Sí", "ASISTIO"],
+    ["si", "ASISTIO"],
+    ["X", "ASISTIO"],
+    ["No", "NO_ASISTIO"],
+    ["Ausente", "NO_ASISTIO"],
+  ])("reads %s as %s", async (celda, esperado) => {
+    const { resultados } = await sincronizarReservas({ filas: [filaReserva()] });
+    const codigo = resultados[0]?.codigo ?? "";
+
+    await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: celda })] });
+
+    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistencia: esperado });
+  });
+
+  it("leaves a blank cell as not marked, which is not the same as absent", async () => {
+    const { resultados } = await sincronizarReservas({ filas: [filaReserva()] });
+    const codigo = resultados[0]?.codigo ?? "";
+
+    await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: null })] });
+
+    expect(db.peek(`reservas/${codigo}`)).toMatchObject({ asistencia: null });
+  });
+
+  it("does not touch the booking's state", async () => {
+    // `Estado` and `Asistencia` answer different questions: whether the booking
+    // is still valid, and whether the person turned up.
+    const { resultados } = await sincronizarReservas({ filas: [filaReserva()] });
+    const codigo = resultados[0]?.codigo ?? "";
+
+    await sincronizarReservas({ filas: [filaReserva({ codigo, asistencia: "No" })] });
+
+    expect(db.peek(`reservas/${codigo}`)).toMatchObject({
+      asistencia: "NO_ASISTIO",
+      estado: "RESERVADO",
+    });
   });
 });
 

@@ -18,7 +18,8 @@ export type ResumenOperativo = {
     asistieron: number;
     noAsistieron: number;
     porcentaje: number;
-    horasDonadas: number;
+    /** Bookings no coordinator has marked either way yet. */
+    sinMarcar: number;
   };
   porCentro: Array<{
     id: string;
@@ -52,18 +53,22 @@ export async function obtenerResumen(): Promise<ResumenOperativo> {
     EstadoReserva,
     number
   >;
-  let horasDonadas = 0;
+  // Attendance is its own field now, not a reading of the booking's state: a
+  // booking can be `CONFIRMADO` and still have nobody marking whether it showed.
+  let asistieron = 0;
+  let noAsistieron = 0;
 
   for (const reserva of reservas) {
     const estado = String(reserva.estado) as EstadoReserva;
     if (estado in porEstado) porEstado[estado] += 1;
-    horasDonadas += Number(reserva.horas) || 0;
+    if (reserva.asistencia === "ASISTIO") asistieron += 1;
+    if (reserva.asistencia === "NO_ASISTIO") noAsistieron += 1;
   }
 
   const ofertados = turnos.reduce((total, turno) => total + turno.cuposTotales, 0);
   const reservados = turnos.reduce((total, turno) => total + turno.reservados, 0);
 
-  const evaluados = porEstado.ASISTIO + porEstado.NO_ASISTIO;
+  const evaluados = asistieron + noAsistieron;
 
   const porCentro = centros.map((centro) => {
     const suyos = turnos.filter((turno) => turno.centroId === centro.id);
@@ -77,7 +82,8 @@ export async function obtenerResumen(): Promise<ResumenOperativo> {
       reservados: ocupados,
       disponibles: Math.max(0, cupos - ocupados),
       ocupacion: cupos === 0 ? 0 : ocupados / cupos,
-      asistieron: reservas.filter((r) => r.centroId === centro.id && r.estado === "ASISTIO").length,
+      asistieron: reservas.filter((r) => r.centroId === centro.id && r.asistencia === "ASISTIO")
+        .length,
     };
   });
 
@@ -108,10 +114,10 @@ export async function obtenerResumen(): Promise<ResumenOperativo> {
     },
     reservas: { total: reservas.length, porEstado },
     asistencia: {
-      asistieron: porEstado.ASISTIO,
-      noAsistieron: porEstado.NO_ASISTIO,
-      porcentaje: evaluados === 0 ? 0 : porEstado.ASISTIO / evaluados,
-      horasDonadas: Math.round(horasDonadas * 100) / 100,
+      asistieron,
+      noAsistieron,
+      porcentaje: evaluados === 0 ? 0 : asistieron / evaluados,
+      sinMarcar: reservas.length - evaluados,
     },
     porCentro,
     porDia,

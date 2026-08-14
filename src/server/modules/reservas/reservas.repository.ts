@@ -239,10 +239,8 @@ export async function crearReservaEnTransaccion(input: CrearReservaInput): Promi
         contactoEmergencia: input.contactoEmergencia,
         eps: input.eps,
         estado: "RESERVADO",
+        asistencia: null,
         creadoEn,
-        checkIn: null,
-        checkOut: null,
-        horas: null,
       };
 
       tx.set(inscritoRef, { reservaId: reservaRef.id, creadoEn });

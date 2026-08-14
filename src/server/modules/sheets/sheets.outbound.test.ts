@@ -30,14 +30,12 @@ function reserva(overrides: Partial<Reserva> = {}): Reserva {
     celular: "3001234567",
     edad: 30,
     autorizoDatos: true,
+    asistencia: null,
     nombreEmergencia: null,
     contactoEmergencia: null,
     eps: null,
     estado: "ASISTIO",
     creadoEn: "2026-08-13T14:05:00.000Z",
-    checkIn: "08:05",
-    checkOut: "14:00",
-    horas: 5.92,
     ...overrides,
   };
 }
@@ -122,16 +120,6 @@ describe("empujarReservasAlSheet", () => {
     });
   });
 
-  it("writes hours with a comma, the decimal separator the sheet's locale uses", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
-    vi.stubGlobal("fetch", fetchMock);
-
-    await empujarReservasAlSheet([reserva()]);
-
-    // A dot would read as a thousands separator and turn 5.92 into 592.
-    expect(loEnviado(fetchMock).cuerpo.reservas[0].horas).toBe("5,92");
-  });
-
   it("stamps the registration time in Bogotá, not UTC", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
@@ -141,17 +129,14 @@ describe("empujarReservasAlSheet", () => {
     expect(loEnviado(fetchMock).cuerpo.reservas[0].fechaRegistro).toBe("13/08/2026 09:05");
   });
 
-  it("leaves check-in and check-out empty rather than sending null into a cell", async () => {
+  it("never writes Asistencia: coordinators type that column themselves", async () => {
     const fetchMock = vi.fn().mockResolvedValue(respuestaOk());
     vi.stubGlobal("fetch", fetchMock);
 
-    await empujarReservasAlSheet([reserva({ checkIn: null, checkOut: null, horas: null })]);
+    await empujarReservasAlSheet([reserva({ estado: "ASISTIO", asistencia: "ASISTIO" })]);
 
-    expect(loEnviado(fetchMock).cuerpo.reservas[0]).toMatchObject({
-      checkIn: "",
-      checkOut: "",
-      horas: "",
-    });
+    // Pushing it would overwrite what a coordinator marked at the door.
+    expect(loEnviado(fetchMock).cuerpo.reservas[0]).not.toHaveProperty("asistencia");
   });
 
   it("reports a failure instead of throwing it at the booking", async () => {

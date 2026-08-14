@@ -77,7 +77,7 @@ describe("crearReservaEnTransaccion", () => {
     expect(reservadosDe()).toBe(1);
   });
 
-  it("stores the reservation under its own code, so check-in can look it up directly", async () => {
+  it("stores the reservation under its own code, so a lookup finds it directly", async () => {
     seedTurno();
 
     const { reserva } = await crearReservaEnTransaccion(input());
@@ -86,9 +86,7 @@ describe("crearReservaEnTransaccion", () => {
       codigo: reserva.codigo,
       celular: "3001234567",
       estado: "RESERVADO",
-      checkIn: null,
-      checkOut: null,
-      horas: null,
+      asistencia: null,
     });
   });
 

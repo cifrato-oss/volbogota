@@ -12,6 +12,17 @@ export const ESTADOS_RESERVA = [
 export const estadoReservaSchema = z.enum(ESTADOS_RESERVA);
 export type EstadoReserva = z.infer<typeof estadoReservaSchema>;
 
+/**
+ * Whether the volunteer turned up, as a coordinator marked it at the door.
+ *
+ * Its own vocabulary rather than a boolean: `NO_ASISTIO` is a thing someone
+ * observed and wrote down, and `false` reads the same as never having been
+ * asked. Absent — `null` — is the third case and the common one.
+ */
+export const ASISTENCIAS = ["ASISTIO", "NO_ASISTIO"] as const;
+export const asistenciaSchema = z.enum(ASISTENCIAS);
+export type Asistencia = z.infer<typeof asistenciaSchema>;
+
 /** Colombian mobile: ten digits starting with 3. */
 const celularSchema = z
   .string()
@@ -101,10 +112,13 @@ export const reservaSchema = z.object({
   contactoEmergencia: z.string().nullable().default(null),
   eps: z.string().nullable().default(null),
   estado: estadoReservaSchema,
+  /**
+   * What the sheet's `Asistencia` column says. Independent of `estado`: a
+   * booking can be `CONFIRMADO` and still have no attendance recorded, and null
+   * means "not marked yet" rather than "did not show up".
+   */
+  asistencia: asistenciaSchema.nullable().default(null),
   creadoEn: z.string(),
-  checkIn: z.string().nullable(),
-  checkOut: z.string().nullable(),
-  horas: z.number().nullable(),
 });
 export type Reserva = z.infer<typeof reservaSchema>;
 

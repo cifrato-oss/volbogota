@@ -50,9 +50,6 @@ type FilaSaliente = {
   /** Sheet column T. */
   eps: string;
   estado: string;
-  checkIn: string;
-  checkOut: string;
-  horas: string;
   validacion: string;
 };
 
@@ -72,11 +69,8 @@ function aFilaSaliente(reserva: Reserva): FilaSaliente {
     celEmergencia: reserva.contactoEmergencia ?? "",
     eps: reserva.eps ?? "",
     estado: estadoHaciaSheet(reserva.estado),
-    checkIn: reserva.checkIn ?? "",
-    checkOut: reserva.checkOut ?? "",
-    // Comma as the decimal separator: the sheet reads a Spanish locale, where a
-    // dot would land as a thousands separator and turn 5,92 hours into 592.
-    horas: reserva.horas === null ? "" : String(reserva.horas).replace(".", ","),
+    // `Asistencia` is not here on purpose: coordinators type that column at the
+    // door, so writing it would overwrite what they marked.
     validacion: "OK",
   };
 }

@@ -3,7 +3,12 @@ import { conflict, notFound } from "@/server/http/errors";
 
 import { hashCelular } from "./reservas.repository";
 import { puedeTransicionar } from "./reservas.admin.schema";
-import { reservaSchema, type EstadoReserva, type Reserva } from "./reservas.schema";
+import {
+  reservaSchema,
+  type Asistencia,
+  type EstadoReserva,
+  type Reserva,
+} from "./reservas.schema";
 import type { ListarReservasInput } from "./reservas.admin.schema";
 
 function parseReserva(doc: FirebaseFirestore.DocumentSnapshot): Reserva {
@@ -83,6 +88,29 @@ function normalizar(valor: string): string {
  * sign up again for the same shift. Doing the two writes outside a transaction
  * would leak seats every time one of them failed.
  */
+/**
+ * Records what a coordinator marked in the sheet's `Asistencia` column.
+ *
+ * No state machine and no transition rules: attendance is an observation, not a
+ * lifecycle. It is stored beside `estado` rather than folded into it, because
+ * the two answer different questions — whether the booking is still valid, and
+ * whether the person actually turned up.
+ */
+export async function registrarAsistencia(
+  codigo: string,
+  asistencia: Asistencia,
+): Promise<Reserva> {
+  const db = getDb();
+  const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);
+
+  const snap = await reservaRef.get();
+  if (!snap.exists) throw notFound("La reserva no existe.");
+
+  await reservaRef.update({ asistencia });
+
+  return { ...parseReserva(snap), asistencia };
+}
+
 export async function cambiarEstado(codigo: string, nuevo: EstadoReserva): Promise<Reserva> {
   const db = getDb();
   const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);
@@ -119,63 +147,4 @@ export async function cambiarEstado(codigo: string, nuevo: EstadoReserva): Promi
 
     return actualizada;
   });
-}
-
-/**
- * Records arrival or departure at the gate.
- *
- * Hours are computed from the pair, and only when both exist. They feed the
- * volunteering certificates, so a check-out before the check-in is refused
- * rather than stored as a negative.
- */
-export async function registrarHora(
-  codigo: string,
-  campo: "checkIn" | "checkOut",
-  hora: string,
-): Promise<Reserva> {
-  const db = getDb();
-  const reservaRef = db.collection(COLLECTIONS.reservas).doc(codigo);
-
-  return db.runTransaction(async (tx) => {
-    const snapshot = await tx.get(reservaRef);
-    if (!snapshot.exists) {
-      throw notFound("La reserva no existe.");
-    }
-
-    const reserva = parseReserva(snapshot);
-
-    if (reserva.estado === "CANCELADO") {
-      throw conflict("La reserva está cancelada.");
-    }
-
-    if (campo === "checkOut" && !reserva.checkIn) {
-      throw conflict("Registra primero la hora de entrada.");
-    }
-
-    const checkIn = campo === "checkIn" ? hora : reserva.checkIn;
-    const checkOut = campo === "checkOut" ? hora : reserva.checkOut;
-
-    if (checkIn && checkOut && enMinutos(checkOut) <= enMinutos(checkIn)) {
-      throw conflict("La hora de salida debe ser posterior a la de entrada.");
-    }
-
-    const horas =
-      checkIn && checkOut
-        ? Math.round(((enMinutos(checkOut) - enMinutos(checkIn)) / 60) * 100) / 100
-        : null;
-
-    // Showing up is what "asistió" means; the coordinator should not have to
-    // record it twice.
-    const estado = campo === "checkIn" && reserva.estado !== "ASISTIO" ? "ASISTIO" : reserva.estado;
-
-    const actualizada: Reserva = { ...reserva, checkIn, checkOut, horas, estado };
-    tx.update(reservaRef, { checkIn, checkOut, horas, estado });
-
-    return actualizada;
-  });
-}
-
-function enMinutos(hora: string): number {
-  const [h = "0", m = "0"] = hora.split(":");
-  return Number(h) * 60 + Number(m);
 }

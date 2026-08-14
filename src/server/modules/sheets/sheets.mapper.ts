@@ -22,7 +22,11 @@ import {
   type Jornada,
 } from "@/server/modules/catalogo/catalogo.schema";
 import type { EstadoNecesidad } from "@/server/modules/donaciones/donaciones.schema";
-import { ESTADOS_RESERVA, type EstadoReserva } from "@/server/modules/reservas/reservas.schema";
+import {
+  ESTADOS_RESERVA,
+  type Asistencia,
+  type EstadoReserva,
+} from "@/server/modules/reservas/reservas.schema";
 
 /** The sheet separates the parts of a shift id with pipes. */
 const SEPARADOR_ID_SHEET = "|";
@@ -207,6 +211,27 @@ const ESTADO_HACIA_SHEET: Record<EstadoReserva, string> = {
 
 export function estadoHaciaSheet(estado: EstadoReserva): string {
   return ESTADO_HACIA_SHEET[estado];
+}
+
+/**
+ * The board's `Asistencia` column, read inbound only.
+ *
+ * Coordinators type it at the door, so it flows sheet → backend and never the
+ * other way; writing it would overwrite what they marked. It replaced
+ * `Check-in`, `Check-out` and `Horas`, which the board dropped.
+ *
+ * Null for a blank cell: not marked yet is not the same as did not show up.
+ * It is also independent of `Estado` — a booking can be `Confirmado` and still
+ * have no attendance recorded.
+ */
+export function asistenciaDesdeSheet(valor: string | null | undefined): Asistencia | null {
+  if (!valor) return null;
+
+  const texto = normalizar(valor).toLowerCase();
+  if (["si", "yes", "asistio", "x", "1", "true"].includes(texto)) return "ASISTIO";
+  if (["no", "false", "0", "no asistio", "no vino", "ausente"].includes(texto)) return "NO_ASISTIO";
+
+  return null;
 }
 
 /** The sheet's yes/no columns. Anything not recognisably "yes" is false. */
