@@ -132,6 +132,14 @@ export interface CreateReservaInput {
   turnoId: string;
   /** Must be `true`, or the API answers 422. */
   autorizoDatos: boolean;
+  /**
+   * Emergency phone. Optional, up to 40 chars, and deliberately not held to the
+   * volunteer's own `3XXXXXXXXX` rule — it is often a landline or a relative
+   * abroad. Lands in the sheet's `Cel. emergencia` column.
+   */
+  contactoEmergencia?: string | null;
+  /** Health provider. Optional, up to 80 chars. Lands in the sheet's `EPS` column. */
+  eps?: string | null;
 }
 
 export interface ReservaTurnoResumen {

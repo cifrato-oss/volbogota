@@ -40,6 +40,8 @@ const ENCABEZADOS = [
   "Check-in",
   "Check-out",
   "Horas",
+  "Cel. emergencia",
+  "EPS",
 ] as const;
 
 const ETIQUETA_ESTADO: Record<EstadoReserva, string> = {
@@ -86,6 +88,8 @@ export async function construirFilas(filtros: ExportFiltros = {}): Promise<strin
       reserva.checkIn ?? "",
       reserva.checkOut ?? "",
       reserva.horas === null ? "" : String(reserva.horas).replace(".", ","),
+      reserva.contactoEmergencia ?? "",
+      reserva.eps ?? "",
     ];
   });
 }

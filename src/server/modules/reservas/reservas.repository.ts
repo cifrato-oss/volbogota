@@ -235,6 +235,8 @@ export async function crearReservaEnTransaccion(input: CrearReservaInput): Promi
         celular: input.celular,
         edad: input.edad,
         autorizoDatos: input.autorizoDatos,
+        contactoEmergencia: input.contactoEmergencia,
+        eps: input.eps,
         estado: "RESERVADO",
         creadoEn,
         checkIn: null,
