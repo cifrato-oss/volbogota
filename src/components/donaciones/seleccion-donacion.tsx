@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckmarkCircle02Icon, GiftIcon } from "@hugeicons/core-free-icons";
+import { Alert02Icon, CheckmarkCircle02Icon, GiftIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
@@ -342,6 +342,20 @@ export function SeleccionDonacion({ centroId }: { centroId: string }) {
         <p className="text-muted-foreground text-sm text-pretty">
           Elige una categoría y marca los elementos que el centro necesita. Tu selección se guarda
           mientras navegas entre categorías.
+        </p>
+      </div>
+
+      <div
+        role="note"
+        className="flex items-start gap-2.5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+      >
+        <HugeiconsIcon
+          icon={Alert02Icon}
+          className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400"
+        />
+        <p className="text-pretty">
+          <strong className="font-semibold">Recuerda:</strong> revisa siempre las fechas de
+          vencimiento. Tacha el código de barras del producto y escríbele encima “donación”.
         </p>
       </div>
 
