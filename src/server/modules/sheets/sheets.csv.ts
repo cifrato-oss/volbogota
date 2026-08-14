@@ -112,6 +112,7 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
   const columnas = {
     puntoDeAcopio: indiceDe(encabezado, "Punto de acopio"),
     fecha: indiceDe(encabezado, "Fecha"),
+    dia: indiceDe(encabezado, "Día"),
     jornada: indiceDe(encabezado, "Jornada"),
     horario: indiceDe(encabezado, "Horario"),
     cuposTotales: indiceDe(encabezado, "Cupos totales"),
@@ -138,6 +139,7 @@ async function leerTurnos(): Promise<Record<string, unknown>[]> {
       puntoDeAcopio: punto,
       fecha,
       jornada,
+      dia: valores[columnas.dia]?.trim() || null,
       horario: valores[columnas.horario]?.trim() || null,
       cuposTotales: valores[columnas.cuposTotales]?.trim() || "0",
     });

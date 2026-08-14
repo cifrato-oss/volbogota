@@ -253,6 +253,9 @@ function leerTablero() {
       puntoDeAcopio: punto,
       fecha: fecha,
       jornada: jornada,
+      // Tal cual: un turno que cruza la medianoche dice «Sábado-Domingo», y eso
+      // la fecha sola no lo puede expresar.
+      dia: tabla[i].texto(mapa.columna("Día")),
       // Vacío: el backend usa el horario por defecto de la jornada.
       horario: tabla[i].texto(mapa.columna("Horario")),
       cuposTotales: tabla[i].texto(mapa.columna("Cupos totales")),

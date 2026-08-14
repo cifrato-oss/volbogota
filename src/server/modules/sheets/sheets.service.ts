@@ -180,6 +180,7 @@ function aTurnoDeHoja(fila: FilaTurno): TurnoDeHoja {
     centroId: slugify(fila.puntoDeAcopio),
     fecha: fechaDesdeSheet(fila.fecha),
     jornada,
+    dia: fila.dia,
     horario,
     cuposTotales: fila.cuposTotales,
   };

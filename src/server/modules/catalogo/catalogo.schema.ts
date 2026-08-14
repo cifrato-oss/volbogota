@@ -190,6 +190,12 @@ export type TurnoDeHoja = {
   centroId: string;
   fecha: string;
   jornada: Jornada;
+  /**
+   * The board's own `Día` label, or null to derive it from the date. An
+   * overnight shift spans two days — `Sábado-Domingo` — which the date alone
+   * cannot express.
+   */
+  dia: string | null;
   /** Null when the row leaves the column empty: `HORARIOS` decides. */
   horario: Horario | null;
   cuposTotales: number;
@@ -223,7 +229,7 @@ export function construirTurnos(centros: Centro[], filas: TurnoDeHoja[]): Turno[
     const horario = horarioDeJornada(fila.jornada, fila.horario);
     if (!horario) continue;
 
-    const turno = armarTurno(centro, fila.fecha, fila.jornada, fila.cuposTotales, horario);
+    const turno = armarTurno(centro, fila, horario);
     turnos.set(turno.id, turno);
   }
 
@@ -241,19 +247,17 @@ export function horarioDeJornada(jornada: Jornada, horario: Horario | null): Hor
   return horario ?? HORARIOS[jornada] ?? null;
 }
 
-function armarTurno(
-  centro: Centro,
-  fecha: string,
-  jornada: Jornada,
-  cuposTotales: number,
-  horario: Horario,
-): Turno {
+function armarTurno(centro: Centro, fila: TurnoDeHoja, horario: Horario): Turno {
+  const { fecha, jornada, cuposTotales } = fila;
+
   return {
     id: buildTurnoId(centro.id, fecha, jornada),
     centroId: centro.id,
     centroNombre: centro.nombre,
     fecha,
-    diaSemana: diaSemanaDe(fecha),
+    // The board's label wins: only it can say `Sábado-Domingo` for a shift that
+    // starts one night and ends the next morning.
+    diaSemana: fila.dia ?? diaSemanaDe(fecha),
     jornada,
     horario,
     horarioOficialCentro: centro.horarioOficial,

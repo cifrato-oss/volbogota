@@ -32,6 +32,7 @@ function fila(overrides: Partial<TurnoDeHoja> = {}): TurnoDeHoja {
     centroId: "vive-claro",
     fecha: "2026-08-13",
     jornada: "AM",
+    dia: null,
     horario: null,
     cuposTotales: 150,
     ...overrides,

@@ -66,6 +66,7 @@ function filaTurno(overrides: Record<string, unknown> = {}) {
     puntoDeAcopio: "Punto Usaquén",
     fecha: "13/08/2026",
     jornada: "AM",
+    dia: null,
     horario: null,
     cuposTotales: "150",
     ...overrides,
@@ -350,6 +351,47 @@ describe("sincronizarTurnosDesdeSheet", () => {
 
     expect(db.peek("turnos/punto-usaquen_2026-08-13_am")).toMatchObject({ cuposTotales: 150 });
     expect(db.peek("turnos/punto-usaquen_2026-08-14_am")).toMatchObject({ cuposTotales: 400 });
+  });
+
+  it("keeps two madrugada slots on the same night apart", async () => {
+    // Straight from the live board: `MADRUGADA 1` is its own shift, not a
+    // misspelling of `MADRUGADA`, and both can run on the same date.
+    await sincronizarTurnos({
+      filas: [
+        filaTurno({
+          fila: 2,
+          fecha: "16/08/2026",
+          jornada: "MADRUGADA 1",
+          horario: "12:00 a. m. – 4:00 a. m.",
+        }),
+        filaTurno({
+          fila: 3,
+          fecha: "16/08/2026",
+          jornada: "MADRUGADA",
+          horario: "10:00 p. m. – 5:00 a.m.",
+          dia: "Sábado-Domingo",
+        }),
+      ],
+    });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_madrugada-1")).toMatchObject({
+      jornada: "MADRUGADA 1",
+      horario: { inicio: "00:00", fin: "04:00" },
+    });
+
+    // The board's own label, verbatim: a shift that starts one night and ends
+    // the next morning spans two days, which the date alone cannot say.
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_madrugada")).toMatchObject({
+      jornada: "MADRUGADA",
+      horario: { inicio: "22:00", fin: "05:00" },
+      diaSemana: "Sábado-Domingo",
+    });
+  });
+
+  it("derives the weekday only when the board leaves Día empty", async () => {
+    await sincronizarTurnos({ filas: [filaTurno({ fecha: "16/08/2026", dia: null })] });
+
+    expect(db.peek("turnos/punto-usaquen_2026-08-16_am")).toMatchObject({ diaSemana: "Domingo" });
   });
 
   it("reports a board row naming a point the catalogue does not have", async () => {

@@ -70,6 +70,12 @@ export const filaTurnoSchema = z.object({
   puntoDeAcopio: z.string().trim().min(1, "El punto de acopio es obligatorio."),
   fecha: z.string().trim().min(1, "La fecha es obligatoria."),
   jornada: z.string().trim().min(1, "La jornada es obligatoria."),
+  /**
+   * The sheet's own `Día` label. Kept verbatim because an overnight shift spans
+   * two — `Sábado-Domingo` for one that runs 10 p.m. to 5 a.m. — which deriving
+   * the weekday from the date cannot say.
+   */
+  dia: textoOpcional,
   /** Empty falls back to the shift's default schedule. */
   horario: textoOpcional,
   cuposTotales: cuposSchema,
