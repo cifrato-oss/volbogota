@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
 import { BancoOption } from "@/components/sangre/banco-option";
+import { BancosMapa } from "@/components/sangre/bancos-mapa";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
@@ -257,22 +258,35 @@ export function DonarSangre() {
             The floor keeps it usable on a short screen, where the page scrolls
             again and that is the right answer.
           */
-          <div className="max-h-[calc(100dvh-31rem)] min-h-80 overflow-y-auto overscroll-contain pr-1">
-            {/*
+          <>
+            <BancosMapa
+              bancos={visibles}
+              coincideCon={(banco) =>
+                Boolean(
+                  eligio &&
+                  seleccion &&
+                  banco.recibiendoHoy &&
+                  banco.tiposQueRecibe.includes(seleccion),
+                )
+              }
+            />
+            <div className="max-h-[calc(100dvh-31rem)] min-h-80 overflow-y-auto overscroll-contain pr-1">
+              {/*
               One column, unlike the centre picker this borrows its card from.
               That screen is a gallery — six known places, pick one. This is a
               filtered result, read by running an eye down the state column
               asking "does this one take me", and a second column turns that
               straight line into a zigzag.
             */}
-            <ul className="space-y-3">
-              {visibles.map((banco) => (
-                <li key={banco.id}>
-                  <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
-                </li>
-              ))}
-            </ul>
-          </div>
+              <ul className="space-y-3">
+                {visibles.map((banco) => (
+                  <li key={banco.id}>
+                    <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
         )}
       </section>
     </div>
