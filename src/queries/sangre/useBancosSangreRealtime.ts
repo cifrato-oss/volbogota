@@ -42,6 +42,8 @@ function mapear(docs: Array<{ id: string; data: Record<string, unknown> }>): Ban
           // when our sync ran, not when anyone confirmed anything. It is worth
           // having to debug a sync; it is not worth showing to a donor.
           recibiendoHoy: doc.data.recibiendoHoy !== false,
+          lat: typeof doc.data.lat === "number" ? doc.data.lat : null,
+          lng: typeof doc.data.lng === "number" ? doc.data.lng : null,
         };
       })
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))

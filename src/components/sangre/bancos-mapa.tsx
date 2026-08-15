@@ -17,16 +17,16 @@ const MapaView = dynamic(
 /**
  * One map for the whole list, not one per card.
  *
- * Sixteen cards would mean sixteen Leaflet instances and sixteen geocoding
- * requests, and Nominatim asks for about one request a second — the page would
- * crawl and still be a poor answer, since the question a map settles here is
- * "which of these is near me", which is about the set and not about any single
- * point.
+ * A map per card would answer the wrong question. What a map settles here is
+ * "which of these is near me", which is about the set.
  *
- * Collapsed by default. Most donors filter by type first and never need it, and
- * an unfolded map would push the list itself below the fold. Opening it is also
- * what starts the geocoding, so a donor who does not ask for the map never pays
- * for it.
+ * Only banks with stored coordinates get a pin, and the button says how many
+ * that is. Points whose Maps link carried no coordinates are simply absent from
+ * it — dropping them somewhere approximate would put a pin on a place the bank
+ * is not, and a donor has no way to tell an approximate pin from an exact one.
+ *
+ * Collapsed by default: most donors filter by type and never need it, and an
+ * unfolded map pushes the list below the fold.
  */
 export function BancosMapa({
   bancos,
@@ -36,8 +36,9 @@ export function BancosMapa({
   coincideCon: (banco: BancoSangreVista) => boolean;
 }) {
   const [abierto, setAbierto] = useState(false);
+  const ubicados = bancos.filter((banco) => banco.lat != null && banco.lng != null);
 
-  if (bancos.length === 0) return null;
+  if (ubicados.length === 0) return null;
 
   return (
     <section className="space-y-2">
@@ -48,7 +49,9 @@ export function BancosMapa({
         className="hover:bg-muted/60 focus-visible:ring-ring flex w-full items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:outline-none"
       >
         <Map className="size-4 shrink-0" aria-hidden />
-        <span>Ver {bancos.length === 1 ? "el punto" : "los puntos"} en el mapa</span>
+        <span>
+          Ver {ubicados.length === 1 ? "el punto" : `los ${ubicados.length} puntos`} en el mapa
+        </span>
         <ChevronDown
           className={cn("ml-auto size-4 transition-transform", abierto && "rotate-180")}
           aria-hidden
@@ -63,11 +66,13 @@ export function BancosMapa({
             </p>
           }
         >
-          <MapaView bancos={bancos} coincideCon={coincideCon} />
-          <p className="text-muted-foreground text-xs">
-            Los pines se ubican por dirección, así que pueden quedar a media cuadra. Para llegar,
-            usa el enlace de cada punto.
-          </p>
+          <MapaView bancos={ubicados} coincideCon={coincideCon} />
+          {ubicados.length < bancos.length ? (
+            <p className="text-muted-foreground text-xs">
+              {bancos.length - ubicados.length} de estos puntos no tiene ubicación en el mapa.
+              Siguen en la lista, con su enlace para llegar.
+            </p>
+          ) : null}
         </ErrorBoundary>
       ) : null}
     </section>

@@ -23,6 +23,13 @@
  * Maps links are `?api=1&query=` searches rather than `maps.app.goo.gl` short
  * links, which cannot be invented: a fabricated short link resolves to nothing
  * and a coordinator would find out by tapping it.
+ *
+ * Coordinates are geocoded from the institution's name, one request at a time
+ * with a pause between them — Nominatim asks for roughly one a second and this
+ * runs once, by hand. Names resolve where addresses do not: "Cra. 104B #152B-40"
+ * is not in OpenStreetMap, but "Clínica Shaio" is. A bank that does not resolve
+ * gets no coordinates and therefore no pin, which is the honest outcome — a pin
+ * on an approximate spot looks exactly like a pin on an exact one.
  */
 
 import { COLLECTIONS, getDb } from "@/server/db/firestore";
@@ -181,6 +188,40 @@ const COLUMNAS = [
   "Recibiendo hoy",
 ];
 
+type Punto = { lat: number; lng: number };
+
+async function geocodificar(nombre: string): Promise<Punto | null> {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", `${nombre}, Bogotá, Colombia`);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("countrycodes", "co");
+
+  try {
+    const respuesta = await fetch(url, {
+      headers: { "user-agent": "volbogota-seed/1.0", "accept-language": "es" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!respuesta.ok) return null;
+
+    const [primero] = (await respuesta.json()) as Array<{ lat: string; lon: string }>;
+    if (!primero) return null;
+
+    const punto = { lat: Number(primero.lat), lng: Number(primero.lon) };
+    // Same guard the sync uses: a point outside Bogotá is a wrong answer, and a
+    // wrong pin is worse than none because nobody can tell.
+    return punto.lat > 3.8 && punto.lat < 5.2 && punto.lng > -74.6 && punto.lng < -73.7
+      ? punto
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function esperar(ms: number): Promise<void> {
+  return new Promise((listo) => setTimeout(listo, ms));
+}
+
 function linkMaps(fila: FilaMock): string {
   const consulta = encodeURIComponent(`${fila.nombre}, ${fila.direccion}, Bogotá`);
   return `https://www.google.com/maps/search/?api=1&query=${consulta}`;
@@ -208,6 +249,18 @@ async function escribir(): Promise<void> {
   const lote = db.batch();
   const ahora = new Date().toISOString();
 
+  const puntos = new Map<string, Punto | null>();
+  for (const fila of BANCOS) {
+    const punto = await geocodificar(fila.nombre);
+    puntos.set(fila.nombre, punto);
+    console.log(
+      punto
+        ? `  ✓ ${fila.nombre.padEnd(42)} ${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}`
+        : `  · ${fila.nombre.padEnd(42)} sin ubicación (no tendrá pin)`,
+    );
+    await esperar(1200);
+  }
+
   for (const fila of BANCOS) {
     // Prefixed so a seeded bank can never land on a real one's document. Ids
     // come from the name, and these are real Bogotá banks by design — without
@@ -226,6 +279,8 @@ async function escribir(): Promise<void> {
       resumenTipos: fila.tipos || null,
       recibiendoHoy: fila.recibiendo === "Sí",
       activo: true,
+      lat: puntos.get(fila.nombre)?.lat ?? null,
+      lng: puntos.get(fila.nombre)?.lng ?? null,
       actualizadoEn: ahora,
       // The tag that keeps invented banks out of production. The app hides
       // anything carrying it unless `NEXT_PUBLIC_MOSTRAR_MOCK=true`, and

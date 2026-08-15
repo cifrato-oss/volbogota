@@ -122,6 +122,16 @@ export const bancoSangreSchema = z.object({
    */
   recibiendoHoy: z.boolean(),
   activo: z.boolean(),
+  /**
+   * Where the pin goes, read out of `linkMaps` when the bank is synced.
+   *
+   * Stored rather than derived at read time because deriving it meant geocoding
+   * the address, and a Colombian street address is almost never in
+   * OpenStreetMap — every lookup fell through to the locality, so every bank in
+   * Suba landed on one point and hid the others underneath.
+   */
+  lat: z.number().nullable(),
+  lng: z.number().nullable(),
   /** ISO instant of the last time the sheet confirmed this bank's list. */
   actualizadoEn: z.string().nullable(),
   /**

@@ -8,6 +8,13 @@ const guardarBancosEnLote = vi.fn<(bancos: BancoSangre[]) => Promise<void>>();
 const desactivarBancosAusentes = vi.fn<(ids: string[]) => Promise<number>>();
 const findBancos = vi.fn<(activo?: boolean) => Promise<BancoSangre[]>>();
 
+// The sync resolves a Maps link to coordinates over the network; the unit tests
+// have no business making that request, and what they assert is unrelated to it.
+const resolverCoordenadas = vi.fn<(link: string | null) => Promise<null>>();
+vi.mock("./coordenadas", () => ({
+  resolverCoordenadas: (link: string | null) => resolverCoordenadas(link),
+}));
+
 vi.mock("./sangre.repository", () => ({
   guardarBancosEnLote: (bancos: BancoSangre[]) => guardarBancosEnLote(bancos),
   desactivarBancosAusentes: (ids: string[]) => desactivarBancosAusentes(ids),
@@ -41,6 +48,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   desactivarBancosAusentes.mockResolvedValue(0);
   guardarBancosEnLote.mockResolvedValue();
+  // No banks stored yet, so every row resolves its link fresh.
+  findBancos.mockResolvedValue([]);
+  resolverCoordenadas.mockResolvedValue(null);
 });
 
 describe("sincronizarBancosDesdeSheet", () => {

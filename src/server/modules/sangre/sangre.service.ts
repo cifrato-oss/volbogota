@@ -2,6 +2,7 @@ import { mostrarDatosDePrueba } from "@/lib/flags";
 import { siNoDesdeSheet } from "@/server/modules/sheets/sheets.mapper";
 import type { SincronizarBancosSangreInput } from "@/server/modules/sheets/sheets.schema";
 
+import { resolverCoordenadas } from "./coordenadas";
 import { desactivarBancosAusentes, findBancos, guardarBancosEnLote } from "./sangre.repository";
 import { idDeBanco, parsearTipos, type BancoSangre } from "./sangre.schema";
 
@@ -21,7 +22,26 @@ export async function sincronizarBancosDesdeSheet(input: SincronizarBancosSangre
 }> {
   const ahora = new Date().toISOString();
 
-  const bancos: BancoSangre[] = input.filas.map((fila) => ({
+  // Coordinates come from the Maps link a coordinator pasted, resolved here and
+  // stored — the pin has to be the place they looked at, not a guess. Only links
+  // that changed are resolved, so a sync of an unchanged sheet costs nothing.
+  const yaGuardados = new Map((await findBancos(false)).map((banco) => [banco.id, banco] as const));
+
+  const filas = await Promise.all(
+    input.filas.map(async (fila) => {
+      const id = idDeBanco(fila.bancoDeSangre);
+      const previo = yaGuardados.get(id);
+      const mismoLink = previo?.linkMaps === fila.linkMaps && previo?.lat != null;
+
+      const punto = mismoLink
+        ? { lat: previo!.lat!, lng: previo!.lng! }
+        : await resolverCoordenadas(fila.linkMaps);
+
+      return { fila, punto };
+    }),
+  );
+
+  const bancos: BancoSangre[] = filas.map(({ fila, punto }) => ({
     id: idDeBanco(fila.bancoDeSangre),
     nombre: fila.bancoDeSangre.trim(),
     direccion: fila.direccion,
@@ -37,6 +57,8 @@ export async function sincronizarBancosDesdeSheet(input: SincronizarBancosSangre
     // An empty `Activo` means the bank is operating: the column exists to retire
     // one, not to enable each. Same reading as `Centros`.
     activo: siNoDesdeSheet(fila.activo ?? "Sí"),
+    lat: punto?.lat ?? null,
+    lng: punto?.lng ?? null,
     actualizadoEn: ahora,
   }));
 

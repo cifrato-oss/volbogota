@@ -19,6 +19,8 @@ function banco(overrides: Partial<BancoSangreVista> = {}): BancoSangreVista {
     tiposQueRecibe: ["O+", "O-"],
     resumenTipos: "O+, O−",
     recibiendoHoy: true,
+    lat: null,
+    lng: null,
     ...overrides,
   };
 }

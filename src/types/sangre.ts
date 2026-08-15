@@ -50,6 +50,9 @@ export type BancoSangreVista = {
   resumenTipos: string | null;
   /** Whether the bank is drawing blood at all today. */
   recibiendoHoy: boolean;
+  /** Read from the Maps link at sync time; null when the link had none. */
+  lat: number | null;
+  lng: number | null;
 };
 
 /**
