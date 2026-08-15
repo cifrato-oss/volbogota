@@ -190,7 +190,36 @@ const COLUMNAS = [
 
 type Punto = { lat: number; lng: number };
 
+/**
+ * The institution without the words that describe the service inside it.
+ *
+ * "Hospital El Tunal" is in OpenStreetMap; "Hospital El Tunal - Banco de
+ * Sangre" is not, because the blood bank is a department and the map knows
+ * buildings. Stripping the suffix took this from seven names resolving to
+ * fifteen.
+ */
+function soloLaInstitucion(nombre: string): string {
+  return nombre
+    .replace(/\s*-\s*Banco (Distrital )?de Sangre\s*$/i, "")
+    .replace(/^Banco de Sangre\s+/i, "")
+    .replace(/^Hemocentro Distrital\s*-\s*/i, "")
+    .replace(/^Punto\s+/i, "")
+    .replace(/\s*-\s*Sede\s+/i, " ")
+    .trim();
+}
+
 async function geocodificar(nombre: string): Promise<Punto | null> {
+  const exacto = await buscar(nombre);
+  if (exacto) return exacto;
+
+  const limpio = soloLaInstitucion(nombre);
+  if (limpio === nombre) return null;
+
+  await esperar(1200);
+  return buscar(limpio);
+}
+
+async function buscar(nombre: string): Promise<Punto | null> {
   const url = new URL("https://nominatim.openstreetmap.org/search");
   url.searchParams.set("q", `${nombre}, Bogotá, Colombia`);
   url.searchParams.set("format", "jsonv2");
