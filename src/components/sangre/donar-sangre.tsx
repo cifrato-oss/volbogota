@@ -146,9 +146,9 @@ export function DonarSangre() {
         {isError ? (
           <ErrorState message="No pudimos cargar los puntos de donación." />
         ) : isPending ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
             {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-52 rounded-xl" />
+              <Skeleton key={i} className="h-[124px] rounded-xl" />
             ))}
           </div>
         ) : visibles.length === 0 ? (
@@ -165,7 +165,14 @@ export function DonarSangre() {
             stops the page from taking over once the list bottoms out.
           */
           <div className="max-h-[68vh] overflow-y-auto overscroll-contain pr-1">
-            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {/*
+              One column, unlike the centre picker this borrows its card from.
+              That screen is a gallery — six known places, pick one. This is a
+              filtered result, read by running an eye down the state column
+              asking "does this one take me", and a second column turns that
+              straight line into a zigzag.
+            */}
+            <ul className="space-y-3">
               {visibles.map((banco) => (
                 <li key={banco.id}>
                   <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />

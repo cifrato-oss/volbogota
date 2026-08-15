@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { idDeBanco, normalizarTipo, parsearTipos, RH_NEGATIVOS } from "./sangre.schema";
+import {
+  idDeBanco,
+  normalizarTipo,
+  parsearTipos,
+  RH_NEGATIVOS,
+  TIPOS_SANGRE,
+} from "./sangre.schema";
 
 describe("normalizarTipo", () => {
   it("accepts the canonical spellings unchanged", () => {
@@ -61,6 +67,14 @@ describe("parsearTipos", () => {
     expect(parsearTipos("rh")).toEqual(RH_NEGATIVOS);
   });
 
+  it("expands 'Todos', which is a value in the sheet's own dropdown", () => {
+    // Dropping it showed the bank as "tipos sin confirmar" — the state that
+    // means the opposite of what the coordinator wrote.
+    expect(parsearTipos("Todos")).toEqual([...TIPOS_SANGRE]);
+    expect(parsearTipos("todos los tipos")).toEqual([...TIPOS_SANGRE]);
+    expect(parsearTipos("Cualquiera")).toEqual([...TIPOS_SANGRE]);
+  });
+
   it("expands the RH+ family too", () => {
     expect(parsearTipos("RH+")).toEqual(["O+", "A+", "B+", "AB+"]);
     expect(parsearTipos("RH positivo")).toEqual(["O+", "A+", "B+", "AB+"]);
@@ -83,7 +97,7 @@ describe("parsearTipos", () => {
   });
 
   it("keeps the tokens it understands and drops only the ones it does not", () => {
-    expect(parsearTipos("O+, cualquiera, A-")).toEqual(["O+", "A-"]);
+    expect(parsearTipos("O+, preguntar en portería, A-")).toEqual(["O+", "A-"]);
   });
 });
 

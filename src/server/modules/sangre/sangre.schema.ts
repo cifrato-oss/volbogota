@@ -63,6 +63,15 @@ export function parsearTipos(celda: string | null | undefined): TipoSangre[] {
   for (const parte of celda.split(/[,;/]|\by\b/i)) {
     const limpio = parte.toUpperCase().replace(/\s+/g, "").replace(/−|–|—/g, "-");
 
+    // "Todos" is a value in the sheet's own dropdown, and it is what a
+    // coordinator reaches for on a day with no restriction. Dropping it left the
+    // bank showing "tipos sin confirmar" — the one state that means the opposite
+    // of what was written.
+    if (/^TODOS?(LOS)?(TIPOS)?$/.test(limpio) || /^CUALQUIERA?$/.test(limpio)) {
+      TIPOS_SANGRE.forEach((tipo) => tipos.add(tipo));
+      continue;
+    }
+
     if (/^RH-?$|^RHNEG/.test(limpio)) {
       RH_NEGATIVOS.forEach((tipo) => tipos.add(tipo));
       continue;

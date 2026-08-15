@@ -32,15 +32,15 @@ export function BancoOption({
     <>
       <div
         className={cn(
-          "border-border relative border-b px-8 py-3 transition-colors",
+          "border-border relative border-b py-3 pr-10 pl-4 transition-colors",
           recibeElTuyo
             ? "bg-emerald-50 dark:bg-emerald-950/30"
             : "bg-muted/40 group-hover:bg-primary/5",
         )}
       >
-        <h3 className="text-center leading-snug font-semibold tracking-tight text-balance">
-          {banco.nombre}
-        </h3>
+        {/* Left-aligned, unlike the centre card it borrows from: centring reads
+            as a title on a narrow card and as a stray line on a wide row. */}
+        <h3 className="leading-snug font-semibold tracking-tight text-balance">{banco.nombre}</h3>
         {banco.linkMaps ? (
           <ArrowUpRight
             className="text-muted-foreground group-hover:text-primary absolute top-1/2 right-3 size-4 -translate-y-1/2 transition-transform group-hover:translate-x-0.5"
@@ -49,8 +49,13 @@ export function BancoOption({
         ) : null}
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="space-y-1">
+      {/*
+        Side by side once there is room, stacked on a phone. In one column the
+        card is wide, and stacking location above types would leave a long empty
+        gutter down the right of every row.
+      */}
+      <div className="flex flex-1 flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-6">
+        <div className="min-w-0 flex-1 space-y-1.5">
           {ubicacion ? (
             <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
               <MapPin className="size-3.5 shrink-0" aria-hidden />
@@ -63,12 +68,12 @@ export function BancoOption({
               <span className="truncate">{banco.horarioOficial}</span>
             </p>
           ) : null}
+
+          <EstadoBanco banco={banco} recibeElTuyo={recibeElTuyo} seleccion={seleccion} />
         </div>
 
-        <EstadoBanco banco={banco} recibeElTuyo={recibeElTuyo} seleccion={seleccion} />
-
         {banco.recibiendoHoy && banco.tiposQueRecibe.length > 0 ? (
-          <div className="border-border -mx-4 mt-auto space-y-1.5 border-t px-4 pt-3">
+          <div className="border-border -mx-4 space-y-1.5 border-t px-4 pt-3 sm:mx-0 sm:max-w-[52%] sm:border-t-0 sm:border-l sm:px-0 sm:pt-0 sm:pl-6">
             <p className="text-foreground text-sm font-semibold">Tipos que recibe hoy</p>
             <ul className="flex flex-wrap gap-1.5">
               {banco.tiposQueRecibe.map((tipo) => {
