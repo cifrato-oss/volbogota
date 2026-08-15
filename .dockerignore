@@ -1,0 +1,32 @@
+# Lo que no debe entrar al contexto de build.
+#
+# No es solo por tamaño: `.env*` acá sería meter los secretos de producción dentro
+# de una capa de la imagen, donde quedan legibles para cualquiera que la baje del
+# registro. Los secretos entran en runtime, desde Secret Manager.
+
+node_modules
+.next
+.git
+.github
+coverage
+.claude
+
+.env
+.env.*
+!.env.example
+
+*.xlsx
+*.md
+!README.md
+
+.DS_Store
+npm-debug.log*
+pnpm-debug.log*
+firebase-debug.log
+firestore-debug.log
+.firebase
+
+# `Dockerfile.runtime` recibe `.next/standalone` ya compilado, así que .next NO
+# puede estar excluido para ese build. Se excluye solo lo que no va en la imagen.
+!.next/standalone
+!.next/static

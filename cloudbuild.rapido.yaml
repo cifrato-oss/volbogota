@@ -1,0 +1,99 @@
+# Build rápido: compilar fuera de Docker, con caché persistida en GCS.
+#
+# El otro `cloudbuild.yaml` compila dentro de la imagen y tarda ~2m40s en ocho
+# vCPU, casi todo `next build` arrancando de cero. La razón no es la máquina: es
+# que ninguna caché sobrevive. Cada corrida de Cloud Build es una VM nueva, los
+# cache mounts de BuildKit son locales al builder, y la caché de capas del registro
+# se invalida en cuanto cambia un archivo fuente — o sea, siempre.
+#
+# Acá viaja por GCS solo `.next/cache`. `node_modules` NO: con pnpm es un bosque de
+# symlinks hacia `.pnpm`, y `gsutil rsync` no los preserva — los sigue y sube el
+# contenido duplicado, miles de archivos. Costaba más que el `pnpm install` de 25s
+# que pretendía evitar. Medido: la corrida se pasó de diez minutos. `.next/cache`
+# es lo que hace que un rebuild local tarde segundos: Next reutiliza su compilación
+# anterior. Persistirla es la única forma de tener eso en CI.
+#
+# Los pasos van en orden y comparten /workspace.
+
+substitutions:
+  _IMAGEN: us-central1-docker.pkg.dev/volbogota/volbogota-run/app
+  _CACHE: gs://volbogota_cloudbuild/cache-build
+  _APP_URL: https://centrosdeacopiobogota.org
+
+steps:
+  # 1. Restaurar. `|| true` porque la primera corrida no tiene nada que traer, y eso
+  #    no es un error: es el arranque en frío.
+  - id: restaurar-cache
+    name: gcr.io/cloud-builders/gsutil
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        mkdir -p .next/cache
+        gsutil -m -q rsync -r ${_CACHE}/next-cache .next/cache || true
+        echo ".next/cache restaurada: $(du -sh .next/cache 2>/dev/null | cut -f1)"
+
+  # 2. Instalar. Con el store caliente esto es casi un no-op.
+  - id: instalar
+    name: node:22-slim
+    entrypoint: bash
+    env: [COREPACK_ENABLE_DOWNLOAD_PROMPT=0]
+    args:
+      - -c
+      - |
+        corepack enable
+        pnpm install --frozen-lockfile --prefer-offline
+
+  # 3. Compilar. Las `NEXT_PUBLIC_*` van acá porque Next las incrusta en el bundle
+  #    del navegador; puestas en runtime no harían nada.
+  - id: compilar
+    name: node:22-slim
+    entrypoint: bash
+    env:
+      - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      - BUILD_STANDALONE=true
+      - NEXT_PUBLIC_APP_URL=${_APP_URL}
+      - NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyA7WTKybRS80O6NdSOMSKtTDGVwyz5t7YA
+      - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=volbogota.firebaseapp.com
+      - NEXT_PUBLIC_FIREBASE_PROJECT_ID=volbogota
+      - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=volbogota.firebasestorage.app
+      - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=761468343345
+      - NEXT_PUBLIC_FIREBASE_APP_ID=1:761468343345:web:f2b1f908f0e39b9705b110
+      - NEXT_PUBLIC_DONAR_SELECCION=false
+    args:
+      - -c
+      - |
+        corepack enable
+        pnpm run build
+
+  # 4. Guardar la caché para la próxima. Va antes del docker build para que un fallo
+  #    empaquetando no cueste también la caché.
+  - id: guardar-cache
+    name: gcr.io/cloud-builders/gsutil
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        gsutil -m -q rsync -r -d .next/cache ${_CACHE}/next-cache || true
+        echo ".next/cache guardada: $(du -sh .next/cache 2>/dev/null | cut -f1)"
+
+  # 5. Empaquetar. Sin compilar: solo copia `.next/standalone` a una imagen mínima.
+  - id: empaquetar
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - Dockerfile.runtime
+      - -t
+      - ${_IMAGEN}:${SHORT_SHA}
+      - -t
+      - ${_IMAGEN}:rapido
+      - .
+
+images:
+  - ${_IMAGEN}:${SHORT_SHA}
+  - ${_IMAGEN}:rapido
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

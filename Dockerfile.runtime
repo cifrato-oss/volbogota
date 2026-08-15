@@ -1,0 +1,30 @@
+# Imagen que solo empaqueta: no compila nada.
+#
+# El `Dockerfile` de al lado compila dentro de la imagen, y por eso cada build
+# arranca casi de cero: los cache mounts de BuildKit no sobreviven entre corridas
+# de Cloud Build — cada corrida es una VM nueva — y la caché de capas del registro
+# se invalida en cuanto cambia un archivo fuente, que es siempre.
+#
+# Acá la compilación pasó antes, como pasos de Cloud Build, con `node_modules` y
+# `.next/cache` restaurados desde GCS. Esta imagen recibe `.next/standalone` ya
+# hecho y solo lo envuelve. Docker deja de ser el que compila y vuelve a ser lo
+# que hace bien: empaquetar.
+
+FROM node:22-slim
+WORKDIR /app
+
+ENV NODE_ENV=production
+# Cloud Run inyecta PORT y espera que el proceso escuche ahí.
+ENV PORT=8080
+ENV HOSTNAME=0.0.0.0
+
+RUN groupadd --system --gid 1001 nodejs && useradd --system --uid 1001 --gid nodejs nextjs
+
+COPY --chown=nextjs:nodejs .next/standalone ./
+COPY --chown=nextjs:nodejs .next/static ./.next/static
+COPY --chown=nextjs:nodejs public ./public
+
+USER nextjs
+EXPOSE 8080
+
+CMD ["node", "server.js"]
