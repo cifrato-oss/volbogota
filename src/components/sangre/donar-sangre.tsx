@@ -35,6 +35,7 @@ export function DonarSangre() {
   const [eligio, setEligio] = useState(false);
 
   const bancos = data ?? [];
+  const recibiendoHoy = bancos.filter((banco) => banco.recibiendoHoy).length;
 
   // Ordered by what the donor can act on: the points that can take them today,
   // then the ones that might, then the ones that said no. Alphabetical inside
@@ -53,17 +54,44 @@ export function DonarSangre() {
     <div className="space-y-6">
       <BackButton href="/">Volver al inicio</BackButton>
 
-      <header className="space-y-1">
-        <h1 className="font-heading text-2xl font-bold tracking-tight">Quiero donar sangre</h1>
-        <p className="text-muted-foreground text-sm text-pretty">
-          Hoy algunos puntos solo están recibiendo tipos específicos. Mira en un minuto si pueden
-          recibir el tuyo.
+      {/*
+        Rose, because the landing already spends that colour on this module and a
+        flow that changes colour on entry reads as a different product. The
+        tinted panel and the ringed pills are `CentroHeader`'s, so the two detail
+        screens open the same way.
+      */}
+      <header className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6">
+        <h1 className="font-heading flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <span aria-hidden>🩸</span>
+          <span>Quiero donar sangre</span>
+        </h1>
+        <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
+          Cada punto recibe tipos distintos según el día. Mira en un minuto si pueden recibir el
+          tuyo.
         </p>
+
+        {!isPending && !isError && bancos.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-500/20 ring-inset dark:text-emerald-400">
+              <span aria-hidden>✅</span>
+              <span className="tabular-nums">{recibiendoHoy}</span>
+              <span className="font-normal opacity-80">recibiendo hoy</span>
+            </span>
+            <span className="text-muted-foreground ring-border inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1 text-sm font-semibold ring-1 ring-inset dark:bg-white/5">
+              <span aria-hidden>🏥</span>
+              <span className="tabular-nums">{bancos.length}</span>
+              <span className="font-normal opacity-80">puntos en total</span>
+            </span>
+          </div>
+        ) : null}
       </header>
 
-      <section className="bg-card space-y-4 rounded-2xl border p-5">
+      <section className="bg-card space-y-4 rounded-2xl border border-t-4 border-t-rose-500 p-5">
         <div className="space-y-1">
-          <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
+          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
+            <span aria-hidden>🧪</span>
+            <span>¿Sabes tu tipo de sangre?</span>
+          </h2>
           <p className="text-muted-foreground text-sm text-pretty">
             Si no lo sabes, igual puedes donar: te lo dicen ahí.
           </p>
@@ -131,10 +159,13 @@ export function DonarSangre() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-heading text-lg font-semibold">
-            {eligio && seleccion
-              ? `Puntos para ${seleccion.replace("-", "−")}`
-              : "Puntos de donación"}
+          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
+            <span aria-hidden>🏥</span>
+            <span>
+              {eligio && seleccion
+                ? `Puntos para ${seleccion.replace("-", "−")}`
+                : "Puntos de donación"}
+            </span>
           </h2>
           {!isPending && !isError ? (
             <span className="text-muted-foreground text-xs tabular-nums">

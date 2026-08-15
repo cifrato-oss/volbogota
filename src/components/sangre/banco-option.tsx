@@ -34,8 +34,10 @@ export function BancoOption({
         className={cn(
           "border-border relative border-b py-3 pr-10 pl-4 transition-colors",
           recibeElTuyo
-            ? "bg-emerald-50 dark:bg-emerald-950/30"
-            : "bg-muted/40 group-hover:bg-primary/5",
+            ? "bg-emerald-500/10"
+            : banco.recibiendoHoy
+              ? "bg-rose-500/5 group-hover:bg-rose-500/10"
+              : "bg-muted/40",
         )}
       >
         {/* Left-aligned, unlike the centre card it borrows from: centring reads
@@ -82,8 +84,10 @@ export function BancoOption({
                   <li
                     key={tipo}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums",
-                      esElTuyo ? "bg-emerald-500 text-white" : "bg-muted/60 text-muted-foreground",
+                      "rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ring-1 ring-inset",
+                      esElTuyo
+                        ? "bg-emerald-500 text-white ring-emerald-600"
+                        : "bg-rose-500/10 text-rose-700 ring-rose-500/20 dark:text-rose-300",
                     )}
                   >
                     {tipo.replace("-", "−")}
@@ -97,11 +101,22 @@ export function BancoOption({
     </>
   );
 
+  // A coloured left edge, the way the landing gives each flow a top edge. It is
+  // what turns a column of identical grey boxes into something a donor can read
+  // at a glance — the state is legible before a single word is.
+  const acento = !banco.recibiendoHoy
+    ? "border-l-muted-foreground/30"
+    : recibeElTuyo
+      ? "border-l-emerald-500"
+      : banco.tiposQueRecibe.length === 0
+        ? "border-l-amber-400"
+        : "border-l-rose-500";
+
   const clases = cn(
-    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border transition-all",
+    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-l-4 transition-all",
+    acento,
     banco.linkMaps &&
-      "hover:border-primary focus-visible:border-primary focus-visible:ring-primary/30 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
-    recibeElTuyo && "border-emerald-500/60",
+      "focus-visible:ring-primary/30 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
     !banco.recibiendoHoy && "opacity-75",
   );
 
