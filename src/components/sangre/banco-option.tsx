@@ -24,9 +24,7 @@ export function BancoOption({
   seleccion: SeleccionTipo;
 }) {
   const ubicacion = [banco.localidad, banco.direccion].filter(Boolean).join(" · ");
-  const recibeElTuyo = Boolean(
-    seleccion && banco.recibiendoHoy && banco.tiposQueRecibe.includes(seleccion),
-  );
+  const estado = estadoDeBanco(banco, seleccion);
 
   const contenido = (
     <>
@@ -75,7 +73,7 @@ export function BancoOption({
             </p>
           ) : null}
 
-          <EstadoBanco banco={banco} recibeElTuyo={recibeElTuyo} seleccion={seleccion} />
+          <BadgeEstado estado={estado} />
         </div>
 
         {banco.recibiendoHoy && banco.tiposQueRecibe.length > 0 ? (
@@ -105,15 +103,14 @@ export function BancoOption({
     </>
   );
 
-  // Only the match is marked, and only on its edge. Giving every state its own
-  // coloured rail turned the list into four competing colours, which is
-  // decoration: a donor scanning for "can I go here" needs one thing to stand
-  // out, not four things insisting at once.
+  // A coloured top border per state, the way `JORNADA_STYLE` marks a shift card.
+  // Colour lands in exactly two places on this card — this edge and the badge —
+  // which is the discipline that keeps four states from reading as decoration.
   const clases = cn(
-    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border transition-all",
+    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-t-4 transition-all",
+    estado.topBorder,
     banco.linkMaps &&
       "hover:border-foreground/25 focus-visible:ring-primary/30 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none",
-    recibeElTuyo && "border-l-2 border-l-emerald-500",
     !banco.recibiendoHoy && "opacity-70",
   );
 
@@ -127,68 +124,68 @@ export function BancoOption({
 }
 
 /**
- * The dot-and-label the rest of the app uses for state, with this screen's three.
+ * What the card says about a point, in the shape the rest of the app uses for
+ * state: an emoji, a label, and a tinted pill — the same construction as
+ * `SemaforoBadge` on the donations screen.
  *
- * "Sin confirmar" is not a softer "no": the point is open and simply has not
- * said what it is taking, so a donor can still go. Collapsing the two would tell
- * them not to bother.
+ * Four states and not three. "Sin lista de tipos" is not a softer "no": the
+ * point is drawing blood and simply has no type cell filled in, so a donor can
+ * still go. Collapsing it into "hoy no" would tell them not to bother.
  */
-function EstadoBanco({
-  banco,
-  recibeElTuyo,
-  seleccion,
-}: {
-  banco: BancoSangreVista;
-  recibeElTuyo: boolean;
-  seleccion: SeleccionTipo;
-}) {
-  const { punto, texto, color } = (() => {
-    if (!banco.recibiendoHoy) {
-      return {
-        punto: "bg-muted-foreground/40",
-        color: "text-muted-foreground",
-        texto: "Hoy no está recibiendo",
-      };
-    }
-    // Open, but nobody filled the types cell. A hollow dot rather than another
-    // colour: it had the same grey as a closed point, and the two say opposite
-    // things — this one is "go, they will probably take you".
-    //
-    // Says what is true and stops there. "No especificó tipos" described our
-    // blank cell; "confirma antes de ir" told the donor to do something the
-    // screen gives them no way to do — there is no phone number in the sheet,
-    // and pointing at a Maps listing to find one is a step nobody will take on
-    // trust. A phone column would let this ask for something real.
-    if (banco.tiposQueRecibe.length === 0) {
-      return {
-        punto: "border-foreground/50 border-2 bg-transparent",
-        color: "text-foreground/80",
-        texto: "Recibiendo · sin lista de tipos",
-      };
-    }
-    if (recibeElTuyo) {
-      return {
-        punto: "bg-emerald-500",
-        color: "text-emerald-600 dark:text-emerald-400",
-        texto: `Recibe ${seleccion?.replace("-", "−")} hoy`,
-      };
-    }
-    return {
-      punto: "bg-foreground/60",
-      color: "text-foreground/80",
-      texto: "Recibiendo tipos específicos",
-    };
-  })();
+type EstadoBanco = {
+  emoji: string;
+  texto: string;
+  badge: string;
+  /** Top border, the way `JORNADA_STYLE` marks a shift card. */
+  topBorder: string;
+};
 
+export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo): EstadoBanco {
+  if (!banco.recibiendoHoy) {
+    return {
+      emoji: "⚪",
+      texto: "Hoy no está recibiendo",
+      badge: "bg-muted text-muted-foreground",
+      topBorder: "border-t-muted-foreground/30",
+    };
+  }
+
+  if (banco.tiposQueRecibe.length === 0) {
+    return {
+      emoji: "🟡",
+      texto: "Recibiendo · sin lista de tipos",
+      badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+      topBorder: "border-t-amber-400",
+    };
+  }
+
+  if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
+    return {
+      emoji: "🟢",
+      texto: `Recibe ${seleccion.replace("-", "−")} hoy`,
+      badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+      topBorder: "border-t-emerald-500",
+    };
+  }
+
+  return {
+    emoji: "🩸",
+    texto: "Recibiendo tipos específicos",
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+    topBorder: "border-t-rose-400",
+  };
+}
+
+function BadgeEstado({ estado }: { estado: EstadoBanco }) {
   return (
-    <span className="inline-flex items-center gap-2 text-xs font-medium">
-      <span className="relative flex size-2.5" aria-hidden>
-        {recibeElTuyo ? (
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-        ) : null}
-        <span className={cn("relative inline-flex size-2.5 rounded-full", punto)} />
-      </span>
-      <span className={color}>{texto}</span>
+    <span
+      className={cn(
+        "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        estado.badge,
+      )}
+    >
+      <span aria-hidden>{estado.emoji}</span>
+      {estado.texto}
     </span>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
 import { BancoOption } from "@/components/sangre/banco-option";
 import { BancosMapa } from "@/components/sangre/bancos-mapa";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
 import {
@@ -17,6 +18,9 @@ import {
   type BancoSangreVista,
   type SeleccionTipo,
 } from "@/types/sangre";
+
+/** The "all localities" tab needs a value; a locality never collides with it. */
+const TODAS = "__todas__";
 
 /**
  * The blood donation flow.
@@ -208,21 +212,24 @@ export function DonarSangre() {
           the fastest way to learn there is a point in your own locality.
         */}
         {!isPending && !isError && localidades.length > 1 ? (
-          <div className="flex flex-wrap gap-1.5">
-            <ChipLocalidad activa={localidad === null} onClick={() => setLocalidad(null)}>
-              Todas
-            </ChipLocalidad>
-            {localidades.map(({ nombre, cuantos }) => (
-              <ChipLocalidad
-                key={nombre}
-                activa={localidad === nombre}
-                onClick={() => setLocalidad(localidad === nombre ? null : nombre)}
-              >
-                {nombre}
-                <span className="ml-1 tabular-nums opacity-60">{cuantos}</span>
-              </ChipLocalidad>
-            ))}
-          </div>
+          <Tabs
+            value={localidad ?? TODAS}
+            onValueChange={(valor) => setLocalidad(valor === TODAS ? null : String(valor))}
+          >
+            <TabsList aria-label="Filtrar por localidad">
+              <TabsTab value={TODAS}>
+                Todas
+                <CountPill>{porTipo.length}</CountPill>
+              </TabsTab>
+              {localidades.map(({ nombre, cuantos }) => (
+                <TabsTab key={nombre} value={nombre}>
+                  {nombre}
+                  <CountPill>{cuantos}</CountPill>
+                </TabsTab>
+              ))}
+              <TabsIndicator />
+            </TabsList>
+          </Tabs>
         ) : null}
 
         {isError ? (
@@ -270,7 +277,17 @@ export function DonarSangre() {
                 )
               }
             />
-            <div className="max-h-[calc(100dvh-31rem)] min-h-80 overflow-y-auto overscroll-contain pr-1">
+            <div
+              className={cn(
+                "max-h-[calc(100dvh-34rem)] min-h-80 overflow-y-auto overscroll-contain pr-1 pb-4",
+                // The last visible card fades out instead of being sliced. A
+                // hard edge across the middle of a card reads as a rendering
+                // bug — there is nothing to say the cut is a scroll boundary
+                // rather than something broken — and the fade says "there is
+                // more below" using the content itself.
+                "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]",
+              )}
+            >
               {/*
               One column, unlike the centre picker this borrows its card from.
               That screen is a gallery — six known places, pick one. This is a
@@ -294,35 +311,21 @@ export function DonarSangre() {
 }
 
 /**
- * A locality chip.
+ * How many points a tab holds — the same badge the donations tabs use.
  *
- * Neutral on purpose: the rose belongs to the blood type, which is the donor's
- * own answer, and giving geography the same colour would put two different
- * kinds of choice in the same voice.
+ * The number is the reason the tabs earn their place over a plain filter: it
+ * says where the points are before anyone taps anything.
  */
-function ChipLocalidad({
-  activa,
-  onClick,
-  children,
-}: {
-  activa: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
+function CountPill({ children }: { children: number }) {
   return (
-    <button
-      type="button"
-      aria-pressed={activa}
-      onClick={onClick}
-      className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
-        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-        activa
-          ? "border-foreground bg-foreground text-background"
-          : "hover:border-foreground/30 hover:bg-muted/60",
-      )}
-    >
-      {children}
-    </button>
+    <span className="ml-1.5 inline-flex items-center">
+      <span
+        aria-hidden
+        className="bg-primary/10 text-primary inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums"
+      >
+        {children}
+      </span>
+      <span className="sr-only">{children} puntos</span>
+    </span>
   );
 }
