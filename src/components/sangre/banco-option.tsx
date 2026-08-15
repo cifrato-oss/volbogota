@@ -131,11 +131,14 @@ export function BancoOption({
  * What the card says about a point: a dot and a label, exactly `CentroOption`'s
  * "● Activo".
  *
- * Two colours and no more. Green is "you can go there today", grey is "not
- * today", and every finer distinction lives in the text. An earlier version gave
- * amber to a point with no types listed and rose to one taking specific types,
- * which turned two perfectly good options into warnings — a donor reading amber
- * concludes "open, but… careful", when the sheet said nothing of the kind.
+ * Three colours, each answering the same question — can I go there today.
+ * Green is yes, grey is no, amber is yes but nobody listed which types.
+ *
+ * Amber was pulled once for reading as a warning, and the fix was not the colour
+ * but its weight: it had been carried in a thick top border plus a tinted pill,
+ * which is the language of danger on a point that is perfectly fine to visit. As
+ * a dot it says what it always meant. Rose, which had marked a point taking
+ * specific types, is gone for good — that state is a plain yes.
  */
 type EstadoBanco = {
   texto: string;
@@ -163,12 +166,17 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
     return { ...verde, texto: `Recibe ${seleccion.replace("-", "−")} hoy` };
   }
 
-  // Still green, even with no types listed. Amber read as a warning on a point
-  // that is drawing blood — "they're open, but… CAREFUL" — which is the
-  // opposite of what the sheet says. The colour answers one question, "can I go
-  // there today", and the text carries everything finer than that.
+  // Amber, but only ever as a dot. It said the right thing all along — the point
+  // is open and something is missing — and what made it read as a warning was
+  // the weight it was carried in: a thick top border plus a tinted pill is the
+  // language of danger, on a point that is perfectly fine to visit. At ten
+  // pixels it is a note, not an alarm.
   if (banco.tiposQueRecibe.length === 0) {
-    return { ...verde, texto: "Recibiendo · sin lista de tipos" };
+    return {
+      texto: "Recibiendo · sin lista de tipos",
+      punto: "bg-amber-500",
+      color: "text-amber-600 dark:text-amber-400",
+    };
   }
 
   return { ...verde, texto: "Recibiendo hoy" };
