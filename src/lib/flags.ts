@@ -28,3 +28,22 @@ export const donarSeleccionHabilitada = process.env.NEXT_PUBLIC_DONAR_SELECCION 
  * leaves it unset, so `pnpm run seed:sangre` is safe to run against prod.
  */
 export const mostrarDatosDePrueba = process.env.NEXT_PUBLIC_MOSTRAR_MOCK === "true";
+
+/**
+ * Whether `/sangre` lists the individual banks instead of the two directories.
+ *
+ * Off: the page shows the Cruz Roja and the Banco Distrital, and a donor books
+ * with whichever they pick. On: the live list returns — every bank with the
+ * types it is taking today, kept current from the spreadsheet, with the type
+ * picker, the locality filter and the map.
+ *
+ * That whole flow is still here, tested and wired to the sheet. It is behind a
+ * flag rather than deleted because what changed was not the code but who
+ * maintains the answer: sending donors to each organisation's own page means the
+ * hours and requirements they read are kept current by the people who own them,
+ * with nobody in the middle. The day the programme wants per-day type
+ * availability again — an emergency, a campaign — this is one variable.
+ *
+ * Enable with `NEXT_PUBLIC_SANGRE_BANCOS=true`.
+ */
+export const listaDeBancosHabilitada = process.env.NEXT_PUBLIC_SANGRE_BANCOS === "true";
