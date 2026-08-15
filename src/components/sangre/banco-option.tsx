@@ -128,9 +128,11 @@ export function BancoOption({
  * state: an emoji, a label, and a tinted pill — the same construction as
  * `SemaforoBadge` on the donations screen.
  *
- * Four states and not three. "Sin lista de tipos" is not a softer "no": the
- * point is drawing blood and simply has no type cell filled in, so a donor can
- * still go. Collapsing it into "hoy no" would tell them not to bother.
+ * Two colours and no more. Green is "you can go there today", grey is "not
+ * today", and every finer distinction lives in the text. An earlier version gave
+ * amber to a point with no types listed and rose to one taking specific types,
+ * which turned two perfectly good options into warnings — a donor reading amber
+ * concludes "open, but… careful", when the sheet said nothing of the kind.
  */
 type EstadoBanco = {
   emoji: string;
@@ -150,37 +152,25 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
     };
   }
 
-  if (banco.tiposQueRecibe.length === 0) {
-    return {
-      emoji: "🟡",
-      texto: "Recibiendo · sin lista de tipos",
-      badge: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
-      topBorder: "border-t-amber-400",
-    };
-  }
-
-  // Green for both of the states that mean "you can go today", the way a centre
-  // card says "Activo". Rose was wrong here: it read as a warning on a point
-  // that is drawing blood, and a donor scanning for somewhere to go needs the
-  // green to mean go. Which types it takes is the card's job to spell out, not
-  // the badge's — and a point that does not take the chosen type is filtered
-  // out of the list anyway, so this state only ever shows when nobody has
-  // picked one.
-  if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
-    return {
-      emoji: "🟢",
-      texto: `Recibe ${seleccion.replace("-", "−")} hoy`,
-      badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-      topBorder: "border-t-emerald-500",
-    };
-  }
-
-  return {
+  const verde = {
     emoji: "🟢",
-    texto: "Recibiendo hoy",
     badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
     topBorder: "border-t-emerald-500",
   };
+
+  if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
+    return { ...verde, texto: `Recibe ${seleccion.replace("-", "−")} hoy` };
+  }
+
+  // Still green, even with no types listed. Amber read as a warning on a point
+  // that is drawing blood — "they're open, but… CAREFUL" — which is the
+  // opposite of what the sheet says. The colour answers one question, "can I go
+  // there today", and the text carries everything finer than that.
+  if (banco.tiposQueRecibe.length === 0) {
+    return { ...verde, texto: "Recibiendo · sin lista de tipos" };
+  }
+
+  return { ...verde, texto: "Recibiendo hoy" };
 }
 
 function BadgeEstado({ estado }: { estado: EstadoBanco }) {

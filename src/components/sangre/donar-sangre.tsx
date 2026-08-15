@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
 import { BancoOption } from "@/components/sangre/banco-option";
 import { BancosMapa } from "@/components/sangre/bancos-mapa";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsIndicator, TabsList, TabsTab } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
 import {
@@ -19,9 +18,6 @@ import {
   type SeleccionTipo,
 } from "@/types/sangre";
 
-/** The "all localities" tab needs a value; a locality never collides with it. */
-const TODAS = "__todas__";
-
 /**
  * The blood donation flow.
  *
@@ -32,9 +28,12 @@ const TODAS = "__todas__";
  *
  * The donor's blood type never leaves this component. It is React state, not a
  * URL parameter and not `localStorage`, and the filter runs here against the
- * full list. A blood type is sensitive health data under Ley 1581; the screen
- * promises in writing that it is discarded on exit, and this is that promise
- * implemented rather than described.
+ * full list. A blood type is sensitive health data under Ley 1581, and this is
+ * the protection itself rather than a notice about it — the screen used to carry
+ * a line saying so, which was removed on the grounds that a disclosure about not
+ * collecting something is noise when nothing is collected. The behaviour it
+ * described has to stay true regardless, so: no query parameter, no storage, no
+ * request.
  */
 export function DonarSangre() {
   const { data, isPending, isError } = useBancosSangreRealtime();
@@ -70,11 +69,10 @@ export function DonarSangre() {
       <BackButton href="/">Volver al inicio</BackButton>
 
       {/*
-        One accent, spent in one place. The rose belongs to this module — the
-        landing already assigns it — but four tinted states at once read as
-        decoration rather than meaning, so everything here stays neutral and the
-        colour is saved for the two things a donor acts on: the type they picked,
-        and the points that can take it.
+        Two colours carry meaning on this screen and no more: rose marks the
+        donor's own choice of type, green marks a point that is receiving. Amber
+        and a second red went in and came back out — on a point that is drawing
+        blood, a warning colour says the opposite of what the sheet does.
       */}
       <header className="space-y-1.5 border-l-2 border-rose-500 pl-4">
         <h1 className="font-heading text-2xl font-bold tracking-tight">Quiero donar sangre</h1>
@@ -169,14 +167,6 @@ export function DonarSangre() {
         >
           No lo sé
         </button>
-
-        <p className="text-muted-foreground bg-muted/50 flex gap-2 rounded-lg px-3 py-2 text-xs text-pretty">
-          <span aria-hidden>🔒</span>
-          <span>
-            <strong className="text-foreground font-medium">Tu tipo de sangre no se guarda.</strong>{" "}
-            Se usa solo para filtrar los puntos de esta pantalla y se descarta al salir.
-          </span>
-        </p>
       </section>
 
       <section className="space-y-3">
@@ -212,24 +202,21 @@ export function DonarSangre() {
           the fastest way to learn there is a point in your own locality.
         */}
         {!isPending && !isError && localidades.length > 1 ? (
-          <Tabs
-            value={localidad ?? TODAS}
-            onValueChange={(valor) => setLocalidad(valor === TODAS ? null : String(valor))}
-          >
-            <TabsList aria-label="Filtrar por localidad">
-              <TabsTab value={TODAS}>
-                Todas
-                <CountPill>{porTipo.length}</CountPill>
-              </TabsTab>
-              {localidades.map(({ nombre, cuantos }) => (
-                <TabsTab key={nombre} value={nombre}>
-                  {nombre}
-                  <CountPill>{cuantos}</CountPill>
-                </TabsTab>
-              ))}
-              <TabsIndicator />
-            </TabsList>
-          </Tabs>
+          <div className="flex flex-wrap gap-1.5">
+            <ChipLocalidad activa={localidad === null} onClick={() => setLocalidad(null)}>
+              Todas
+            </ChipLocalidad>
+            {localidades.map(({ nombre, cuantos }) => (
+              <ChipLocalidad
+                key={nombre}
+                activa={localidad === nombre}
+                onClick={() => setLocalidad(localidad === nombre ? null : nombre)}
+              >
+                {nombre}
+                <span className="ml-1 tabular-nums opacity-60">{cuantos}</span>
+              </ChipLocalidad>
+            ))}
+          </div>
         ) : null}
 
         {isError ? (
@@ -288,21 +275,37 @@ export function DonarSangre() {
 }
 
 /**
- * How many points a tab holds — the same badge the donations tabs use.
+ * A locality chip.
  *
- * The number is the reason the tabs earn their place over a plain filter: it
- * says where the points are before anyone taps anything.
+ * Back from tabs, which read as a second navigation bar sitting under the real
+ * one — nine of them wrapping over three rows looked like a menu, not a filter.
+ *
+ * Neutral on purpose: the green belongs to whether a point is receiving, and
+ * giving geography a colour would put two unrelated things in the same voice.
  */
-function CountPill({ children }: { children: number }) {
+function ChipLocalidad({
+  activa,
+  onClick,
+  children,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <span className="ml-1.5 inline-flex items-center">
-      <span
-        aria-hidden
-        className="bg-primary/10 text-primary inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums"
-      >
-        {children}
-      </span>
-      <span className="sr-only">{children} puntos</span>
-    </span>
+    <button
+      type="button"
+      aria-pressed={activa}
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+        activa
+          ? "border-foreground bg-foreground text-background"
+          : "hover:border-foreground/30 hover:bg-muted/60",
+      )}
+    >
+      {children}
+    </button>
   );
 }
