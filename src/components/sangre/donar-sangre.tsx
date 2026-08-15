@@ -118,9 +118,14 @@ export function DonarSangre() {
                 className={cn(
                   "rounded-xl border px-2 py-3 text-base font-semibold tabular-nums transition-all",
                   "focus-visible:ring-2 focus-visible:ring-rose-500/40 focus-visible:outline-none",
+                  // Chosen reads by weight and by a ring, not by a slab of
+                  // colour: the picker is eight buttons wide, and a solid fill
+                  // on one of them shouted louder than anything else on the
+                  // screen — including the points it was supposed to be
+                  // filtering.
                   activo
-                    ? "border-rose-600 bg-rose-600 text-white shadow-sm shadow-rose-600/20"
-                    : "border-rose-200 bg-rose-50/60 text-rose-900 hover:border-rose-300 hover:bg-rose-100/70 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200 dark:hover:bg-rose-950/40",
+                    ? "border-rose-400 bg-rose-100/80 text-rose-800 ring-2 ring-rose-400/40 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-100 dark:ring-rose-700/40"
+                    : "border-rose-200/70 bg-rose-50/40 text-rose-900/80 hover:border-rose-300 hover:bg-rose-100/60 dark:border-rose-900/50 dark:bg-rose-950/15 dark:text-rose-200/80 dark:hover:bg-rose-950/35",
                 )}
               >
                 {tipo.replace("-", "−")}
@@ -167,7 +172,7 @@ export function DonarSangre() {
                 <span>Puntos para</span>
                 {/* The chosen type follows the donor down the page, so the list
                     never stops saying which question it is answering. */}
-                <span className="rounded-md bg-rose-600 px-2 py-0.5 text-base text-white tabular-nums">
+                <span className="rounded-md border border-rose-300 bg-rose-100/80 px-2 py-0.5 text-base text-rose-800 tabular-nums dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-100">
                   {seleccion.replace("-", "−")}
                 </span>
               </>

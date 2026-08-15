@@ -150,11 +150,14 @@ function EstadoBanco({
         texto: "Hoy no está recibiendo",
       };
     }
+    // Open, but nobody filled the types cell. A hollow dot rather than another
+    // colour: it had the same grey as a closed point, and the two say opposite
+    // things — this one is "go, they will probably take you".
     if (banco.tiposQueRecibe.length === 0) {
       return {
-        punto: "bg-muted-foreground/50",
-        color: "text-muted-foreground",
-        texto: "Recibiendo · tipos sin confirmar",
+        punto: "border-foreground/50 border-2 bg-transparent",
+        color: "text-foreground/80",
+        texto: "Recibiendo · no especificó tipos",
       };
     }
     if (recibeElTuyo) {
@@ -165,8 +168,8 @@ function EstadoBanco({
       };
     }
     return {
-      punto: "bg-muted-foreground/50",
-      color: "text-muted-foreground",
+      punto: "bg-foreground/60",
+      color: "text-foreground/80",
       texto: "Recibiendo tipos específicos",
     };
   })();
