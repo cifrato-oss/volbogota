@@ -203,7 +203,19 @@ export function DonarSangre() {
             this screen — it has to stay where they left it. `overscroll-contain`
             stops the page from taking over once the list bottoms out.
           */
-          <div className="max-h-[68vh] overflow-y-auto overscroll-contain pr-1">
+          /*
+            Sized to what is left of the viewport rather than to a guessed
+            fraction of it. `68vh` made the page scroll and the list scroll at
+            the same time, and two bars for one screen is worse than either.
+            Subtracting what sits above — header, picker, section title — leaves
+            the page roughly still and the list as the only thing that moves.
+
+            `dvh` and not `vh`: on a phone the browser chrome hides as you
+            scroll, and `vh` would size against a viewport that is not there yet.
+            The floor keeps it usable on a short screen, where the page scrolls
+            again and that is the right answer.
+          */
+          <div className="max-h-[calc(100dvh-31rem)] min-h-80 overflow-y-auto overscroll-contain pr-1">
             {/*
               One column, unlike the centre picker this borrows its card from.
               That screen is a gallery — six known places, pick one. This is a
