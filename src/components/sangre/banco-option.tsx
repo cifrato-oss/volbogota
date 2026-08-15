@@ -27,12 +27,19 @@ export function BancoOption({
 }) {
   const ubicacion = [banco.localidad, banco.direccion].filter(Boolean).join(" · ");
   const estado = estadoDeBanco(banco, seleccion);
+  const esElSuyo = Boolean(
+    seleccion && banco.recibiendoHoy && banco.tiposQueRecibe.includes(seleccion),
+  );
 
   return (
     <div
       className={cn(
-        "bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-t-4",
-        estado.topBorder,
+        "bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border transition-colors",
+        // The one card that answers the donor's question gets the full border and
+        // a wash, the way the centre picker marks the shift you chose. Every
+        // other card stays neutral: a coloured edge on all nineteen marked
+        // nothing, because a marker that is on almost everything is background.
+        esElSuyo && "border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/15",
         !banco.recibiendoHoy && "opacity-70",
       )}
     >
@@ -89,7 +96,7 @@ export function BancoOption({
             </p>
           ) : null}
 
-          <BadgeEstado estado={estado} />
+          <BadgeEstado estado={estado} destacar={esElSuyo} />
         </div>
 
         {banco.recibiendoHoy && banco.tiposQueRecibe.length > 0 ? (
@@ -121,9 +128,8 @@ export function BancoOption({
 }
 
 /**
- * What the card says about a point, in the shape the rest of the app uses for
- * state: an emoji, a label, and a tinted pill — the same construction as
- * `SemaforoBadge` on the donations screen.
+ * What the card says about a point: a dot and a label, exactly `CentroOption`'s
+ * "● Activo".
  *
  * Two colours and no more. Green is "you can go there today", grey is "not
  * today", and every finer distinction lives in the text. An earlier version gave
@@ -132,27 +138,25 @@ export function BancoOption({
  * concludes "open, but… careful", when the sheet said nothing of the kind.
  */
 type EstadoBanco = {
-  emoji: string;
   texto: string;
-  badge: string;
-  /** Top border, the way `JORNADA_STYLE` marks a shift card. */
-  topBorder: string;
+  /** Dot colour. */
+  punto: string;
+  /** Label colour. */
+  color: string;
 };
 
 export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo): EstadoBanco {
   if (!banco.recibiendoHoy) {
     return {
-      emoji: "⚪",
       texto: "Hoy no está recibiendo",
-      badge: "bg-muted text-muted-foreground",
-      topBorder: "border-t-muted-foreground/30",
+      punto: "bg-muted-foreground/40",
+      color: "text-muted-foreground",
     };
   }
 
   const verde = {
-    emoji: "🟢",
-    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-    topBorder: "border-t-emerald-500",
+    punto: "bg-emerald-500",
+    color: "text-emerald-600 dark:text-emerald-400",
   };
 
   if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
@@ -170,16 +174,17 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
   return { ...verde, texto: "Recibiendo hoy" };
 }
 
-function BadgeEstado({ estado }: { estado: EstadoBanco }) {
+/** The dot-and-label `CentroOption` uses for "Activo", with this screen's states. */
+function BadgeEstado({ estado, destacar }: { estado: EstadoBanco; destacar: boolean }) {
   return (
-    <span
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-        estado.badge,
-      )}
-    >
-      <span aria-hidden>{estado.emoji}</span>
-      {estado.texto}
+    <span className="inline-flex items-center gap-2 text-xs font-medium">
+      <span className="relative flex size-2.5" aria-hidden>
+        {destacar ? (
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+        ) : null}
+        <span className={cn("relative inline-flex size-2.5 rounded-full", estado.punto)} />
+      </span>
+      <span className={estado.color}>{estado.texto}</span>
     </span>
   );
 }
