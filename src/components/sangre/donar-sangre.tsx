@@ -68,13 +68,26 @@ export function DonarSangre() {
           tuyo.
         </p>
         {!isPending && !isError && bancos.length > 0 ? (
-          <p className="text-muted-foreground text-xs">
-            <span className="text-foreground font-semibold tabular-nums">{recibiendoHoy}</span> de{" "}
-            <span className="tabular-nums">{bancos.length}</span> puntos están recibiendo hoy
+          <p className="text-muted-foreground flex items-center gap-1.5 pt-0.5 text-xs">
+            <span className="relative flex size-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+            </span>
+            <span>
+              <span className="font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">
+                {recibiendoHoy}
+              </span>{" "}
+              de <span className="tabular-nums">{bancos.length}</span> puntos están recibiendo ahora
+            </span>
           </p>
         ) : null}
       </header>
 
+      {/*
+        The warmth lives in the buttons and nowhere else on this panel: this is
+        the one block a donor touches, and eight grey buttons for eight blood
+        types was the palette working against the subject.
+      */}
       <section className="bg-card space-y-4 rounded-2xl border p-5">
         <div className="space-y-1">
           <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
@@ -103,11 +116,11 @@ export function DonarSangre() {
                   setEligio(!yaEstaba);
                 }}
                 className={cn(
-                  "rounded-xl border px-2 py-3 text-base font-semibold tabular-nums transition-colors",
-                  "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                  "rounded-xl border px-2 py-3 text-base font-semibold tabular-nums transition-all",
+                  "focus-visible:ring-2 focus-visible:ring-rose-500/40 focus-visible:outline-none",
                   activo
-                    ? "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
-                    : "hover:border-foreground/30 hover:bg-muted/50",
+                    ? "border-rose-600 bg-rose-600 text-white shadow-sm shadow-rose-600/20"
+                    : "border-rose-200 bg-rose-50/60 text-rose-900 hover:border-rose-300 hover:bg-rose-100/70 dark:border-rose-900/60 dark:bg-rose-950/20 dark:text-rose-200 dark:hover:bg-rose-950/40",
                 )}
               >
                 {tipo.replace("-", "−")}
@@ -148,10 +161,19 @@ export function DonarSangre() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-heading text-lg font-semibold">
-            {eligio && seleccion
-              ? `Puntos para ${seleccion.replace("-", "−")}`
-              : "Puntos de donación"}
+          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
+            {eligio && seleccion ? (
+              <>
+                <span>Puntos para</span>
+                {/* The chosen type follows the donor down the page, so the list
+                    never stops saying which question it is answering. */}
+                <span className="rounded-md bg-rose-600 px-2 py-0.5 text-base text-white tabular-nums">
+                  {seleccion.replace("-", "−")}
+                </span>
+              </>
+            ) : (
+              "Puntos de donación"
+            )}
           </h2>
           {!isPending && !isError ? (
             <span className="text-muted-foreground text-xs tabular-nums">

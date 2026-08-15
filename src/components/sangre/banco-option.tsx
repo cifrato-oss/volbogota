@@ -1,4 +1,4 @@
-import { ArrowUpRight, Clock, MapPin } from "lucide-react";
+import { Clock, ExternalLink, MapPin, MapPinned } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { BancoSangreVista, SeleccionTipo } from "@/types/sangre";
@@ -32,17 +32,26 @@ export function BancoOption({
     <>
       <div
         className={cn(
-          "border-border bg-muted/40 group-hover:bg-muted/70 relative border-b py-3 pr-10 pl-4 transition-colors",
+          "border-border bg-muted/40 group-hover:bg-muted/70 flex items-center justify-between gap-3 border-b px-4 py-3 transition-colors",
         )}
       >
         {/* Left-aligned, unlike the centre card it borrows from: centring reads
             as a title on a narrow card and as a stray line on a wide row. */}
         <h3 className="leading-snug font-semibold tracking-tight text-balance">{banco.nombre}</h3>
+
+        {/*
+          A bare arrow said neither where it goes nor that it leaves the app. The
+          whole card opens Maps, so the affordance names the destination and
+          carries the external-link mark — a donor tapping this ends up in
+          another app, and that should never be a surprise.
+        */}
         {banco.linkMaps ? (
-          <ArrowUpRight
-            className="text-muted-foreground group-hover:text-primary absolute top-1/2 right-3 size-4 -translate-y-1/2 transition-transform group-hover:translate-x-0.5"
-            aria-hidden
-          />
+          <span className="border-border bg-background text-foreground group-hover:border-foreground/30 inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors">
+            <MapPinned className="size-3.5" aria-hidden />
+            <span className="hidden sm:inline">Cómo llegar</span>
+            <span className="sm:hidden">Maps</span>
+            <ExternalLink className="text-muted-foreground size-3" aria-hidden />
+          </span>
         ) : null}
       </div>
 
