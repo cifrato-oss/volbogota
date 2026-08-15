@@ -13,8 +13,10 @@ import type { BancoSangreVista, SeleccionTipo } from "@/types/sangre";
  * types out beats summarising them: "O−, A−, B−, AB−" tells a B− donor more
  * than "RH−" does, even though the coordinator wrote the second.
  *
- * The whole card opens Maps, the way a centre card opens its page. A bank has no
- * page of its own, and directions are the next thing a donor wants.
+ * The card itself is not a link, unlike `CentroOption`. That one opens a page
+ * inside the app; a bank has no page of its own and its only destination is
+ * Google Maps, so only the "Cómo llegar" button carries it. A stray tap on a
+ * card should never eject someone from the site.
  */
 export function BancoOption({
   banco,
@@ -26,12 +28,17 @@ export function BancoOption({
   const ubicacion = [banco.localidad, banco.direccion].filter(Boolean).join(" · ");
   const estado = estadoDeBanco(banco, seleccion);
 
-  const contenido = (
-    <>
+  return (
+    <div
+      className={cn(
+        "bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-t-4",
+        estado.topBorder,
+        !banco.recibiendoHoy && "opacity-70",
+      )}
+    >
       <div
         className={cn(
-          "border-border bg-muted/40 flex items-center justify-between gap-3 border-b px-4 py-3 transition-colors",
-          estado.hover,
+          "border-border bg-muted/40 flex items-center justify-between gap-3 border-b px-4 py-3",
         )}
       >
         {/* Left-aligned, unlike the centre card it borrows from: centring reads
@@ -39,18 +46,26 @@ export function BancoOption({
         <h3 className="leading-snug font-semibold tracking-tight text-balance">{banco.nombre}</h3>
 
         {/*
-          A bare arrow said neither where it goes nor that it leaves the app. The
-          whole card opens Maps, so the affordance names the destination and
-          carries the external-link mark — a donor tapping this ends up in
-          another app, and that should never be a surprise.
+          The only clickable thing on the card, and deliberately so.
+          `CentroOption` makes the whole card a link, but its destination is a
+          page inside the app — this one hands the donor to Google Maps, and a
+          stray tap anywhere on a card should not eject someone from the site.
+          Naming the destination and carrying the external-link mark is the rest
+          of that promise.
         */}
         {banco.linkMaps ? (
-          <span className="border-border bg-background text-foreground group-hover:border-foreground/30 inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors">
+          <a
+            href={banco.linkMaps}
+            target="_blank"
+            rel="noreferrer"
+            className="border-border bg-background text-foreground focus-visible:ring-primary/30 inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:border-emerald-400 hover:bg-emerald-50 focus-visible:ring-2 focus-visible:outline-none dark:hover:bg-emerald-950/30"
+          >
             <MapPinned className="size-3.5" aria-hidden />
             <span className="hidden sm:inline">Cómo llegar</span>
             <span className="sm:hidden">Maps</span>
             <ExternalLink className="text-muted-foreground size-3" aria-hidden />
-          </span>
+            <span className="sr-only">a {banco.nombre}, se abre en Google Maps</span>
+          </a>
         ) : null}
       </div>
 
@@ -101,26 +116,7 @@ export function BancoOption({
           </div>
         ) : null}
       </div>
-    </>
-  );
-
-  // A coloured top border per state, the way `JORNADA_STYLE` marks a shift card.
-  // Colour lands in exactly two places on this card — this edge and the badge —
-  // which is the discipline that keeps four states from reading as decoration.
-  const clases = cn(
-    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-t-4 transition-all",
-    estado.topBorder,
-    banco.linkMaps &&
-      "hover:border-foreground/25 focus-visible:ring-primary/30 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none",
-    !banco.recibiendoHoy && "opacity-70",
-  );
-
-  if (!banco.linkMaps) return <div className={clases}>{contenido}</div>;
-
-  return (
-    <a className={clases} href={banco.linkMaps} target="_blank" rel="noreferrer">
-      {contenido}
-    </a>
+    </div>
   );
 }
 
@@ -141,8 +137,6 @@ type EstadoBanco = {
   badge: string;
   /** Top border, the way `JORNADA_STYLE` marks a shift card. */
   topBorder: string;
-  /** Hover wash for the name band — lighter, never darker. */
-  hover: string;
 };
 
 export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo): EstadoBanco {
@@ -152,7 +146,6 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
       texto: "Hoy no está recibiendo",
       badge: "bg-muted text-muted-foreground",
       topBorder: "border-t-muted-foreground/30",
-      hover: "group-hover:bg-muted/20",
     };
   }
 
@@ -160,10 +153,6 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
     emoji: "🟢",
     badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
     topBorder: "border-t-emerald-500",
-    // Hover lightens into the state's own colour. The band used to go from
-    // `bg-muted/40` to `bg-muted/70` — darker grey, which reads as the card
-    // dimming under the cursor instead of responding to it.
-    hover: "group-hover:bg-emerald-50/70 dark:group-hover:bg-emerald-950/25",
   };
 
   if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {

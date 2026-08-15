@@ -51,14 +51,17 @@ export function DonarSangre() {
   const localidades = localidadesDe(porTipo);
   const enLocalidad = filtrarPorLocalidad(porTipo, localidad);
 
-  // Ordered by what the donor can act on: the points that can take them today,
-  // then the ones that might, then the ones that said no. Alphabetical inside
-  // each group so the list does not reshuffle on every snapshot.
+  // Ordered by how sure the donor can be about the trip: the point that named
+  // their type, then points that named any types at all, then the one that is
+  // open but listed none, then the closed ones. A point that never said what it
+  // takes used to rank above one that did — the least certain option sitting
+  // where the most certain belongs. Alphabetical inside each group, so the list
+  // does not reshuffle on every snapshot.
   const visibles = [...enLocalidad].sort((a, b) => {
     const rango = (banco: BancoSangreVista) => {
       if (!banco.recibiendoHoy) return 3;
       if (seleccion && banco.tiposQueRecibe.includes(seleccion)) return 0;
-      if (banco.tiposQueRecibe.length === 0) return 1;
+      if (banco.tiposQueRecibe.length > 0) return 1;
       return 2;
     };
     return rango(a) - rango(b) || a.nombre.localeCompare(b.nombre, "es");
