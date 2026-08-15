@@ -15,6 +15,11 @@
  * judge: nobody can tell whether the layout survives "IDCBIS - Banco Distrital
  * de Sangre" until they see that string in it.
  *
+ * None of them may share a name with a bank in the real sheet. Two did, and the
+ * list showed "Hospital El Tunal" twice with no way to tell which was which —
+ * enough to make a change in the spreadsheet look like it had not applied,
+ * because the row that did change was not the row being watched.
+ *
  * The `Tipo de Sangre` values are the interesting part. They cover every shape
  * the parser has to survive — one type, a family, a family plus a type, a blank,
  * and a hand-typed variant — because those are the cases that break in
@@ -60,14 +65,6 @@ const BANCOS: FilaMock[] = [
     localidad: "Barrios Unidos",
     horario: "7:00 a.m. - 5:00 p.m.",
     tipos: "Todos",
-    recibiendo: "Sí",
-  },
-  {
-    nombre: "Hospital El Tunal - Banco de Sangre",
-    direccion: "Cra. 20 #47B-35 Sur",
-    localidad: "Tunjuelito",
-    horario: "8:00 a.m. - 9:00 p.m.",
-    tipos: "A+",
     recibiendo: "Sí",
   },
   {
@@ -150,14 +147,6 @@ const BANCOS: FilaMock[] = [
     localidad: "Engativá",
     horario: "8:00 a.m. - 4:00 p.m.",
     tipos: "A-, B-",
-    recibiendo: "No",
-  },
-  {
-    nombre: "Punto Secretaría Distrital de Salud",
-    direccion: "Cra. 32 #12-81",
-    localidad: "Los Mártires",
-    horario: "9:00 a.m. - 5:00 p.m.",
-    tipos: "",
     recibiendo: "No",
   },
   {
