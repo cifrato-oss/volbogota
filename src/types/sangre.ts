@@ -76,3 +76,48 @@ export function filtrarPorTipo(
       (banco.tiposQueRecibe.length === 0 || banco.tiposQueRecibe.includes(seleccion)),
   );
 }
+
+/** A locality the donor can narrow to, and how many points it holds. */
+export type ConteoLocalidad = { nombre: string; cuantos: number };
+
+/**
+ * The localities present in a list of banks, with counts.
+ *
+ * Derived from whatever list it is handed rather than from the full catalogue,
+ * which is the point: called with the type-filtered banks, the chips answer
+ * "where can I give O−" instead of offering localities that lead to an empty
+ * list. A locality nobody serves today simply does not appear.
+ *
+ * Bogotá has twenty localities and this product will never fill them all, so
+ * the list is built from the data and not from a constant somebody has to keep
+ * in step with the spreadsheet.
+ */
+export function localidadesDe(bancos: BancoSangreVista[]): ConteoLocalidad[] {
+  const cuenta = new Map<string, number>();
+
+  for (const banco of bancos) {
+    const nombre = banco.localidad?.trim();
+    if (!nombre) continue;
+    cuenta.set(nombre, (cuenta.get(nombre) ?? 0) + 1);
+  }
+
+  return [...cuenta.entries()]
+    .map(([nombre, cuantos]) => ({ nombre, cuantos }))
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
+/**
+ * Narrows to one locality.
+ *
+ * A bank with no locality survives every filter: the cell is blank in the sheet
+ * often enough, and hiding a point because a column was not filled would be the
+ * spreadsheet's gap turned into a donor's missing option.
+ */
+export function filtrarPorLocalidad(
+  bancos: BancoSangreVista[],
+  localidad: string | null,
+): BancoSangreVista[] {
+  if (!localidad) return bancos;
+
+  return bancos.filter((banco) => !banco.localidad?.trim() || banco.localidad.trim() === localidad);
+}

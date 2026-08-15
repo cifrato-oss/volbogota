@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
@@ -9,7 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
 import {
+  filtrarPorLocalidad,
   filtrarPorTipo,
+  localidadesDe,
   TIPOS_SANGRE,
   type BancoSangreVista,
   type SeleccionTipo,
@@ -33,14 +35,22 @@ export function DonarSangre() {
   const { data, isPending, isError } = useBancosSangreRealtime();
   const [seleccion, setSeleccion] = useState<SeleccionTipo>(null);
   const [eligio, setEligio] = useState(false);
+  const [localidad, setLocalidad] = useState<string | null>(null);
 
   const bancos = data ?? [];
   const recibiendoHoy = bancos.filter((banco) => banco.recibiendoHoy).length;
 
+  // Type first, then locality. The order is what makes the locality chips
+  // useful: built from the type-filtered list, they answer "where can I give
+  // O−" rather than offering places that lead to an empty list.
+  const porTipo = filtrarPorTipo(bancos, seleccion);
+  const localidades = localidadesDe(porTipo);
+  const enLocalidad = filtrarPorLocalidad(porTipo, localidad);
+
   // Ordered by what the donor can act on: the points that can take them today,
   // then the ones that might, then the ones that said no. Alphabetical inside
   // each group so the list does not reshuffle on every snapshot.
-  const visibles = [...filtrarPorTipo(bancos, seleccion)].sort((a, b) => {
+  const visibles = [...enLocalidad].sort((a, b) => {
     const rango = (banco: BancoSangreVista) => {
       if (!banco.recibiendoHoy) return 3;
       if (seleccion && banco.tiposQueRecibe.includes(seleccion)) return 0;
@@ -187,6 +197,33 @@ export function DonarSangre() {
           ) : null}
         </div>
 
+        {/*
+          Localities, not an address box. Nobody types "Cra. 32 #18-81" — they
+          think in Chapinero and Suba, the sheet already carries that column, and
+          a text field over formatted addresses returns nothing far too often for
+          a filter that has to feel reliable.
+
+          Chips rather than a dropdown so the options are visible: this is also
+          the fastest way to learn there is a point in your own locality.
+        */}
+        {!isPending && !isError && localidades.length > 1 ? (
+          <div className="flex flex-wrap gap-1.5">
+            <ChipLocalidad activa={localidad === null} onClick={() => setLocalidad(null)}>
+              Todas
+            </ChipLocalidad>
+            {localidades.map(({ nombre, cuantos }) => (
+              <ChipLocalidad
+                key={nombre}
+                activa={localidad === nombre}
+                onClick={() => setLocalidad(localidad === nombre ? null : nombre)}
+              >
+                {nombre}
+                <span className="ml-1 tabular-nums opacity-60">{cuantos}</span>
+              </ChipLocalidad>
+            ))}
+          </div>
+        ) : null}
+
         {isError ? (
           <ErrorState message="No pudimos cargar los puntos de donación." />
         ) : isPending ? (
@@ -239,5 +276,39 @@ export function DonarSangre() {
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * A locality chip.
+ *
+ * Neutral on purpose: the rose belongs to the blood type, which is the donor's
+ * own answer, and giving geography the same colour would put two different
+ * kinds of choice in the same voice.
+ */
+function ChipLocalidad({
+  activa,
+  onClick,
+  children,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={activa}
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+        activa
+          ? "border-foreground bg-foreground text-background"
+          : "hover:border-foreground/30 hover:bg-muted/60",
+      )}
+    >
+      {children}
+    </button>
   );
 }
