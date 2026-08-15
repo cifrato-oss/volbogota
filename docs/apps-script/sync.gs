@@ -22,7 +22,11 @@
  * sincronizando?» dice cuáles están activas.
  *
  * Y en Activadores (el reloj de la izquierda) → Añadir activador:
- *   función  alEditar · desde hoja de cálculo · Al editar
+ *   función  alEditar   · desde hoja de cálculo · Al editar
+ *   función  alCambiar  · desde hoja de cálculo · Al cambiar
+ *
+ * El segundo existe porque el primero no ve las filas borradas: `alEditar` solo
+ * responde a cambios de contenido, y borrar una fila es un cambio de estructura.
  *
  * Tiene que ser un activador INSTALABLE, no la función simple `onEdit`: los
  * activadores simples no pueden hacer peticiones de red, así que un `onEdit`
@@ -150,6 +154,44 @@ function alEditar(e) {
   } else if (nombre === HOJA_RESERVAS) {
     alEditarReservas(e, hoja);
   }
+}
+
+/**
+ * Segundo activador, para lo que `alEditar` no puede ver.
+ *
+ * `alEditar` responde a cambios de CONTENIDO de celdas. Borrar una fila es un
+ * cambio de ESTRUCTURA, y Apps Script lo manda a `onChange` — otro activador,
+ * con su propio evento. Sin esto, borrar un banco de la hoja lo dejaba vivo en
+ * la web hasta que alguien se acordara del menú.
+ *
+ * Limpiar las celdas en vez de borrar la fila tampoco servía, y por otra razón:
+ * `alEditarHoja` exige que la fila todavía tenga nombre para disparar, así que
+ * borrar el nombre apagaba el único disparador que quedaba.
+ *
+ * Solo `REMOVE_ROW`. Insertar una fila vacía no cambia nada — cuando la llenen,
+ * `alEditar` se encarga.
+ *
+ * Y solo la hoja de bancos, a propósito: `Centros` y `Turnos` tienen el mismo
+ * hueco y el mismo arreglo, pero ampliarlo acá metería en este PR el
+ * comportamiento de dos módulos que no le corresponden.
+ *
+ * Hay que crear el activador a mano, una vez:
+ *   Activadores → Añadir activador → función `alCambiar` · Al cambiar
+ */
+function alCambiar(e) {
+  if (!e || e.changeType !== "REMOVE_ROW") return;
+
+  // El evento de `onChange` no dice en qué hoja pasó; la activa es la que se
+  // estaba editando.
+  var libroActual = e.source || SpreadsheetApp.getActiveSpreadsheet();
+  if (!libroActual) return;
+
+  var hoja = libroActual.getActiveSheet();
+  if (!hoja || !esHojaDeSangre(hoja.getName())) return;
+
+  // La hoja entera, como siempre: el backend desactiva los que ya no aparecen,
+  // y eso es justo lo que hace falta cuando lo que pasó fue una baja.
+  sincronizarBancosSangre();
 }
 
 function alEditarHoja(e, hoja, obligatorias, columnasQueSincronizan, sincronizar) {
