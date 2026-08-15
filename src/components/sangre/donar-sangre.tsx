@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { BackButton } from "@/components/shared/back-button";
 import { ErrorState } from "@/components/shared/error-state";
+import { BancoOption } from "@/components/sangre/banco-option";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
@@ -60,10 +61,10 @@ export function DonarSangre() {
         </p>
       </header>
 
-      <section className="bg-card space-y-3 rounded-2xl border p-4">
-        <div className="space-y-0.5">
-          <h2 className="font-heading text-base font-semibold">¿Sabes tu tipo de sangre?</h2>
-          <p className="text-muted-foreground text-xs text-pretty">
+      <section className="bg-card space-y-4 rounded-2xl border p-5">
+        <div className="space-y-1">
+          <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
+          <p className="text-muted-foreground text-sm text-pretty">
             Si no lo sabes, igual puedes donar: te lo dicen ahí.
           </p>
         </div>
@@ -88,7 +89,7 @@ export function DonarSangre() {
                   setEligio(!yaEstaba);
                 }}
                 className={cn(
-                  "rounded-lg border px-2 py-2.5 text-sm font-semibold tabular-nums transition-colors",
+                  "rounded-xl border px-2 py-3 text-base font-semibold tabular-nums transition-colors",
                   "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
                   activo
                     ? "border-rose-500 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300"
@@ -109,7 +110,7 @@ export function DonarSangre() {
             setEligio(true);
           }}
           className={cn(
-            "w-full rounded-lg border px-3 py-2 text-xs font-medium transition-colors",
+            "w-full rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
             "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
             eligio && seleccion === null
               ? "border-foreground/40 bg-muted"
@@ -119,11 +120,11 @@ export function DonarSangre() {
           No lo sé
         </button>
 
-        <p className="text-muted-foreground flex gap-1.5 text-[11px] text-pretty">
+        <p className="text-muted-foreground bg-muted/50 flex gap-2 rounded-lg px-3 py-2 text-xs text-pretty">
           <span aria-hidden>🔒</span>
           <span>
-            <strong className="text-foreground font-medium">Tu tipo no se guarda.</strong> Se usa
-            solo para filtrar esta pantalla y se descarta al salir.
+            <strong className="text-foreground font-medium">Tu tipo de sangre no se guarda.</strong>{" "}
+            Se usa solo para filtrar los puntos de esta pantalla y se descarta al salir.
           </span>
         </p>
       </section>
@@ -145,9 +146,9 @@ export function DonarSangre() {
         {isError ? (
           <ErrorState message="No pudimos cargar los puntos de donación." />
         ) : isPending ? (
-          <div className="bg-card divide-y overflow-hidden rounded-2xl border">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-[74px] rounded-none" />
+              <Skeleton key={i} className="h-52 rounded-xl" />
             ))}
           </div>
         ) : visibles.length === 0 ? (
@@ -157,140 +158,23 @@ export function DonarSangre() {
           </p>
         ) : (
           /*
-            One bordered container with divided rows, not sixteen separate cards.
-            With a handful of points the cards read fine; past a dozen, every
-            border and gap is scroll the donor pays for, and the list stops
-            scanning as a list.
+            The list scrolls inside itself rather than pushing the page down.
+            With a couple of dozen banks the picker would otherwise scroll out of
+            reach, and changing your blood type is the thing a donor does most on
+            this screen — it has to stay where they left it. `overscroll-contain`
+            stops the page from taking over once the list bottoms out.
           */
-          <ul className="bg-card divide-y overflow-hidden rounded-2xl border">
-            {visibles.map((banco) => (
-              <TarjetaBanco key={banco.id} banco={banco} seleccion={eligio ? seleccion : null} />
-            ))}
-          </ul>
+          <div className="max-h-[68vh] overflow-y-auto overscroll-contain pr-1">
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {visibles.map((banco) => (
+                <li key={banco.id}>
+                  <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
     </div>
-  );
-}
-
-function TarjetaBanco({ banco, seleccion }: { banco: BancoSangreVista; seleccion: SeleccionTipo }) {
-  // A bank that is receiving and lists the chosen type is the one to walk into,
-  // so it gets the border. Everything else stays quiet.
-  const recibeElTuyo = Boolean(
-    seleccion && banco.recibiendoHoy && banco.tiposQueRecibe.includes(seleccion),
-  );
-
-  return (
-    <li
-      className={cn(
-        "relative p-4 pl-5 transition-colors",
-        // The match gets a left rail rather than a full border: inside a divided
-        // list a ring would fight the dividers, and a rail is what the eye picks
-        // up when scanning straight down the edge.
-        recibeElTuyo &&
-          "bg-rose-50/40 before:absolute before:inset-y-0 before:left-0 before:w-1 before:bg-rose-500 dark:bg-rose-950/20",
-        // A closed point stays in the list and steps back from it.
-        !banco.recibiendoHoy && "opacity-60",
-      )}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm leading-snug font-semibold tracking-tight text-balance">
-          {banco.nombre}
-        </h3>
-        <Estado banco={banco} seleccion={seleccion} recibeElTuyo={recibeElTuyo} />
-      </div>
-
-      <p className="text-muted-foreground mt-1 truncate text-xs">
-        {[banco.localidad, banco.direccion].filter(Boolean).join(" · ")}
-      </p>
-
-      <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-        {/* Comes straight from the sheet and answers the question that follows
-            "can they take me" — until what time. */}
-        {banco.horarioOficial ? <span className="tabular-nums">{banco.horarioOficial}</span> : null}
-
-        {banco.horarioOficial && banco.linkMaps ? <span aria-hidden>·</span> : null}
-
-        {/*
-          The sheet already carries a Maps link per bank, and a Maps listing shows
-          the venue's own phone. That covers what a donor needs when a point has
-          not listed its types — how to get there, and how to ask — without the
-          sheet growing a column someone has to keep current.
-        */}
-        {banco.linkMaps ? (
-          <a
-            className="text-foreground font-medium underline underline-offset-2"
-            href={banco.linkMaps}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Cómo llegar
-          </a>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
-function Estado({
-  banco,
-  seleccion,
-  recibeElTuyo,
-}: {
-  banco: BancoSangreVista;
-  seleccion: SeleccionTipo;
-  recibeElTuyo: boolean;
-}) {
-  // Sits to the right of the name, so it has to hold its width and stay on one
-  // line: the column of chips down the right edge is what makes the list
-  // scannable without reading a single bank name.
-  const base =
-    "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wide whitespace-nowrap uppercase";
-
-  if (!banco.recibiendoHoy) {
-    return (
-      <span className={cn(base, "bg-muted text-muted-foreground")} title="Hoy no está recibiendo">
-        <span aria-hidden>●</span> Hoy no
-      </span>
-    );
-  }
-
-  // Receiving, but nobody said which types. Different from "not receiving": the
-  // donor can still go, they just cannot know in advance whether they match.
-  if (banco.tiposQueRecibe.length === 0) {
-    return (
-      <span
-        className={cn(base, "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300")}
-        title="Este punto no ha dicho qué tipos recibe. Puede que reciba el tuyo — confirma antes de desplazarte."
-      >
-        <span aria-hidden>●</span> Sin confirmar
-      </span>
-    );
-  }
-
-  if (recibeElTuyo) {
-    return (
-      <span
-        className={cn(
-          base,
-          "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
-        )}
-      >
-        <span aria-hidden>●</span> Recibe {seleccion?.replace("-", "−")}
-      </span>
-    );
-  }
-
-  // The coordinator's own wording — "O+, RH−" reads better than the five types it
-  // expands into, and it is what the person at the door will also say.
-  const resumen = banco.resumenTipos ?? banco.tiposQueRecibe.join(", ");
-
-  return (
-    <span
-      className={cn(base, "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300")}
-      title={`Hoy solo ${resumen}`}
-    >
-      <span aria-hidden>●</span> {resumen.replace(/-/g, "−")}
-    </span>
   );
 }
