@@ -55,11 +55,14 @@ export type BancoSangreVista = {
 /**
  * Which banks to show for a given selection.
  *
- * Runs in the browser, always. Two kinds of bank survive a filter that does not
- * match them, and both on purpose: one that is closed today, because a donor
- * choosing between a handful of points is better served by a complete picture
- * than by a shorter list that drops options without saying so; and one that is
- * open but has not listed its types, because "we did not say" is not "no".
+ * Runs in the browser, always. Picking a type is a question — "where can I go
+ * right now" — so a point that is not drawing blood today is not an answer to
+ * it, and leaving it in only makes the donor filter the list again by eye. With
+ * no type picked the list stays complete, closed points included, because then
+ * the question is the broader "what is out there".
+ *
+ * A point that is open but has not listed its types does survive: "we did not
+ * say" is not "no", and it might be the closest one that can take them.
  */
 export function filtrarPorTipo(
   bancos: BancoSangreVista[],
@@ -69,8 +72,7 @@ export function filtrarPorTipo(
 
   return bancos.filter(
     (banco) =>
-      !banco.recibiendoHoy ||
-      banco.tiposQueRecibe.length === 0 ||
-      banco.tiposQueRecibe.includes(seleccion),
+      banco.recibiendoHoy &&
+      (banco.tiposQueRecibe.length === 0 || banco.tiposQueRecibe.includes(seleccion)),
   );
 }

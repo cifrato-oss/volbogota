@@ -32,12 +32,7 @@ export function BancoOption({
     <>
       <div
         className={cn(
-          "border-border relative border-b py-3 pr-10 pl-4 transition-colors",
-          recibeElTuyo
-            ? "bg-emerald-500/10"
-            : banco.recibiendoHoy
-              ? "bg-rose-500/5 group-hover:bg-rose-500/10"
-              : "bg-muted/40",
+          "border-border bg-muted/40 group-hover:bg-muted/70 relative border-b py-3 pr-10 pl-4 transition-colors",
         )}
       >
         {/* Left-aligned, unlike the centre card it borrows from: centring reads
@@ -84,10 +79,10 @@ export function BancoOption({
                   <li
                     key={tipo}
                     className={cn(
-                      "rounded-full px-2.5 py-1 text-xs font-semibold tabular-nums ring-1 ring-inset",
+                      "rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
                       esElTuyo
-                        ? "bg-emerald-500 text-white ring-emerald-600"
-                        : "bg-rose-500/10 text-rose-700 ring-rose-500/20 dark:text-rose-300",
+                        ? "bg-emerald-600 text-white"
+                        : "bg-muted text-muted-foreground border",
                     )}
                   >
                     {tipo.replace("-", "−")}
@@ -101,23 +96,16 @@ export function BancoOption({
     </>
   );
 
-  // A coloured left edge, the way the landing gives each flow a top edge. It is
-  // what turns a column of identical grey boxes into something a donor can read
-  // at a glance — the state is legible before a single word is.
-  const acento = !banco.recibiendoHoy
-    ? "border-l-muted-foreground/30"
-    : recibeElTuyo
-      ? "border-l-emerald-500"
-      : banco.tiposQueRecibe.length === 0
-        ? "border-l-amber-400"
-        : "border-l-rose-500";
-
+  // Only the match is marked, and only on its edge. Giving every state its own
+  // coloured rail turned the list into four competing colours, which is
+  // decoration: a donor scanning for "can I go here" needs one thing to stand
+  // out, not four things insisting at once.
   const clases = cn(
-    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border border-l-4 transition-all",
-    acento,
+    "group bg-card border-border flex h-full flex-col overflow-hidden rounded-xl border transition-all",
     banco.linkMaps &&
-      "focus-visible:ring-primary/30 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-2 focus-visible:outline-none",
-    !banco.recibiendoHoy && "opacity-75",
+      "hover:border-foreground/25 focus-visible:ring-primary/30 hover:shadow-sm focus-visible:ring-2 focus-visible:outline-none",
+    recibeElTuyo && "border-l-2 border-l-emerald-500",
+    !banco.recibiendoHoy && "opacity-70",
   );
 
   if (!banco.linkMaps) return <div className={clases}>{contenido}</div>;
@@ -155,8 +143,8 @@ function EstadoBanco({
     }
     if (banco.tiposQueRecibe.length === 0) {
       return {
-        punto: "bg-amber-500",
-        color: "text-amber-600 dark:text-amber-400",
+        punto: "bg-muted-foreground/50",
+        color: "text-muted-foreground",
         texto: "Recibiendo · tipos sin confirmar",
       };
     }
@@ -168,8 +156,8 @@ function EstadoBanco({
       };
     }
     return {
-      punto: "bg-rose-500",
-      color: "text-rose-600 dark:text-rose-400",
+      punto: "bg-muted-foreground/50",
+      color: "text-muted-foreground",
       texto: "Recibiendo tipos específicos",
     };
   })();

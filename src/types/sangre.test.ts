@@ -43,16 +43,21 @@ describe("filtrarPorTipo", () => {
     expect(filtrarPorTipo(bancos, "AB-").map((b) => b.id)).toContain("sin-tipos");
   });
 
-  it("keeps a bank that is closed today, so the donor sees a complete picture", () => {
-    expect(filtrarPorTipo(bancos, "AB-").map((b) => b.id)).toContain("cerrado-hoy");
+  it("drops a bank that is closed today once a type is chosen", () => {
+    // Picking a type asks "where can I go right now", and a closed point is not
+    // an answer — leaving it in makes the donor filter the list again by eye.
+    expect(filtrarPorTipo(bancos, "AB-").map((b) => b.id)).not.toContain("cerrado-hoy");
   });
 
-  it("only ever keeps a bank the card can justify showing", () => {
+  it("still lists closed banks when no type is chosen", () => {
+    expect(filtrarPorTipo(bancos, null).map((b) => b.id)).toContain("cerrado-hoy");
+  });
+
+  it("only ever keeps a bank that could take the donor today", () => {
     for (const tipo of ["O+", "A-", "AB+"] as TipoSangre[]) {
       for (const b of filtrarPorTipo(bancos, tipo)) {
-        const justificado =
-          !b.recibiendoHoy || b.tiposQueRecibe.length === 0 || b.tiposQueRecibe.includes(tipo);
-        expect(justificado).toBe(true);
+        expect(b.recibiendoHoy).toBe(true);
+        expect(b.tiposQueRecibe.length === 0 || b.tiposQueRecibe.includes(tipo)).toBe(true);
       }
     }
   });

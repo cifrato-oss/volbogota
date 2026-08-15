@@ -55,43 +55,29 @@ export function DonarSangre() {
       <BackButton href="/">Volver al inicio</BackButton>
 
       {/*
-        Rose, because the landing already spends that colour on this module and a
-        flow that changes colour on entry reads as a different product. The
-        tinted panel and the ringed pills are `CentroHeader`'s, so the two detail
-        screens open the same way.
+        One accent, spent in one place. The rose belongs to this module — the
+        landing already assigns it — but four tinted states at once read as
+        decoration rather than meaning, so everything here stays neutral and the
+        colour is saved for the two things a donor acts on: the type they picked,
+        and the points that can take it.
       */}
-      <header className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-6">
-        <h1 className="font-heading flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <span aria-hidden>🩸</span>
-          <span>Quiero donar sangre</span>
-        </h1>
-        <p className="text-muted-foreground mt-1.5 text-sm text-pretty">
+      <header className="space-y-1.5 border-l-2 border-rose-500 pl-4">
+        <h1 className="font-heading text-2xl font-bold tracking-tight">Quiero donar sangre</h1>
+        <p className="text-muted-foreground text-sm text-pretty">
           Cada punto recibe tipos distintos según el día. Mira en un minuto si pueden recibir el
           tuyo.
         </p>
-
         {!isPending && !isError && bancos.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-500/20 ring-inset dark:text-emerald-400">
-              <span aria-hidden>✅</span>
-              <span className="tabular-nums">{recibiendoHoy}</span>
-              <span className="font-normal opacity-80">recibiendo hoy</span>
-            </span>
-            <span className="text-muted-foreground ring-border inline-flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1 text-sm font-semibold ring-1 ring-inset dark:bg-white/5">
-              <span aria-hidden>🏥</span>
-              <span className="tabular-nums">{bancos.length}</span>
-              <span className="font-normal opacity-80">puntos en total</span>
-            </span>
-          </div>
+          <p className="text-muted-foreground text-xs">
+            <span className="text-foreground font-semibold tabular-nums">{recibiendoHoy}</span> de{" "}
+            <span className="tabular-nums">{bancos.length}</span> puntos están recibiendo hoy
+          </p>
         ) : null}
       </header>
 
-      <section className="bg-card space-y-4 rounded-2xl border border-t-4 border-t-rose-500 p-5">
+      <section className="bg-card space-y-4 rounded-2xl border p-5">
         <div className="space-y-1">
-          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
-            <span aria-hidden>🧪</span>
-            <span>¿Sabes tu tipo de sangre?</span>
-          </h2>
+          <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
           <p className="text-muted-foreground text-sm text-pretty">
             Si no lo sabes, igual puedes donar: te lo dicen ahí.
           </p>
@@ -134,8 +120,11 @@ export function DonarSangre() {
           type="button"
           aria-pressed={eligio && seleccion === null}
           onClick={() => {
+            // Unpresses like the type buttons do. Both land on the same list, so
+            // the difference is only that the control stops looking chosen —
+            // which is the whole reason it looked wrong.
             setSeleccion(null);
-            setEligio(true);
+            setEligio(!(eligio && seleccion === null));
           }}
           className={cn(
             "w-full rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
@@ -159,13 +148,10 @@ export function DonarSangre() {
 
       <section className="space-y-3">
         <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
-            <span aria-hidden>🏥</span>
-            <span>
-              {eligio && seleccion
-                ? `Puntos para ${seleccion.replace("-", "−")}`
-                : "Puntos de donación"}
-            </span>
+          <h2 className="font-heading text-lg font-semibold">
+            {eligio && seleccion
+              ? `Puntos para ${seleccion.replace("-", "−")}`
+              : "Puntos de donación"}
           </h2>
           {!isPending && !isError ? (
             <span className="text-muted-foreground text-xs tabular-nums">
