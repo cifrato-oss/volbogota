@@ -246,25 +246,6 @@ export function DonarSangre() {
             llama al punto antes de desplazarte.
           </p>
         ) : (
-          /*
-            The list scrolls inside itself rather than pushing the page down.
-            With a couple of dozen banks the picker would otherwise scroll out of
-            reach, and changing your blood type is the thing a donor does most on
-            this screen — it has to stay where they left it. `overscroll-contain`
-            stops the page from taking over once the list bottoms out.
-          */
-          /*
-            Sized to what is left of the viewport rather than to a guessed
-            fraction of it. `68vh` made the page scroll and the list scroll at
-            the same time, and two bars for one screen is worse than either.
-            Subtracting what sits above — header, picker, section title — leaves
-            the page roughly still and the list as the only thing that moves.
-
-            `dvh` and not `vh`: on a phone the browser chrome hides as you
-            scroll, and `vh` would size against a viewport that is not there yet.
-            The floor keeps it usable on a short screen, where the page scrolls
-            again and that is the right answer.
-          */
           <>
             <BancosMapa
               bancos={visibles}
@@ -277,32 +258,28 @@ export function DonarSangre() {
                 )
               }
             />
-            <div
-              className={cn(
-                "max-h-[calc(100dvh-34rem)] min-h-80 overflow-y-auto overscroll-contain pr-1 pb-4",
-                // The last visible card fades out instead of being sliced. A
-                // hard edge across the middle of a card reads as a rendering
-                // bug — there is nothing to say the cut is a scroll boundary
-                // rather than something broken — and the fade says "there is
-                // more below" using the content itself.
-                "[mask-image:linear-gradient(to_bottom,black_calc(100%-2.5rem),transparent)]",
-              )}
-            >
-              {/*
+            {/*
+              No inner scroll: every point lays out down the page, the way the
+              centre picker does. A capped container meant two scrollbars for one
+              screen, and it clipped the last card mid-height — a hard edge that
+              reads as a rendering bug rather than as a boundary. The locality
+              tabs are what keep the list short enough that a donor is not
+              scrolling past points they already ruled out.
+            */}
+            {/*
               One column, unlike the centre picker this borrows its card from.
               That screen is a gallery — six known places, pick one. This is a
               filtered result, read by running an eye down the state column
               asking "does this one take me", and a second column turns that
               straight line into a zigzag.
             */}
-              <ul className="space-y-3">
-                {visibles.map((banco) => (
-                  <li key={banco.id}>
-                    <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul className="space-y-3">
+              {visibles.map((banco) => (
+                <li key={banco.id}>
+                  <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
+                </li>
+              ))}
+            </ul>
           </>
         )}
       </section>

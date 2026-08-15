@@ -159,6 +159,13 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
     };
   }
 
+  // Green for both of the states that mean "you can go today", the way a centre
+  // card says "Activo". Rose was wrong here: it read as a warning on a point
+  // that is drawing blood, and a donor scanning for somewhere to go needs the
+  // green to mean go. Which types it takes is the card's job to spell out, not
+  // the badge's — and a point that does not take the chosen type is filtered
+  // out of the list anyway, so this state only ever shows when nobody has
+  // picked one.
   if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
     return {
       emoji: "🟢",
@@ -169,10 +176,10 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
   }
 
   return {
-    emoji: "🩸",
-    texto: "Recibiendo tipos específicos",
-    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
-    topBorder: "border-t-rose-400",
+    emoji: "🟢",
+    texto: "Recibiendo hoy",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+    topBorder: "border-t-emerald-500",
   };
 }
 
