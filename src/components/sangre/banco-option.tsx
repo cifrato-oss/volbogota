@@ -154,14 +154,16 @@ function EstadoBanco({
     // colour: it had the same grey as a closed point, and the two say opposite
     // things — this one is "go, they will probably take you".
     //
-    // The wording says what to do, not what the spreadsheet is missing. "No
-    // especificó tipos" described a blank cell, which is our problem; the donor
-    // only needs to know they can go and should check first.
+    // Says what is true and stops there. "No especificó tipos" described our
+    // blank cell; "confirma antes de ir" told the donor to do something the
+    // screen gives them no way to do — there is no phone number in the sheet,
+    // and pointing at a Maps listing to find one is a step nobody will take on
+    // trust. A phone column would let this ask for something real.
     if (banco.tiposQueRecibe.length === 0) {
       return {
         punto: "border-foreground/50 border-2 bg-transparent",
         color: "text-foreground/80",
-        texto: "Recibiendo · confirma tu tipo antes de ir",
+        texto: "Recibiendo · sin lista de tipos",
       };
     }
     if (recibeElTuyo) {
