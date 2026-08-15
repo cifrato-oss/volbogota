@@ -1,8 +1,14 @@
 /**
  * Seeds the blood bank list, for a screen that has nothing to show yet.
  *
- *   pnpm run seed:sangre            # writes to Firestore and prints the TSV
+ *   pnpm run seed:sangre                 # writes to Firestore and prints the TSV
  *   pnpm run seed:sangre -- --solo-tsv   # prints the TSV, writes nothing
+ *   pnpm run seed:sangre -- --limpiar    # deletes every bank it ever seeded
+ *
+ * Everything written here carries `esMock: true`, and the app hides those unless
+ * `NEXT_PUBLIC_MOSTRAR_MOCK=true`. That is what makes it safe to run against
+ * production, which is the only Firestore this project has: an invented bank is
+ * visible to whoever is building the screen and to nobody else.
  *
  * The rows below are real Bogotá blood banks with real addresses, because mock
  * data that reads as mock ("Banco 1", "Calle 123") makes a screen impossible to
@@ -203,7 +209,12 @@ async function escribir(): Promise<void> {
   const ahora = new Date().toISOString();
 
   for (const fila of BANCOS) {
-    const id = idDeBanco(fila.nombre);
+    // Prefixed so a seeded bank can never land on a real one's document. Ids
+    // come from the name, and these are real Bogotá banks by design — without
+    // the prefix, "Hospital El Tunal - Banco de Sangre" overwrote the row a
+    // coordinator maintains and tagged it as mock, which in production reads as
+    // the bank disappearing.
+    const id = `mock-${idDeBanco(fila.nombre)}`;
     lote.set(db.collection(COLLECTIONS.bancosSangre).doc(id), {
       id,
       nombre: fila.nombre,
@@ -216,13 +227,47 @@ async function escribir(): Promise<void> {
       recibiendoHoy: fila.recibiendo === "Sí",
       activo: true,
       actualizadoEn: ahora,
+      // The tag that keeps invented banks out of production. The app hides
+      // anything carrying it unless `NEXT_PUBLIC_MOSTRAR_MOCK=true`, and
+      // `--limpiar` deletes exactly the documents that carry it — so seeding
+      // against prod is reversible and never reaches a donor.
+      esMock: true,
     });
   }
 
   await lote.commit();
 }
 
+/**
+ * Deletes every seeded bank and nothing else.
+ *
+ * Keyed on the tag rather than on the names in this file, so a row renamed or
+ * removed here still gets cleaned up. A bank a coordinator typed into the sheet
+ * has no tag and is never touched.
+ */
+async function limpiar(): Promise<number> {
+  const db = getDb();
+  const encontrados = await db
+    .collection(COLLECTIONS.bancosSangre)
+    .where("esMock", "==", true)
+    .get();
+
+  if (encontrados.empty) return 0;
+
+  const lote = db.batch();
+  encontrados.docs.forEach((doc) => lote.delete(doc.ref));
+  await lote.commit();
+
+  return encontrados.size;
+}
+
 async function main(): Promise<void> {
+  if (process.argv.includes("--limpiar")) {
+    const borrados = await limpiar();
+    console.log(`✓ ${borrados} bancos de prueba borrados de Firestore`);
+    return;
+  }
+
   const soloTsv = process.argv.includes("--solo-tsv");
 
   if (!soloTsv) {

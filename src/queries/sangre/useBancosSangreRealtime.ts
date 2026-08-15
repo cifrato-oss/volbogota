@@ -2,6 +2,7 @@ import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { useEffect, useState } from "react";
 
 import { getFirebaseDb } from "@/lib/firebase-client";
+import { mostrarDatosDePrueba } from "@/lib/flags";
 import type { BancoSangreVista, TipoSangre } from "@/types/sangre";
 import { TIPOS_SANGRE } from "@/types/sangre";
 
@@ -12,32 +13,39 @@ type Estado = {
 };
 
 function mapear(docs: Array<{ id: string; data: Record<string, unknown> }>): BancoSangreVista[] {
-  return docs
-    .map((doc) => {
-      const crudos = Array.isArray(doc.data.tiposQueRecibe)
-        ? (doc.data.tiposQueRecibe as string[])
-        : [];
+  return (
+    docs
+      // Seeded banks are dropped here rather than by the query, so a document that
+      // predates the flag — written before `esMock` existed — still reads as real
+      // instead of vanishing. A `where("esMock", "==", false)` would silently hide
+      // every bank the coordinators actually maintain.
+      .filter((doc) => mostrarDatosDePrueba || doc.data.esMock !== true)
+      .map((doc) => {
+        const crudos = Array.isArray(doc.data.tiposQueRecibe)
+          ? (doc.data.tiposQueRecibe as string[])
+          : [];
 
-      // Keep only what the app knows how to render, in canonical order, so two
-      // banks accepting the same types never look different.
-      const tipos = TIPOS_SANGRE.filter((tipo) => crudos.includes(tipo));
+        // Keep only what the app knows how to render, in canonical order, so two
+        // banks accepting the same types never look different.
+        const tipos = TIPOS_SANGRE.filter((tipo) => crudos.includes(tipo));
 
-      return {
-        id: doc.id,
-        nombre: (doc.data.nombre as string | undefined) ?? "",
-        direccion: (doc.data.direccion as string | null | undefined) ?? null,
-        localidad: (doc.data.localidad as string | null | undefined) ?? null,
-        horarioOficial: (doc.data.horarioOficial as string | null | undefined) ?? null,
-        linkMaps: (doc.data.linkMaps as string | null | undefined) ?? null,
-        tiposQueRecibe: tipos as TipoSangre[],
-        resumenTipos: (doc.data.resumenTipos as string | null | undefined) ?? null,
-        // `actualizadoEn` stays in Firestore and stays out of here: it records
-        // when our sync ran, not when anyone confirmed anything. It is worth
-        // having to debug a sync; it is not worth showing to a donor.
-        recibiendoHoy: doc.data.recibiendoHoy !== false,
-      };
-    })
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+        return {
+          id: doc.id,
+          nombre: (doc.data.nombre as string | undefined) ?? "",
+          direccion: (doc.data.direccion as string | null | undefined) ?? null,
+          localidad: (doc.data.localidad as string | null | undefined) ?? null,
+          horarioOficial: (doc.data.horarioOficial as string | null | undefined) ?? null,
+          linkMaps: (doc.data.linkMaps as string | null | undefined) ?? null,
+          tiposQueRecibe: tipos as TipoSangre[],
+          resumenTipos: (doc.data.resumenTipos as string | null | undefined) ?? null,
+          // `actualizadoEn` stays in Firestore and stays out of here: it records
+          // when our sync ran, not when anyone confirmed anything. It is worth
+          // having to debug a sync; it is not worth showing to a donor.
+          recibiendoHoy: doc.data.recibiendoHoy !== false,
+        };
+      })
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+  );
 }
 
 /**

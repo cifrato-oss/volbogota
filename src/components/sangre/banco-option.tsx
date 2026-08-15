@@ -153,11 +153,15 @@ function EstadoBanco({
     // Open, but nobody filled the types cell. A hollow dot rather than another
     // colour: it had the same grey as a closed point, and the two say opposite
     // things — this one is "go, they will probably take you".
+    //
+    // The wording says what to do, not what the spreadsheet is missing. "No
+    // especificó tipos" described a blank cell, which is our problem; the donor
+    // only needs to know they can go and should check first.
     if (banco.tiposQueRecibe.length === 0) {
       return {
         punto: "border-foreground/50 border-2 bg-transparent",
         color: "text-foreground/80",
-        texto: "Recibiendo · no especificó tipos",
+        texto: "Recibiendo · confirma tu tipo antes de ir",
       };
     }
     if (recibeElTuyo) {

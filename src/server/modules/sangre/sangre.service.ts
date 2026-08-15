@@ -1,3 +1,4 @@
+import { mostrarDatosDePrueba } from "@/lib/flags";
 import { siNoDesdeSheet } from "@/server/modules/sheets/sheets.mapper";
 import type { SincronizarBancosSangreInput } from "@/server/modules/sheets/sheets.schema";
 
@@ -46,7 +47,18 @@ export async function sincronizarBancosDesdeSheet(input: SincronizarBancosSangre
   return { bancos: bancos.length, desactivados };
 }
 
-/** Every active blood bank, for the public listing. */
+/**
+ * Every active blood bank, for the public listing.
+ *
+ * Seeded banks are dropped here as well as in the realtime hook, and both are
+ * needed: this route is what paints the page before `onSnapshot` connects, so
+ * filtering in only one of them would flash sixteen invented points and then
+ * quietly replace them with three.
+ */
 export async function listarBancos(): Promise<BancoSangre[]> {
-  return findBancos(true);
+  const bancos = await findBancos(true);
+
+  if (mostrarDatosDePrueba) return bancos;
+
+  return bancos.filter((banco) => banco.esMock !== true);
 }

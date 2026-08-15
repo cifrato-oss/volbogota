@@ -58,8 +58,11 @@ export async function desactivarBancosAusentes(idsPresentes: string[]): Promise<
   const snapshot = await db.collection(COLLECTIONS.bancosSangre).get();
   const presentes = new Set(idsPresentes);
 
+  // Seeded banks are never in the sheet, so without this exemption the first
+  // sync after a seed would deactivate all of them — and whoever was building
+  // against that data would watch it vanish for no visible reason.
   const ausentes = snapshot.docs.filter(
-    (doc) => !presentes.has(doc.id) && doc.data().activo !== false,
+    (doc) => !presentes.has(doc.id) && doc.data().activo !== false && doc.data().esMock !== true,
   );
 
   if (ausentes.length === 0) return 0;

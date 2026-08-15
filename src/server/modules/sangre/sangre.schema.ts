@@ -124,6 +124,15 @@ export const bancoSangreSchema = z.object({
   activo: z.boolean(),
   /** ISO instant of the last time the sheet confirmed this bank's list. */
   actualizadoEn: z.string().nullable(),
+  /**
+   * Written only by `pnpm run seed:sangre`, never by the sheet.
+   *
+   * It has to be declared here or it does not exist downstream at all: reads go
+   * through this schema and Zod drops what it does not know, so a filter on an
+   * undeclared field silently matches nothing — which is exactly how sixteen
+   * invented banks passed a check that was supposed to stop them.
+   */
+  esMock: z.boolean().optional(),
 });
 
 export type BancoSangre = z.infer<typeof bancoSangreSchema>;
