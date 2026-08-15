@@ -30,7 +30,8 @@ export function BancoOption({
     <>
       <div
         className={cn(
-          "border-border bg-muted/40 group-hover:bg-muted/70 flex items-center justify-between gap-3 border-b px-4 py-3 transition-colors",
+          "border-border bg-muted/40 flex items-center justify-between gap-3 border-b px-4 py-3 transition-colors",
+          estado.hover,
         )}
       >
         {/* Left-aligned, unlike the centre card it borrows from: centring reads
@@ -140,6 +141,8 @@ type EstadoBanco = {
   badge: string;
   /** Top border, the way `JORNADA_STYLE` marks a shift card. */
   topBorder: string;
+  /** Hover wash for the name band — lighter, never darker. */
+  hover: string;
 };
 
 export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo): EstadoBanco {
@@ -149,6 +152,7 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
       texto: "Hoy no está recibiendo",
       badge: "bg-muted text-muted-foreground",
       topBorder: "border-t-muted-foreground/30",
+      hover: "group-hover:bg-muted/20",
     };
   }
 
@@ -156,6 +160,10 @@ export function estadoDeBanco(banco: BancoSangreVista, seleccion: SeleccionTipo)
     emoji: "🟢",
     badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
     topBorder: "border-t-emerald-500",
+    // Hover lightens into the state's own colour. The band used to go from
+    // `bg-muted/40` to `bg-muted/70` — darker grey, which reads as the card
+    // dimming under the cursor instead of responding to it.
+    hover: "group-hover:bg-emerald-50/70 dark:group-hover:bg-emerald-950/25",
   };
 
   if (seleccion && banco.tiposQueRecibe.includes(seleccion)) {
