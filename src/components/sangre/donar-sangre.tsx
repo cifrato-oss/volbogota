@@ -1,0 +1,314 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+
+import { BackButton } from "@/components/shared/back-button";
+import { ErrorState } from "@/components/shared/error-state";
+import { BancoOption } from "@/components/sangre/banco-option";
+import { BancosMapa } from "@/components/sangre/bancos-mapa";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import useBancosSangreRealtime from "@/queries/sangre/useBancosSangreRealtime";
+import {
+  filtrarPorLocalidad,
+  filtrarPorTipo,
+  localidadesDe,
+  TIPOS_SANGRE,
+  type BancoSangreVista,
+  type SeleccionTipo,
+} from "@/types/sangre";
+
+/**
+ * The blood donation flow.
+ *
+ * The whole screen exists because a bank does not take every type every day, and
+ * a donor has no way to know which before travelling across the city. So each
+ * card answers two things the sheet actually asserts — is this point drawing
+ * blood today, and which types — and nothing it does not.
+ *
+ * The donor's blood type never leaves this component. It is React state, not a
+ * URL parameter and not `localStorage`, and the filter runs here against the
+ * full list. A blood type is sensitive health data under Ley 1581, and this is
+ * the protection itself rather than a notice about it — the screen used to carry
+ * a line saying so, which was removed on the grounds that a disclosure about not
+ * collecting something is noise when nothing is collected. The behaviour it
+ * described has to stay true regardless, so: no query parameter, no storage, no
+ * request.
+ */
+export function DonarSangre() {
+  const { data, isPending, isError } = useBancosSangreRealtime();
+  const [seleccion, setSeleccion] = useState<SeleccionTipo>(null);
+  const [eligio, setEligio] = useState(false);
+  const [localidad, setLocalidad] = useState<string | null>(null);
+
+  const bancos = data ?? [];
+  const recibiendoHoy = bancos.filter((banco) => banco.recibiendoHoy).length;
+
+  // Type first, then locality. The order is what makes the locality chips
+  // useful: built from the type-filtered list, they answer "where can I give
+  // O−" rather than offering places that lead to an empty list.
+  const porTipo = filtrarPorTipo(bancos, seleccion);
+  const localidades = localidadesDe(porTipo);
+  const enLocalidad = filtrarPorLocalidad(porTipo, localidad);
+
+  // Ordered by how sure the donor can be about the trip: the point that named
+  // their type, then points that named any types at all, then the one that is
+  // open but listed none, then the closed ones. A point that never said what it
+  // takes used to rank above one that did — the least certain option sitting
+  // where the most certain belongs. Alphabetical inside each group, so the list
+  // does not reshuffle on every snapshot.
+  const visibles = [...enLocalidad].sort((a, b) => {
+    const rango = (banco: BancoSangreVista) => {
+      if (!banco.recibiendoHoy) return 3;
+      if (seleccion && banco.tiposQueRecibe.includes(seleccion)) return 0;
+      if (banco.tiposQueRecibe.length > 0) return 1;
+      return 2;
+    };
+    return rango(a) - rango(b) || a.nombre.localeCompare(b.nombre, "es");
+  });
+
+  return (
+    <div className="space-y-6">
+      <BackButton href="/">Volver al inicio</BackButton>
+
+      {/*
+        Two colours carry meaning on this screen and no more: rose marks the
+        donor's own choice of type, green marks a point that is receiving. Amber
+        and a second red went in and came back out — on a point that is drawing
+        blood, a warning colour says the opposite of what the sheet does.
+      */}
+      <header className="space-y-1.5 border-l-2 border-rose-500 pl-4">
+        <h1 className="font-heading text-2xl font-bold tracking-tight">Quiero donar sangre</h1>
+        <p className="text-muted-foreground text-sm text-pretty">
+          Cada punto recibe tipos distintos según el día. Mira en un minuto si pueden recibir el
+          tuyo.
+        </p>
+        {!isPending && !isError && bancos.length > 0 ? (
+          <p className="text-muted-foreground flex items-center gap-1.5 pt-0.5 text-xs">
+            <span className="relative flex size-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+            </span>
+            <span>
+              <span className="font-semibold text-emerald-600 tabular-nums dark:text-emerald-400">
+                {recibiendoHoy}
+              </span>{" "}
+              de <span className="tabular-nums">{bancos.length}</span> puntos están recibiendo ahora
+            </span>
+          </p>
+        ) : null}
+      </header>
+
+      {/*
+        The warmth lives in the buttons and nowhere else on this panel: this is
+        the one block a donor touches, and eight grey buttons for eight blood
+        types was the palette working against the subject.
+      */}
+      <section className="bg-card space-y-4 rounded-2xl border p-5">
+        <div className="space-y-1">
+          <h2 className="font-heading text-lg font-semibold">¿Sabes tu tipo de sangre?</h2>
+          <p className="text-muted-foreground text-sm text-pretty">
+            Si no lo sabes, igual puedes donar: te lo dicen ahí.
+          </p>
+        </div>
+
+        {/* Four across even on the narrowest phone: the labels are two
+            characters, and two columns turned this into four rows of scroll
+            before the donor reached a single point. */}
+        <div className="grid grid-cols-4 gap-2">
+          {TIPOS_SANGRE.map((tipo) => {
+            const activo = eligio && seleccion === tipo;
+            return (
+              <button
+                key={tipo}
+                type="button"
+                aria-pressed={activo}
+                onClick={() => {
+                  // Volver a tocar el tipo activo lo suelta. Es el único camino
+                  // de vuelta a la lista completa, y un botón que se ve
+                  // presionado promete justamente eso.
+                  const yaEstaba = eligio && seleccion === tipo;
+                  setSeleccion(yaEstaba ? null : tipo);
+                  setEligio(!yaEstaba);
+                }}
+                className={cn(
+                  "rounded-xl border px-2 py-3 text-base font-semibold tabular-nums transition-all",
+                  "focus-visible:ring-2 focus-visible:ring-rose-500/40 focus-visible:outline-none",
+                  // Chosen reads by weight and by a ring, not by a slab of
+                  // colour: the picker is eight buttons wide, and a solid fill
+                  // on one of them shouted louder than anything else on the
+                  // screen — including the points it was supposed to be
+                  // filtering.
+                  activo
+                    ? "border-rose-400 bg-rose-100/80 text-rose-800 ring-2 ring-rose-400/40 dark:border-rose-700 dark:bg-rose-950/50 dark:text-rose-100 dark:ring-rose-700/40"
+                    : "border-rose-200/70 bg-rose-50/40 text-rose-900/80 hover:border-rose-300 hover:bg-rose-100/60 dark:border-rose-900/50 dark:bg-rose-950/15 dark:text-rose-200/80 dark:hover:bg-rose-950/35",
+                )}
+              >
+                {tipo.replace("-", "−")}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          type="button"
+          aria-pressed={eligio && seleccion === null}
+          onClick={() => {
+            // Unpresses like the type buttons do. Both land on the same list, so
+            // the difference is only that the control stops looking chosen —
+            // which is the whole reason it looked wrong.
+            setSeleccion(null);
+            setEligio(!(eligio && seleccion === null));
+          }}
+          className={cn(
+            "w-full rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors",
+            "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+            eligio && seleccion === null
+              ? "border-foreground/40 bg-muted"
+              : "hover:border-foreground/30 hover:bg-muted/50",
+          )}
+        >
+          No lo sé
+        </button>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-heading flex items-center gap-2 text-lg font-semibold">
+            {eligio && seleccion ? (
+              <>
+                <span>Puntos para</span>
+                {/* The chosen type follows the donor down the page, so the list
+                    never stops saying which question it is answering. */}
+                <span className="rounded-md border border-rose-300 bg-rose-100/80 px-2 py-0.5 text-base text-rose-800 tabular-nums dark:border-rose-800 dark:bg-rose-950/50 dark:text-rose-100">
+                  {seleccion.replace("-", "−")}
+                </span>
+              </>
+            ) : (
+              "Puntos de donación"
+            )}
+          </h2>
+          {!isPending && !isError ? (
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {visibles.length} de {bancos.length}
+            </span>
+          ) : null}
+        </div>
+
+        {/*
+          Localities, not an address box. Nobody types "Cra. 32 #18-81" — they
+          think in Chapinero and Suba, the sheet already carries that column, and
+          a text field over formatted addresses returns nothing far too often for
+          a filter that has to feel reliable.
+
+          Chips rather than a dropdown so the options are visible: this is also
+          the fastest way to learn there is a point in your own locality.
+        */}
+        {!isPending && !isError && localidades.length > 1 ? (
+          <div className="flex flex-wrap gap-1.5">
+            <ChipLocalidad activa={localidad === null} onClick={() => setLocalidad(null)}>
+              Todas
+            </ChipLocalidad>
+            {localidades.map(({ nombre, cuantos }) => (
+              <ChipLocalidad
+                key={nombre}
+                activa={localidad === nombre}
+                onClick={() => setLocalidad(localidad === nombre ? null : nombre)}
+              >
+                {nombre}
+                <span className="ml-1 tabular-nums opacity-60">{cuantos}</span>
+              </ChipLocalidad>
+            ))}
+          </div>
+        ) : null}
+
+        {isError ? (
+          <ErrorState message="No pudimos cargar los puntos de donación." />
+        ) : isPending ? (
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => (
+              <Skeleton key={i} className="h-[124px] rounded-xl" />
+            ))}
+          </div>
+        ) : visibles.length === 0 ? (
+          <p className="text-muted-foreground bg-muted/40 rounded-2xl border p-5 text-sm text-pretty">
+            Ningún punto está recibiendo tu tipo hoy. Eso no significa que no puedan recibirte:
+            llama al punto antes de desplazarte.
+          </p>
+        ) : (
+          <>
+            <BancosMapa
+              bancos={visibles}
+              coincideCon={(banco) =>
+                Boolean(
+                  eligio &&
+                  seleccion &&
+                  banco.recibiendoHoy &&
+                  banco.tiposQueRecibe.includes(seleccion),
+                )
+              }
+            />
+            {/*
+              No inner scroll: every point lays out down the page, the way the
+              centre picker does. A capped container meant two scrollbars for one
+              screen, and it clipped the last card mid-height — a hard edge that
+              reads as a rendering bug rather than as a boundary. The locality
+              tabs are what keep the list short enough that a donor is not
+              scrolling past points they already ruled out.
+            */}
+            {/*
+              One column, unlike the centre picker this borrows its card from.
+              That screen is a gallery — six known places, pick one. This is a
+              filtered result, read by running an eye down the state column
+              asking "does this one take me", and a second column turns that
+              straight line into a zigzag.
+            */}
+            <ul className="space-y-3">
+              {visibles.map((banco) => (
+                <li key={banco.id}>
+                  <BancoOption banco={banco} seleccion={eligio ? seleccion : null} />
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/**
+ * A locality chip.
+ *
+ * Back from tabs, which read as a second navigation bar sitting under the real
+ * one — nine of them wrapping over three rows looked like a menu, not a filter.
+ *
+ * Neutral on purpose: the green belongs to whether a point is receiving, and
+ * giving geography a colour would put two unrelated things in the same voice.
+ */
+function ChipLocalidad({
+  activa,
+  onClick,
+  children,
+}: {
+  activa: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={activa}
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+        "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+        activa
+          ? "border-foreground bg-foreground text-background"
+          : "hover:border-foreground/30 hover:bg-muted/60",
+      )}
+    >
+      {children}
+    </button>
+  );
+}

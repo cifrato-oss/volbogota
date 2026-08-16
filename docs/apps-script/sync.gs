@@ -22,7 +22,11 @@
  * sincronizando?» dice cuáles están activas.
  *
  * Y en Activadores (el reloj de la izquierda) → Añadir activador:
- *   función  alEditar · desde hoja de cálculo · Al editar
+ *   función  alEditar   · desde hoja de cálculo · Al editar
+ *   función  alCambiar  · desde hoja de cálculo · Al cambiar
+ *
+ * El segundo existe porque el primero no ve las filas borradas: `alEditar` solo
+ * responde a cambios de contenido, y borrar una fila es un cambio de estructura.
  *
  * Tiene que ser un activador INSTALABLE, no la función simple `onEdit`: los
  * activadores simples no pueden hacer peticiones de red, así que un `onEdit`
@@ -60,6 +64,17 @@ var HOJA_CENTROS = "Centros";
 var HOJA_RESERVAS = "Reservas";
 var HOJA_TURNOS = "Turnos";
 var HOJA_DONACIONES = "Donaciones";
+/**
+ * La pestaña de bancos, por sus dos nombres.
+ *
+ * Se llama «Bancos de Sangre» en plural, pero su primera columna es «Banco de
+ * Sangre» en singular, y confundirlas cuesta caro: con el nombre equivocado
+ * `alEditar` no reconoce la hoja y el menú lanza «no encontré la hoja», sin que
+ * nada más se rompa — el módulo simplemente no sincroniza nunca.
+ *
+ * Aceptar los dos evita que un renombre en cualquier dirección lo apague.
+ */
+var HOJAS_SANGRE = ["Bancos de Sangre", "Banco de Sangre"];
 
 /**
  * Columnas de `Centros` que, al editarse, sincronizan solas.
@@ -96,6 +111,15 @@ var COLUMNAS_QUE_SINCRONIZAN = [
 var COLUMNAS_QUE_SINCRONIZAN_TURNOS = ["Cupos totales", "Horario", "Jornada"];
 
 /**
+ * Columnas de `Banco de Sangre` que, al editarse, sincronizan solas.
+ *
+ * Solo las que cambian lo que un donante decide: si el banco está recibiendo y
+ * qué tipos. Corregir una dirección o un horario no reenvía nada — para eso está
+ * el menú, igual que en `Centros`.
+ */
+var COLUMNAS_QUE_SINCRONIZAN_SANGRE = ["Recibiendo hoy", "Tipo de Sangre", "Activo"];
+
+/**
  * Columnas de `Reservas` que, al editarse, sincronizan solas.
  *
  * Son las dos que un coordinador cambia en la puerta. El resto de la fila la
@@ -106,6 +130,7 @@ var COLUMNAS_QUE_SINCRONIZAN_RESERVAS = ["Asistencia", "Estado"];
 /** Encabezados que identifican cada hoja. */
 var OBLIGATORIAS_CENTROS = ["Dirección", "Cupos AM"];
 var OBLIGATORIAS_TURNOS = ["Fecha", "Cupos totales"];
+var OBLIGATORIAS_SANGRE = ["Banco de Sangre", "Tipo de Sangre"];
 
 /**
  * Único disparador automático: editar una columna que cambia lo que se ofrece.
@@ -128,9 +153,55 @@ function alEditar(e) {
     alEditarHoja(e, hoja, OBLIGATORIAS_TURNOS, COLUMNAS_QUE_SINCRONIZAN_TURNOS, sincronizarTurnos);
   } else if (nombre === HOJA_DONACIONES) {
     alEditarDonaciones(e, hoja);
+  } else if (esHojaDeSangre(nombre)) {
+    alEditarHoja(
+      e,
+      hoja,
+      OBLIGATORIAS_SANGRE,
+      COLUMNAS_QUE_SINCRONIZAN_SANGRE,
+      sincronizarBancosSangre,
+    );
   } else if (nombre === HOJA_RESERVAS) {
     alEditarReservas(e, hoja);
   }
+}
+
+/**
+ * Segundo activador, para lo que `alEditar` no puede ver.
+ *
+ * `alEditar` responde a cambios de CONTENIDO de celdas. Borrar una fila es un
+ * cambio de ESTRUCTURA, y Apps Script lo manda a `onChange` — otro activador,
+ * con su propio evento. Sin esto, borrar un banco de la hoja lo dejaba vivo en
+ * la web hasta que alguien se acordara del menú.
+ *
+ * Limpiar las celdas en vez de borrar la fila tampoco servía, y por otra razón:
+ * `alEditarHoja` exige que la fila todavía tenga nombre para disparar, así que
+ * borrar el nombre apagaba el único disparador que quedaba.
+ *
+ * Solo `REMOVE_ROW`. Insertar una fila vacía no cambia nada — cuando la llenen,
+ * `alEditar` se encarga.
+ *
+ * Y solo la hoja de bancos, a propósito: `Centros` y `Turnos` tienen el mismo
+ * hueco y el mismo arreglo, pero ampliarlo acá metería en este PR el
+ * comportamiento de dos módulos que no le corresponden.
+ *
+ * Hay que crear el activador a mano, una vez:
+ *   Activadores → Añadir activador → función `alCambiar` · Al cambiar
+ */
+function alCambiar(e) {
+  if (!e || e.changeType !== "REMOVE_ROW") return;
+
+  // El evento de `onChange` no dice en qué hoja pasó; la activa es la que se
+  // estaba editando.
+  var libroActual = e.source || SpreadsheetApp.getActiveSpreadsheet();
+  if (!libroActual) return;
+
+  var hoja = libroActual.getActiveSheet();
+  if (!hoja || !esHojaDeSangre(hoja.getName())) return;
+
+  // La hoja entera, como siempre: el backend desactiva los que ya no aparecen,
+  // y eso es justo lo que hace falta cuando lo que pasó fue una baja.
+  sincronizarBancosSangre();
 }
 
 function alEditarHoja(e, hoja, obligatorias, columnasQueSincronizan, sincronizar) {
@@ -142,7 +213,8 @@ function alEditarHoja(e, hoja, obligatorias, columnasQueSincronizan, sincronizar
 
   if (!tocaAlgunaColumna(mapa, columnasQueSincronizan, primera, ultima)) return;
 
-  var colNombre = mapa.columna("Punto de acopio") || mapa.columna("Centro");
+  var colNombre =
+    mapa.columna("Punto de acopio") || mapa.columna("Centro") || mapa.columna("Banco de Sangre");
   if (!colNombre) return;
 
   var desde = e.range.getRow();
@@ -174,6 +246,7 @@ function onOpen() {
     .addItem("Sincronizar centros", "sincronizarCentros")
     .addItem("Sincronizar turnos", "sincronizarTurnos")
     .addItem("Sincronizar donaciones", "sincronizarDonaciones")
+    .addItem("Sincronizar bancos de sangre", "sincronizarBancosSangre")
     .addItem("Sincronizar todas las reservas", "sincronizarTodasLasReservas")
     .addSeparator()
     .addItem("¿A dónde estoy sincronizando?", "dondeEstoySincronizando")
@@ -412,6 +485,73 @@ function sincronizarDonaciones() {
   if (filas.length === 0) return;
 
   llamar("/api/hooks/sheets/donaciones", { filas: filas });
+}
+
+// --- Banco de sangre ------------------------------------------------------
+
+/**
+ * Manda la hoja `Banco de Sangre` completa.
+ *
+ * Como en las demás, va todo y no solo la fila editada: el backend desactiva los
+ * bancos que ya no aparecen, así que un envío parcial dejaría fuera de servicio
+ * a los que no viajaron.
+ *
+ * Cada envío refresca `actualizadoEn` en el backend, y eso no es un detalle: el
+ * front deriva de ahí el «sin reporte hoy». Un coordinador que abre la hoja y
+ * confirma la lista sin cambiar una celda igual necesita que el envío ocurra —
+ * el valor no cambió, pero el hecho de que alguien lo mirara sí, y eso es lo que
+ * se le está diciendo al donante.
+ */
+function esHojaDeSangre(nombre) {
+  for (var i = 0; i < HOJAS_SANGRE.length; i++) {
+    if (normalizar(nombre) === normalizar(HOJAS_SANGRE[i])) return true;
+  }
+
+  return false;
+}
+
+/** La pestaña de bancos, con cualquiera de sus dos nombres. */
+function hojaDeSangre() {
+  var libroActual = libro();
+
+  for (var i = 0; i < HOJAS_SANGRE.length; i++) {
+    var hoja = libroActual.getSheetByName(HOJAS_SANGRE[i]);
+    if (hoja) return hoja;
+  }
+
+  throw new Error("No encontré la hoja de bancos ('" + HOJAS_SANGRE.join("' ni '") + "').");
+}
+
+function sincronizarBancosSangre() {
+  var hoja = hojaDeSangre();
+  var mapa = mapearEncabezados(hoja, OBLIGATORIAS_SANGRE);
+  var colNombre = mapa.columna("Banco de Sangre");
+  var tabla = leerTabla(hoja, mapa);
+  var filas = [];
+
+  for (var i = 0; i < tabla.length; i++) {
+    var nombre = tabla[i].texto(colNombre);
+    if (!nombre) continue;
+
+    filas.push({
+      bancoDeSangre: nombre,
+      direccion: tabla[i].texto(mapa.columna("Dirección")),
+      localidad: tabla[i].texto(mapa.columna("Localidad")),
+      // La columna se llamó "del punto" antes de llamarse "del banco"; aceptar
+      // las dos evita que un renombre vacíe el horario sin que nadie se entere.
+      horarioOficial:
+        tabla[i].texto(mapa.columna("Horario oficial del banco")) ||
+        tabla[i].texto(mapa.columna("Horario oficial del punto")),
+      tipoDeSangre: tabla[i].texto(mapa.columna("Tipo de Sangre")),
+      linkMaps: tabla[i].texto(mapa.columna("Link Google Maps")),
+      recibiendoHoy: tabla[i].texto(mapa.columna("Recibiendo hoy")),
+      activo: tabla[i].texto(mapa.columna("Activo")),
+    });
+  }
+
+  if (filas.length === 0) return;
+
+  llamar("/api/hooks/sheets/sangre", { filas: filas });
 }
 
 // --- Reservas -------------------------------------------------------------

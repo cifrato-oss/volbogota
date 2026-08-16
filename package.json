@@ -24,6 +24,7 @@
     "limpiar:noche": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/limpiar-turnos-noche.ts",
     "firebase:rules": "firebase deploy --only firestore:rules,firestore:indexes",
     "limpiar:cupos": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/limpiar-cupos-jornada.ts",
+    "seed:sangre": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/seed-bancos-sangre.ts",
     "admin:crear-usuario": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/crear-usuario.ts",
     "admin:hash": "tsx --env-file-if-exists=.env --env-file-if-exists=.env.local scripts/hash-password.ts",
     "check:admin": "node scripts/check-admin.mjs"

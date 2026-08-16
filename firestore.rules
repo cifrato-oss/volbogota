@@ -38,6 +38,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Bancos de sangre: el navegador se suscribe con onSnapshot para que un
+    // cambio en la hoja se vea al instante. Lo que se lee acá es dónde queda un
+    // banco y qué recibe hoy — información pública por definición.
+    //
+    // El tipo de sangre del donante NO viaja: el filtro corre en el navegador
+    // contra esta lista. Es dato sensible de salud y no tiene por qué salir del
+    // dispositivo, ni siquiera como parámetro de una consulta.
+    match /bancosSangre/{bancoId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Datos personales: nunca desde el cliente.
     match /reservas/{reservaId} {
       allow read, write: if false;

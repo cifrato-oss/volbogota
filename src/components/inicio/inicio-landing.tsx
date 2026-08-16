@@ -12,20 +12,34 @@ type Opcion = {
   accent: string;
 };
 
+/**
+ * Each card lifts into a light wash of its own colour on hover.
+ *
+ * It used to only lighten the border, so the one thing that visibly changed was
+ * a grey shadow — the card went duller under the cursor rather than livelier.
+ * Tinting with the accent keeps hover feeling like the card answering.
+ */
 const OPCIONES: Opcion[] = [
   {
     href: "/donar",
     emoji: "📦",
     titulo: "Quiero donar",
     cta: "Ver centros y necesidades",
-    accent: "border-t-sky-400 hover:border-sky-300",
+    accent: "border-t-sky-400 hover:border-sky-300 hover:bg-sky-50/70 dark:hover:bg-sky-950/25",
   },
   {
     href: "/voluntarios",
     emoji: "🤝",
     titulo: "Quiero ser voluntario",
     cta: "Elegir centro y jornada",
-    accent: "border-t-primary hover:border-primary/40",
+    accent: "border-t-primary hover:border-primary/40 hover:bg-primary/5",
+  },
+  {
+    href: "/sangre",
+    emoji: "🩸",
+    titulo: "Quiero donar sangre",
+    cta: "Ver qué tipos reciben hoy",
+    accent: "border-t-rose-500 hover:border-rose-400 hover:bg-rose-50/70 dark:hover:bg-rose-950/25",
   },
 ];
 
@@ -40,7 +54,7 @@ export function InicioLanding() {
         <p className="text-muted-foreground text-lg text-pretty">{siteConfig.description}</p>
       </header>
 
-      <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+      <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {OPCIONES.map((opcion) => (
           <Link
             key={opcion.href}
@@ -67,7 +81,8 @@ export function InicioLanding() {
 
       <p className="text-muted-foreground mx-auto max-w-xl text-center text-xs text-pretty">
         ¿No sabes por dónde empezar? Si tienes cosas para entregar, elige “Quiero donar”. Si quieres
-        ayudar en persona en un centro, elige “Quiero ser voluntario”.
+        ayudar en persona en un centro, elige “Quiero ser voluntario”. Para donar sangre, cada punto
+        recibe tipos distintos según el día.
       </p>
     </div>
   );

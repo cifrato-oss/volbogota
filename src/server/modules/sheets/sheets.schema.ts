@@ -196,3 +196,30 @@ export type ResultadoFila = {
   /** True when this row created a reservation rather than updating one. */
   creada: boolean;
 };
+
+/**
+ * A row of the `Banco de Sangre` sheet.
+ *
+ * Everything arrives as text because that is what a spreadsheet cell is; the
+ * mapper is what turns "A+, O+" into a list and "Sí" into a boolean. The types
+ * column is optional and an empty one is not an error: a bank that reported
+ * today and is taking nothing is a real state, and the one worth showing
+ * accurately.
+ */
+export const filaBancoSangreSchema = z.object({
+  bancoDeSangre: z.string().trim().min(1, "El nombre del banco es obligatorio."),
+  direccion: textoOpcional,
+  localidad: textoOpcional,
+  horarioOficial: textoOpcional,
+  tipoDeSangre: textoOpcional,
+  linkMaps: textoOpcional,
+  /** `Sí`/`No` de la columna "Recibiendo hoy", con validación de datos en la hoja. */
+  recibiendoHoy: textoOpcional,
+  activo: textoOpcional,
+});
+export type FilaBancoSangre = z.infer<typeof filaBancoSangreSchema>;
+
+export const sincronizarBancosSangreSchema = z.object({
+  filas: z.array(filaBancoSangreSchema).min(1, "No llegó ninguna fila."),
+});
+export type SincronizarBancosSangreInput = z.infer<typeof sincronizarBancosSangreSchema>;
